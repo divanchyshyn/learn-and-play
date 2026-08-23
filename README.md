@@ -1,11 +1,29 @@
-# learn-and-play
-Lese-, telle- og matteøving gjennom lek.
+# Learn and play
 
-## Ordpatrulje
+A collection of small reading, counting, and maths games for children.
 
-Et enkelt nettspill for å øve på norske Bokmål-ord i en slanger-og-stiger-variant.
+## Games
 
-- Åpne `index.html` direkte i nettleseren, eller publiser repoet med GitHub Pages.
-- Velg 1 eller 2 spillere.
-- Trykk `Nytt spill` for ny tilfeldig ordliste, nye stiger og nye slanger.
-- Når en spiller lander på et ord, leses ordet høyt før en voksen trykker `Riktig`.
+- [Snakes and ladders](./games/slangen-en-ladders/) - practise Norwegian words while playing snakes and ladders.
+
+## Local development
+
+```sh
+npm install
+npm run dev
+```
+
+Open the home page at the address displayed by Vite. Each game has its own HTML entry point and folder under `games/`, so a new game can be added as `games/a-new-game/index.html` and `src/games/a-new-game/`.
+
+## GitHub Pages
+
+```sh
+npm run build
+```
+
+Publish the contents of `dist/`. This creates these static pages:
+
+- `/` - game library
+- `/games/slangen-en-ladders/` - Snakes and ladders
+
+The workflow in `.github/workflows/deploy-pages.yml` builds and publishes the site automatically when you push to `main`. Select **GitHub Actions** as the Pages source in the repository's Settings > Pages once.
