@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 const BOARD_SIZE = 8;
 const FINAL_CELL = BOARD_SIZE ** 2;
-const WORDS = ['sol', 'måne', 'hus', 'bil', 'båt', 'tog', 'vei', 'bro', 'skog', 'tre', 'blad', 'stein', 'fjell', 'snø', 'regn', 'vind', 'sky', 'elv', 'is', 'ild', 'vann', 'mat', 'brød', 'ost', 'egg', 'melk', 'kake', 'ris', 'fisk', 'eple', 'banan', 'pære', 'hund', 'katt', 'ku', 'gris', 'hest', 'sau', 'mus', 'rev', 'fugl', 'and', 'bjørn', 'løve', 'ball', 'bok', 'penn', 'stol', 'bord', 'dør', 'rom', 'seng', 'pute', 'sko', 'lue', 'vott', 'sekk', 'kart', 'flagg', 'telt', 'lek', 'mål', 'glad', 'fin'];
+const WORDS = ['sol', 'måne', 'hus', 'bil', 'båt', 'tog', 'vei', 'bro', 'skog', 'tre', 'blad', 'dra', 'fjell', 'snø', 'fly', 'vind', 'sky', 'elv', 'is', 'ild', 'vann', 'mat', 'brød', 'ost', 'egg', 'melk', 'kake', 'ris', 'fisk', 'eple', 'banan', 'pære', 'hund', 'katt', 'ku', 'gris', 'hest', 'sau', 'mus', 'rev', 'fugl', 'and', 'bjørn', 'løve', 'ball', 'bok', 'penn', 'stol', 'bord', 'dør', 'rom', 'seng', 'pute', 'sko', 'lue', 'vott', 'sekk', 'kart', 'flagg', 'telt', 'lek', 'mål', 'glad', 'fin'];
 const ROUTES = [
   { type: 'ladder', from: 5, to: 21 },
   { type: 'ladder', from: 12, to: 28 },
