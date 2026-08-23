@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ordpatrulje</title>
+  <style>
+    :root {
+      --field: #d7cf93;
+      --field-dark: #858f55;
+      --olive: #596b38;
+      --olive-deep: #28361f;
+      --ink: #172015;
+      --paper: #fff8dc;
+      --line: rgba(255, 255, 255, 0.72);
+      --danger: #a6493e;
+      --ladder: #2f3a32;
+      --blue: #2d6cdf;
+      --orange: #d7782f;
+      --shadow: 0 18px 40px rgba(14, 24, 12, 0.26);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Trebuchet MS", Verdana, sans-serif;
+      background:
+        linear-gradient(135deg, rgba(40, 54, 31, 0.88), rgba(89, 107, 56, 0.7)),
+        repeating-linear-gradient(45deg, #475832 0 34px, #637348 34px 68px, #343f2a 68px 102px);
+    }
+
+    button,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.52;
+    }
+
+    .app {
+      width: min(1240px, 100%);
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 16px;
+      color: var(--paper);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 4.8rem);
+      line-height: 0.95;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      max-width: 62ch;
+      color: rgba(255, 248, 220, 0.88);
+      font-size: 1rem;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .control,
+    .primary,
+    .secondary {
+      min-height: 44px;
+      border: 2px solid rgba(255, 248, 220, 0.55);
+      border-radius: 8px;
+      color: var(--paper);
+      background: rgba(23, 32, 21, 0.44);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+
+    .control {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      white-space: nowrap;
+    }
+
+    .control select {
+      color: var(--ink);
+      background: var(--paper);
+      border: 0;
+      border-radius: 6px;
+      padding: 6px 8px;
+      min-width: 88px;
+    }
+
+    .primary,
+    .secondary {
+      padding: 8px 14px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .primary {
+      background: #f3c14d;
+      border-color: #ffe58c;
+      color: #263014;
+    }
+
+    .game {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .board-wrap {
+      position: relative;
+      width: min(100%, 860px);
+      aspect-ratio: 1;
+      margin: 0 auto;
+      border: 10px solid #314126;
+      border-radius: 8px;
+      background: var(--field);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .board {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+    }
+
+    .cell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-width: 0;
+      min-height: 0;
+      border-right: 2px solid var(--line);
+      border-bottom: 2px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.05)),
+        var(--tile);
+      overflow: hidden;
+    }
+
+    .cell:nth-child(3n) {
+      --tile: #c8bf78;
+    }
+
+    .cell:nth-child(3n + 1) {
+      --tile: #b3b36d;
+    }
+
+    .cell:nth-child(3n + 2) {
+      --tile: #d4c779;
+    }
+
+    .cell-number {
+      position: absolute;
+      top: 7px;
+      left: 8px;
+      color: rgba(89, 71, 45, 0.55);
+      font-size: clamp(0.62rem, 1.6vw, 0.95rem);
+      font-weight: 800;
+    }
+
+    .cell-word {
+      padding: 18px 6px 8px;
+      max-width: 100%;
+      color: rgba(255, 255, 255, 0.94);
+      text-align: center;
+      font-size: clamp(0.7rem, 2.15vw, 1.26rem);
+      font-weight: 900;
+      text-shadow: 0 2px 2px rgba(25, 30, 17, 0.36);
+      overflow-wrap: anywhere;
+    }
+
+    .cell.start .cell-word,
+    .cell.finish .cell-word {
+      color: #fff5c4;
+      text-transform: uppercase;
+      font-size: clamp(0.82rem, 2.4vw, 1.45rem);
+    }
+
+    .routes {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .tokens {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .token {
+      position: absolute;
+      width: clamp(22px, 4.6vw, 42px);
+      height: clamp(22px, 4.6vw, 42px);
+      display: grid;
+      place-items: center;
+      border: 3px solid #fff9d8;
+      border-radius: 50%;
+      color: white;
+      font-size: clamp(0.72rem, 1.7vw, 1rem);
+      font-weight: 900;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 7px 16px rgba(0, 0, 0, 0.36);
+      transition: left 260ms ease, top 260ms ease;
+    }
+
+    .token.one {
+      background: var(--blue);
+    }
+
+    .token.two {
+      background: var(--orange);
+    }
+
+    .panel {
+      display: grid;
+      gap: 12px;
+      color: var(--paper);
+    }
+
+    .status,
+    .read-box,
+    .players,
+    .orders {
+      border: 2px solid rgba(255, 248, 220, 0.32);
+      border-radius: 8px;
+      background: rgba(23, 32, 21, 0.72);
+      box-shadow: var(--shadow);
+    }
+
+    .status {
+      padding: 18px;
+    }
+
+    .turn-label {
+      margin: 0 0 10px;
+      color: #ffe58c;
+      font-size: 0.86rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .message {
+      min-height: 58px;
+      margin: 0;
+      font-size: 1.18rem;
+      line-height: 1.35;
+      font-weight: 800;
+    }
+
+    .dice-row {
+      display: grid;
+      grid-template-columns: 1fr 76px;
+      gap: 10px;
+      margin-top: 14px;
+      align-items: center;
+    }
+
+    .dice {
+      height: 76px;
+      border-radius: 8px;
+      background: #fff8dc;
+      color: var(--ink);
+      font-size: 2.3rem;
+      font-weight: 900;
+      box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.12);
+    }
+
+    .read-box {
+      padding: 18px;
+      display: none;
+    }
+
+    .read-box.active {
+      display: block;
+    }
+
+    .read-word {
+      margin: 10px 0 14px;
+      padding: 14px 10px;
+      border: 2px dashed rgba(255, 229, 140, 0.75);
+      border-radius: 8px;
+      background: rgba(255, 248, 220, 0.12);
+      color: #fff8dc;
+      text-align: center;
+      font-size: clamp(2rem, 9vw, 3.7rem);
+      line-height: 1;
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+
+    .read-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .players {
+      padding: 12px;
+    }
+
+    .player {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border-radius: 8px;
+      color: rgba(255, 248, 220, 0.78);
+    }
+
+    .player.active {
+      background: rgba(255, 248, 220, 0.12);
+      color: #fff8dc;
+    }
+
+    .badge {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      color: white;
+      font-weight: 900;
+    }
+
+    .badge.one {
+      background: var(--blue);
+    }
+
+    .badge.two {
+      background: var(--orange);
+    }
+
+    .orders {
+      padding: 16px 18px;
+      color: rgba(255, 248, 220, 0.88);
+      line-height: 1.5;
+    }
+
+    .orders h2 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      color: #ffe58c;
+      text-transform: uppercase;
+    }
+
+    .orders p {
+      margin: 0;
+    }
+
+    .winner {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: none;
+      place-items: center;
+      padding: 20px;
+      background: rgba(18, 26, 15, 0.7);
+    }
+
+    .winner.active {
+      display: grid;
+    }
+
+    .winner-content {
+      width: min(520px, 100%);
+      padding: 28px;
+      border: 3px solid #ffe58c;
+      border-radius: 8px;
+      background: #28361f;
+      color: var(--paper);
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .winner-content h2 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 8vw, 3.8rem);
+      letter-spacing: 0;
+    }
+
+    @media (max-width: 980px) {
+      .topbar,
+      .game {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        justify-content: flex-start;
+      }
+
+      .panel {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .status,
+      .read-box {
+        min-height: 100%;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .app {
+        padding: 10px;
+      }
+
+      .board-wrap {
+        border-width: 5px;
+      }
+
+      .panel {
+        grid-template-columns: 1fr;
+      }
+
+      .dice-row {
+        grid-template-columns: 1fr 64px;
+      }
+
+      .dice {
+        height: 64px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1>Ordpatrulje</h1>
+        <p class="subtitle">Les enkle norske ord høyt, rykk fram, klatre opp stiger og pass på slangene.</p>
+      </div>
+      <div class="controls" aria-label="Spillvalg">
+        <label class="control">
+          Spillere
+          <select id="playerCount">
+            <option value="1">1</option>
+            <option value="2">2</option>
+          </select>
+        </label>
+        <button class="secondary" id="newGameBtn" type="button">Nytt spill</button>
+      </div>
+    </header>
+
+    <section class="game" aria-label="Spillbrett">
+      <div class="board-wrap">
+        <svg class="routes" id="routes" viewBox="0 0 800 800" aria-hidden="true"></svg>
+        <div class="board" id="board"></div>
+        <div class="tokens" id="tokens"></div>
+      </div>
+
+      <aside class="panel">
+        <section class="status" aria-live="polite">
+          <p class="turn-label" id="turnLabel">Soldat 1</p>
+          <p class="message" id="message">Kast terningen for å starte oppdraget.</p>
+          <div class="dice-row">
+            <button class="primary" id="rollBtn" type="button">Kast</button>
+            <button class="dice" id="diceBtn" type="button" aria-label="Terning">1</button>
+          </div>
+        </section>
+
+        <section class="read-box" id="readBox" aria-live="polite">
+          <p class="turn-label">Les høyt</p>
+          <div class="read-word" id="readWord">sol</div>
+          <div class="read-actions">
+            <button class="primary" id="correctBtn" type="button">Riktig</button>
+            <button class="secondary" id="tryAgainBtn" type="button">Øv mer</button>
+          </div>
+        </section>
+
+        <section class="players" id="players"></section>
+
+        <section class="orders">
+          <h2>Ordre</h2>
+          <p>Kast terningen. Les ordet høyt når du lander. Trykk Riktig når ordet er lest fint. Førstemann til mål vinner.</p>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <div class="winner" id="winner">
+    <div class="winner-content">
+      <h2 id="winnerTitle">Seier!</h2>
+      <p id="winnerText">Oppdrag fullført.</p>
+      <button class="primary" id="winnerNewGame" type="button">Nytt spill</button>
+    </div>
+  </div>
+
+  <script>
+    const boardEl = document.querySelector("#board");
+    const routesEl = document.querySelector("#routes");
+    const tokensEl = document.querySelector("#tokens");
+    const playersEl = document.querySelector("#players");
+    const playerCountEl = document.querySelector("#playerCount");
+    const rollBtn = document.querySelector("#rollBtn");
+    const diceBtn = document.querySelector("#diceBtn");
+    const newGameBtn = document.querySelector("#newGameBtn");
+    const turnLabel = document.querySelector("#turnLabel");
+    const messageEl = document.querySelector("#message");
+    const readBox = document.querySelector("#readBox");
+    const readWord = document.querySelector("#readWord");
+    const correctBtn = document.querySelector("#correctBtn");
+    const tryAgainBtn = document.querySelector("#tryAgainBtn");
+    const winner = document.querySelector("#winner");
+    const winnerTitle = document.querySelector("#winnerTitle");
+    const winnerText = document.querySelector("#winnerText");
+    const winnerNewGame = document.querySelector("#winnerNewGame");
+
+    const WORDS = [
+      "sol", "måne", "hus", "bil", "båt", "tog", "vei", "bro",
+      "skog", "tre", "blad", "stein", "fjell", "snø", "regn", "vind",
+      "sky", "elv", "is", "ild", "vann", "mat", "brød", "ost",
+      "egg", "melk", "kake", "ris", "fisk", "eple", "banan", "pære",
+      "hund", "katt", "ku", "gris", "hest", "sau", "mus", "rev",
+      "fugl", "and", "bjørn", "løve", "ball", "bok", "penn", "stol",
+      "bord", "dør", "rom", "seng", "pute", "sko", "lue", "vott",
+      "sekk", "kart", "flagg", "leir", "telt", "vakt", "lag", "mål",
+      "marsj", "rolig", "klar", "sterk", "rask", "snill", "glad", "varm",
+      "kald", "stor", "liten", "ny", "fin", "gul", "grønn", "blå",
+      "rød", "svart", "hvit", "gå", "se", "les", "hopp", "løp",
+      "sitt", "stå", "finn", "hør", "tell", "smil", "lek", "vinn"
+    ];
+
+    const state = {
+      words: [],
+      routes: [],
+      players: [],
+      currentPlayer: 0,
+      pending: null,
+      locked: false
+    };
+
+    function shuffle(items) {
+      const copy = [...items];
+      for (let i = copy.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function cellToGridPosition(number) {
+      const index = number - 1;
+      const rowFromBottom = Math.floor(index / 8);
+      const colInRow = index % 8;
+      const col = rowFromBottom % 2 === 0 ? colInRow : 7 - colInRow;
+      return {
+        row: 7 - rowFromBottom,
+        col
+      };
+    }
+
+    function cellCenter(number) {
+      const { row, col } = cellToGridPosition(number);
+      return {
+        x: col * 100 + 50,
+        y: row * 100 + 50
+      };
+    }
+
+    function displayCells() {
+      const fragment = document.createDocumentFragment();
+      for (let row = 0; row < 8; row += 1) {
+        for (let col = 0; col < 8; col += 1) {
+          const rowFromBottom = 7 - row;
+          const number = rowFromBottom % 2 === 0
+            ? rowFromBottom * 8 + col + 1
+            : rowFromBottom * 8 + (8 - col);
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          if (number === 1) cell.classList.add("start");
+          if (number === 64) cell.classList.add("finish");
+          cell.innerHTML = `
+            <span class="cell-number">${number}</span>
+            <span class="cell-word">${number === 1 ? "Start" : number === 64 ? "Mål" : state.words[number] || ""}</span>
+          `;
+          fragment.appendChild(cell);
+        }
+      }
+      boardEl.replaceChildren(fragment);
+    }
+
+    function makeRoutes() {
+      const routes = [];
+      const used = new Set([1, 64]);
+      const ladderStarts = shuffle([...Array(45)].map((_, i) => i + 3));
+      const snakeHeads = shuffle([...Array(46)].map((_, i) => i + 14));
+
+      for (const from of ladderStarts) {
+        if (routes.filter((route) => route.type === "ladder").length === 6) break;
+        const minTo = from + 8;
+        const maxTo = Math.min(63, from + 24);
+        if (minTo > maxTo || used.has(from)) continue;
+        const to = Math.floor(Math.random() * (maxTo - minTo + 1)) + minTo;
+        if (used.has(to)) continue;
+        routes.push({ type: "ladder", from, to });
+        used.add(from);
+        used.add(to);
+      }
+
+      for (const from of snakeHeads) {
+        if (routes.filter((route) => route.type === "snake").length === 6) break;
+        const minTo = Math.max(2, from - 24);
+        const maxTo = from - 8;
+        if (minTo > maxTo || used.has(from)) continue;
+        const to = Math.floor(Math.random() * (maxTo - minTo + 1)) + minTo;
+        if (used.has(to)) continue;
+        routes.push({ type: "snake", from, to });
+        used.add(from);
+        used.add(to);
+      }
+
+      return routes;
+    }
+
+    function drawRoutes() {
+      routesEl.replaceChildren();
+      const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+      defs.innerHTML = `
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#2f3a32"></path>
+        </marker>
+        <marker id="snakeArrow" markerWidth="12" markerHeight="12" refX="6" refY="6" orient="auto">
+          <path d="M0,0 Q8,6 0,12 L12,6 Z" fill="#a6493e"></path>
+        </marker>
+      `;
+      routesEl.appendChild(defs);
+
+      state.routes.forEach((route) => {
+        const start = cellCenter(route.from);
+        const end = cellCenter(route.to);
+        if (route.type === "ladder") {
+          drawLadder(start, end);
+        } else {
+          drawSnake(start, end);
+        }
+      });
+    }
+
+    function drawLadder(start, end) {
+      const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.hypot(dx, dy);
+      const nx = -dy / length * 16;
+      const ny = dx / length * 16;
+      const rails = [
+        [start.x + nx, start.y + ny, end.x + nx, end.y + ny],
+        [start.x - nx, start.y - ny, end.x - nx, end.y - ny]
+      ];
+      rails.forEach(([x1, y1, x2, y2]) => {
+        const rail = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        rail.setAttribute("x1", x1);
+        rail.setAttribute("y1", y1);
+        rail.setAttribute("x2", x2);
+        rail.setAttribute("y2", y2);
+        rail.setAttribute("stroke", "#2f3a32");
+        rail.setAttribute("stroke-width", "10");
+        rail.setAttribute("stroke-linecap", "round");
+        group.appendChild(rail);
+      });
+      for (let step = 0.18; step < 0.86; step += 0.17) {
+        const x = start.x + dx * step;
+        const y = start.y + dy * step;
+        const rung = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        rung.setAttribute("x1", x + nx);
+        rung.setAttribute("y1", y + ny);
+        rung.setAttribute("x2", x - nx);
+        rung.setAttribute("y2", y - ny);
+        rung.setAttribute("stroke", "#1f271e");
+        rung.setAttribute("stroke-width", "8");
+        rung.setAttribute("stroke-linecap", "round");
+        group.appendChild(rung);
+      }
+      routesEl.appendChild(group);
+    }
+
+    function drawSnake(start, end) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const midX = (start.x + end.x) / 2 + (Math.random() > 0.5 ? 42 : -42);
+      const midY = (start.y + end.y) / 2;
+      path.setAttribute("d", `M${start.x},${start.y} Q${midX},${midY} ${end.x},${end.y}`);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "#b85a45");
+      path.setAttribute("stroke-width", "15");
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-dasharray", "3 20");
+      path.setAttribute("marker-end", "url(#snakeArrow)");
+      routesEl.appendChild(path);
+
+      const head = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      head.setAttribute("cx", start.x);
+      head.setAttribute("cy", start.y);
+      head.setAttribute("r", "15");
+      head.setAttribute("fill", "#a6493e");
+      head.setAttribute("stroke", "#fff8dc");
+      head.setAttribute("stroke-width", "4");
+      routesEl.appendChild(head);
+    }
+
+    function makePlayers(count) {
+      const players = [
+        { name: "Soldat 1", position: 1, className: "one" },
+        { name: "Soldat 2", position: 1, className: "two" }
+      ];
+      return players.slice(0, count);
+    }
+
+    function renderTokens() {
+      const fragment = document.createDocumentFragment();
+      state.players.forEach((player, index) => {
+        const center = cellCenter(player.position);
+        const token = document.createElement("div");
+        token.className = `token ${player.className}`;
+        token.textContent = index + 1;
+        token.style.left = `${center.x / 8}%`;
+        token.style.top = `${center.y / 8}%`;
+        if (state.players.length > 1) {
+          token.style.transform = `translate(calc(-50% + ${index === 0 ? -11 : 11}px), -50%)`;
+        }
+        fragment.appendChild(token);
+      });
+      tokensEl.replaceChildren(fragment);
+    }
+
+    function renderPlayers() {
+      const fragment = document.createDocumentFragment();
+      state.players.forEach((player, index) => {
+        const row = document.createElement("div");
+        row.className = `player ${index === state.currentPlayer ? "active" : ""}`;
+        row.innerHTML = `
+          <span class="badge ${player.className}">${index + 1}</span>
+          <strong>${player.name}</strong>
+          <span>Rute ${player.position}</span>
+        `;
+        fragment.appendChild(row);
+      });
+      playersEl.replaceChildren(fragment);
+    }
+
+    function routeAt(position) {
+      return state.routes.find((route) => route.from === position);
+    }
+
+    function setTurnText() {
+      const player = state.players[state.currentPlayer];
+      turnLabel.textContent = player.name;
+    }
+
+    function setLocked(locked) {
+      state.locked = locked;
+      rollBtn.disabled = locked;
+      diceBtn.disabled = locked;
+    }
+
+    function startGame() {
+      const count = Number(playerCountEl.value);
+      const selectedWords = shuffle(WORDS);
+      state.words = Array(65).fill("");
+      for (let cell = 2; cell <= 63; cell += 1) {
+        state.words[cell] = selectedWords[(cell - 2) % selectedWords.length];
+      }
+      state.routes = makeRoutes();
+      state.players = makePlayers(count);
+      state.currentPlayer = 0;
+      state.pending = null;
+      diceBtn.textContent = "1";
+      readBox.classList.remove("active");
+      winner.classList.remove("active");
+      displayCells();
+      drawRoutes();
+      renderTokens();
+      renderPlayers();
+      setTurnText();
+      setLocked(false);
+      messageEl.textContent = "Kast terningen for å starte oppdraget.";
+    }
+
+    function rollDice() {
+      if (state.locked) return;
+      const player = state.players[state.currentPlayer];
+      const roll = Math.floor(Math.random() * 6) + 1;
+      diceBtn.textContent = roll;
+      const next = Math.min(64, player.position + roll);
+      player.position = next;
+      renderTokens();
+      renderPlayers();
+
+      if (next === 64) {
+        finishGame(player);
+        return;
+      }
+
+      state.pending = {
+        playerIndex: state.currentPlayer,
+        position: next,
+        route: routeAt(next)
+      };
+      readWord.textContent = state.words[next];
+      readBox.classList.add("active");
+      setLocked(true);
+      messageEl.textContent = `${player.name} landet på rute ${next}. Les ordet høyt.`;
+    }
+
+    function acceptWord() {
+      if (!state.pending) return;
+      const player = state.players[state.pending.playerIndex];
+      const route = state.pending.route;
+      readBox.classList.remove("active");
+
+      if (route) {
+        player.position = route.to;
+        renderTokens();
+        const action = route.type === "ladder" ? "klatrer opp" : "må ned";
+        messageEl.textContent = `Riktig lest! ${player.name} ${action} til rute ${route.to}.`;
+      } else {
+        messageEl.textContent = `Riktig lest! ${player.name} holder posisjonen.`;
+      }
+
+      if (player.position === 64) {
+        finishGame(player);
+        return;
+      }
+
+      state.pending = null;
+      state.currentPlayer = (state.currentPlayer + 1) % state.players.length;
+      setTurnText();
+      renderPlayers();
+      setLocked(false);
+    }
+
+    function tryAgain() {
+      if (!state.pending) return;
+      const player = state.players[state.pending.playerIndex];
+      messageEl.textContent = `${player.name}, prøv ordet en gang til.`;
+    }
+
+    function finishGame(player) {
+      state.pending = null;
+      readBox.classList.remove("active");
+      setLocked(true);
+      renderPlayers();
+      winnerTitle.textContent = `${player.name} vant!`;
+      winnerText.textContent = "Oppdrag fullført. Bra lesing.";
+      winner.classList.add("active");
+      messageEl.textContent = `${player.name} kom til mål.`;
+    }
+
+    rollBtn.addEventListener("click", rollDice);
+    diceBtn.addEventListener("click", rollDice);
+    correctBtn.addEventListener("click", acceptWord);
+    tryAgainBtn.addEventListener("click", tryAgain);
+    newGameBtn.addEventListener("click", startGame);
+    winnerNewGame.addEventListener("click", startGame);
+    playerCountEl.addEventListener("change", startGame);
+
+    startGame();
+  </script>
+</body>
+</html>
