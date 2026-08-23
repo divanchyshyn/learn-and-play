@@ -14,6 +14,14 @@ const ROUTES = [
   { type: 'snake', from: 61, to: 44 },
 ];
 const playerDefinitions = [{ name: 'Spiller 1', tone: 'one' }, { name: 'Spiller 2', tone: 'two' }];
+const DICE_PIPS = {
+  1: [4],
+  2: [0, 8],
+  3: [0, 4, 8],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+};
 
 function shuffle(items) {
   const copy = [...items];
@@ -99,6 +107,12 @@ function BoardRoutes() {
   </svg>;
 }
 
+function DiceFace({ value }) {
+  return <span className="dice-face" aria-hidden="true">
+    {Array.from({ length: 9 }, (_, index) => <span className={`dice-pip ${DICE_PIPS[value].includes(index) ? 'visible' : ''}`} key={index} />)}
+  </span>;
+}
+
 function newGame() {
   return { words: makeWords(), players: playerDefinitions.map((player) => ({ ...player, position: 1 })), currentPlayer: 0, roll: 1, pending: null, winner: null, message: 'Kast terningen for å starte spillet.' };
 }
@@ -161,7 +175,7 @@ export function SlangenEnLadders() {
         })}</div>
       </div>
       <aside className="game-panel">
-        <section className="status-box" aria-live="polite"><p className="panel-label">{game.winner === null ? currentPlayer.name : 'Spillet er ferdig'}</p><p className="message">{game.message}</p><div className="dice-row"><button className="roll-button" onClick={rollDice} disabled={Boolean(game.pending || game.winner !== null)} type="button">Kast terningen</button><output className="dice" aria-label={`Terningen viser ${game.roll}`}>{game.roll}</output></div></section>
+        <section className="status-box" aria-live="polite"><p className="panel-label">{game.winner === null ? currentPlayer.name : 'Spillet er ferdig'}</p><p className="message">{game.message}</p><div className="dice-row"><button className="roll-button" onClick={rollDice} disabled={Boolean(game.pending || game.winner !== null)} type="button">Kast terningen</button><output className="dice" aria-label={`Terningen viser ${game.roll}`}><span className="dice-number">{game.roll}</span><DiceFace value={game.roll} /></output></div></section>
         {game.pending && <section className="reading-box" aria-live="polite"><p className="panel-label">Les høyt</p><p className="reading-word">{wordToRead}</p><div className="reading-actions"><button className="roll-button" onClick={acceptWord} type="button">Riktig</button><button className="outline-button" onClick={() => setGame({ ...game, message: `${currentPlayer.name}, prøv ordet én gang til.` })} type="button">Øv mer</button></div></section>}
         <section className="players-box">{game.players.map((player, index) => <div className={`player-row ${index === game.currentPlayer && game.winner === null ? 'active' : ''}`} key={player.name}><span className={`player-dot ${player.tone}`}>{index + 1}</span><strong>{player.name}</strong><span>Rute {player.position}</span></div>)}</section>
         <section className="how-to"><h2>Slik spiller dere</h2><p>Ta annenhver tur. Kast terningen, les ordet på ruten høyt og velg Riktig når ordet er lest.</p></section>
