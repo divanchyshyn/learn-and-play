@@ -99,23 +99,16 @@ function BoardRoutes() {
   </svg>;
 }
 
-function newGame(playerCount) {
-  return { words: makeWords(), players: playerDefinitions.slice(0, playerCount).map((player) => ({ ...player, position: 1 })), currentPlayer: 0, roll: 1, pending: null, winner: null, message: 'Kast terningen for å starte spillet.' };
+function newGame() {
+  return { words: makeWords(), players: playerDefinitions.map((player) => ({ ...player, position: 1 })), currentPlayer: 0, roll: 1, pending: null, winner: null, message: 'Kast terningen for å starte spillet.' };
 }
 
 export function SlangenEnLadders() {
-  const [playerCount, setPlayerCount] = useState(2);
-  const [game, setGame] = useState(() => newGame(2));
+  const [game, setGame] = useState(() => newGame());
   const routeByStart = useMemo(() => new Map(ROUTES.map((route) => [route.from, route])), []);
   const currentPlayer = game.players[game.currentPlayer];
-  const resetGame = (count = playerCount) => setGame(newGame(count));
+  const resetGame = () => setGame(newGame());
   const wordToRead = game.pending ? game.words[game.pending.position] : '';
-
-  function changePlayers(event) {
-    const count = Number(event.target.value);
-    setPlayerCount(count);
-    resetGame(count);
-  }
 
   function rollDice() {
     if (game.pending || game.winner !== null) return;
@@ -144,7 +137,7 @@ export function SlangenEnLadders() {
       <a className="back-link" href="../../">Spillbibliotek</a>
       <div className="title-strip"><h1>Slanger og stiger spill</h1></div>
       <p>Les ordet høyt når du lander på en rute. Klatre opp stiger og prøv å unngå slangene.</p>
-      <div className="game-controls"><label>Spillere <select value={playerCount} onChange={changePlayers}><option value="1">1</option><option value="2">2</option></select></label><button className="outline-button" onClick={() => resetGame()} type="button">Nytt spill</button></div>
+      <div className="game-controls"><button className="outline-button" onClick={resetGame} type="button">Nytt spill</button></div>
     </header>
     <section className="game-layout" aria-label="Slanger og stiger">
       <div className="board-frame">
