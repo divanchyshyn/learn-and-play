@@ -105,7 +105,6 @@ export function Butikken() {
   const [soundOn, setSoundOn] = useState(true);
   const [phase, setPhase] = useState('shop');
   const [step, setStep] = useState('ask-change');
-  const [options, setOptions] = useState([]);
   const [chosen, setChosen] = useState(null);
   const [rounds, setRounds] = useState(0);
 
@@ -115,6 +114,14 @@ export function Butikken() {
   const correctChange = wallet - total;
   const affordable = total <= wallet;
   const matched = chosen === correctChange;
+
+  // Choices are derived from live state so they stay valid if the wallet
+  // changes mid-checkout (e.g. after borrowing extra money from the shop).
+  const options = useMemo(() => {
+    if (phase !== 'checkout' || !affordable || step === 'reveal') return [];
+    if (step === 'ask-total') return makeOptions(total, totalDistractions(total));
+    return makeOptions(correctChange, changeDistractions(wallet, total, correctChange));
+  }, [phase, affordable, step, total, wallet]);
 
   function addItem(item) {
     setCart((current) => ({ ...current, [item.id]: (current[item.id] || 0) + 1 }));
