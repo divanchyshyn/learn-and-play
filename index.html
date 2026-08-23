@@ -1,8 +1,9 @@
 <!doctype html>
-<html lang="no">
+<html lang="no" translate="no" class="notranslate">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google" content="notranslate">
   <title>Ordpatrulje</title>
   <style>
     :root {
@@ -212,6 +213,7 @@
       inset: 0;
       pointer-events: none;
       z-index: 3;
+      opacity: 0.9;
     }
 
     .tokens {
@@ -650,12 +652,9 @@
       routesEl.replaceChildren();
       const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
       defs.innerHTML = `
-        <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
-          <path d="M0,0 L10,5 L0,10 Z" fill="#2f3a32"></path>
-        </marker>
-        <marker id="snakeArrow" markerWidth="12" markerHeight="12" refX="6" refY="6" orient="auto">
-          <path d="M0,0 Q8,6 0,12 L12,6 Z" fill="#a6493e"></path>
-        </marker>
+        <filter id="routeShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#172015" flood-opacity="0.28"></feDropShadow>
+        </filter>
       `;
       routesEl.appendChild(defs);
 
@@ -688,8 +687,9 @@
         rail.setAttribute("x2", x2);
         rail.setAttribute("y2", y2);
         rail.setAttribute("stroke", "#2f3a32");
-        rail.setAttribute("stroke-width", "10");
+        rail.setAttribute("stroke-width", "8");
         rail.setAttribute("stroke-linecap", "round");
+        rail.setAttribute("filter", "url(#routeShadow)");
         group.appendChild(rail);
       });
       for (let step = 0.18; step < 0.86; step += 0.17) {
@@ -701,7 +701,7 @@
         rung.setAttribute("x2", x - nx);
         rung.setAttribute("y2", y - ny);
         rung.setAttribute("stroke", "#1f271e");
-        rung.setAttribute("stroke-width", "8");
+        rung.setAttribute("stroke-width", "6");
         rung.setAttribute("stroke-linecap", "round");
         group.appendChild(rung);
       }
@@ -715,20 +715,27 @@
       path.setAttribute("d", `M${start.x},${start.y} Q${midX},${midY} ${end.x},${end.y}`);
       path.setAttribute("fill", "none");
       path.setAttribute("stroke", "#b85a45");
-      path.setAttribute("stroke-width", "15");
+      path.setAttribute("stroke-width", "10");
       path.setAttribute("stroke-linecap", "round");
-      path.setAttribute("stroke-dasharray", "3 20");
-      path.setAttribute("marker-end", "url(#snakeArrow)");
+      path.setAttribute("stroke-dasharray", "2 16");
+      path.setAttribute("filter", "url(#routeShadow)");
       routesEl.appendChild(path);
 
       const head = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       head.setAttribute("cx", start.x);
       head.setAttribute("cy", start.y);
-      head.setAttribute("r", "15");
+      head.setAttribute("r", "13");
       head.setAttribute("fill", "#a6493e");
       head.setAttribute("stroke", "#fff8dc");
       head.setAttribute("stroke-width", "4");
       routesEl.appendChild(head);
+
+      const tail = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      tail.setAttribute("cx", end.x);
+      tail.setAttribute("cy", end.y);
+      tail.setAttribute("r", "6");
+      tail.setAttribute("fill", "#b85a45");
+      routesEl.appendChild(tail);
     }
 
     function makePlayers(count) {
