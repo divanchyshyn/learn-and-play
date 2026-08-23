@@ -64,5 +64,6 @@ select { border: 2px solid #87b7c0; background: #fffdf3; color: #143f4e; padding
 .winner section { width: min(100%, 420px); padding: 27px; border: 4px solid #0c9fc4; border-radius: 6px; background: #fffdf3; text-align: center; box-shadow: 0 12px 35px rgba(0, 0, 0, .22); }
 .winner h2 { margin: 0 0 9px; color: #0c8fb6; font-size: clamp(2rem, 8vw, 3.4rem); }
 .winner section > p:not(.panel-label) { margin: 0 0 18px; }
+@media (min-width: 981px) { .game-panel { position: sticky; top: 16px; align-self: start; } }
 @media (max-width: 980px) { .game-layout { grid-template-columns: 1fr; }.game-panel { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 680px) { .game-page { width: min(100% - 18px, 1240px); padding-top: 10px; }.game-controls { position: static; margin-top: 3px; }.game-header { gap: 9px; }.board-frame { border-width: 5px; }.game-panel { grid-template-columns: 1fr; }.cell-number { top: 3px; left: 3px; }.word-label { max-width: calc(12.5% - 7px); padding: 2px 4px; }.ladder-route line { stroke-width: 9; }.ladder-route .ladder-rung { stroke-width: 7; }.snake-body-outline { stroke-width: 27; }.snake-body { stroke-width: 21; }.snake-belly { stroke-width: 5; } }
