@@ -4,6 +4,7 @@ A collection of small reading, counting, and maths games for children.
 
 ## Games
 
+- [Sound labyrinth](./games/lyd-labyrint/) - explore a maze and choose doors labelled with Norwegian words to find the way out.
 - [Snakes and ladders](./games/slangen-en-ladders/) - practise Norwegian words while playing snakes and ladders.
 - Butikken (hidden) - run a pretend shop: pick items, pay at the till and work out the change (addition and subtraction up to 100). Still in development, so it is not shown in the game library, but it is built and reachable at [/games/butikken/](./games/butikken/).
 
@@ -25,6 +26,7 @@ npm run build
 Publish the contents of `dist/`. This creates these static pages:
 
 - `/` - game library
+- `/games/lyd-labyrint/` - Sound labyrinth
 - `/games/slangen-en-ladders/` - Snakes and ladders
 - `/games/butikken/` - Butikken (the shop)
 

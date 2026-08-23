@@ -11,6 +11,7 @@ export default defineConfig({
         home: resolve(import.meta.dirname, 'index.html'),
         slangenEnLadders: resolve(import.meta.dirname, 'games/slangen-en-ladders/index.html'),
         butikken: resolve(import.meta.dirname, 'games/butikken/index.html'),
+        lydLabyrint: resolve(import.meta.dirname, 'games/lyd-labyrint/index.html'),
       },
     },
   },

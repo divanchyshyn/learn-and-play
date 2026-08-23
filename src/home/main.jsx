@@ -3,6 +3,7 @@ import '../styles/base.css';
 import './style.css';
 
 const games = [
+  { title: 'Lyd-labyrinten', description: 'Gå gjennom labyrinten og velg dører med ord – hvilken vei går reven?', href: './games/lyd-labyrint/', badge: 'Lesespill', art: 'maze' },
   { title: 'Slanger og stiger', description: 'Les norske ord, klatre opp stiger og pass på slangene.', href: './games/slangen-en-ladders/', badge: 'Ordspill', art: 'snake' },
   // Butikken er skjult fra biblioteket mens spillet videreutvikles – den bygges fortsatt og nås via ./games/butikken/
   // { title: 'Butikken', description: 'Kjøp varer, betal i kassen og regn ut vekslepengene du får tilbake.', href: './games/butikken/', badge: 'Regnespill', art: 'shop' },
@@ -16,7 +17,9 @@ function Home() {
         <div className="tile-art" aria-hidden="true">
           {game.art === 'shop'
             ? <><span className="tile-awning" /><span className="tile-cart">🛒</span><span className="tile-tag">tilbud!</span></>
-            : <><span className="tile-ladder" /><span className="tile-snake" /></>}
+            : game.art === 'maze'
+              ? <><span className="tile-hedge hedge-a" /><span className="tile-hedge hedge-b" /><span className="tile-doorway">🚪</span><span className="tile-fox">🦊</span></>
+              : <><span className="tile-ladder" /><span className="tile-snake" /></>}
         </div>
         <div className="tile-body"><span>{game.badge}</span><h2>{game.title}</h2><p>{game.description}</p><strong>Åpne spillet <span aria-hidden="true">→</span></strong></div>
       </a>)}
