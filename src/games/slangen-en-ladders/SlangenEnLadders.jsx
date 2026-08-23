@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 const BOARD_SIZE = 8;
 const FINAL_CELL = BOARD_SIZE ** 2;
-const WORDS = ['sol', 'måne', 'hus', 'bil', 'båt', 'tog', 'vei', 'bro', 'skog', 'tre', 'blad', 'dra', 'fjell', 'snø', 'fly', 'vind', 'sky', 'elv', 'is', 'ild', 'vann', 'mat', 'brød', 'ost', 'egg', 'melk', 'kake', 'ris', 'fisk', 'eple', 'banan', 'pære', 'hund', 'katt', 'ku', 'gris', 'hest', 'sau', 'mus', 'rev', 'fugl', 'and', 'bjørn', 'løve', 'ball', 'bok', 'penn', 'stol', 'bord', 'dør', 'rom', 'seng', 'pute', 'sko', 'lue', 'vott', 'sekk', 'kart', 'flagg', 'telt', 'lek', 'mål', 'glad', 'fin'];
+const WORDS = ['sol', 'måne', 'hus', 'bil', 'båt', 'tog', 'jeg', 'bro', 'skog', 'tre', 'blad', 'dra', 'fjell', 'snø', 'fly', 'vind', 'sky', 'elv', 'is', 'ild', 'vann', 'mat', 'brød', 'ost', 'egg', 'melk', 'kake', 'ris', 'fisk', 'eple', 'banan', 'pære', 'hund', 'katt', 'ku', 'gris', 'hest', 'sau', 'mus', 'rev', 'fugl', 'and', 'bjørn', 'løve', 'ball', 'bok', 'penn', 'stol', 'bord', 'dør', 'rom', 'seng', 'pute', 'sko', 'lue', 'vott', 'sekk', 'kart', 'flagg', 'telt', 'lek', 'mål', 'glad', 'fin'];
 const ROUTES = [
   { type: 'ladder', from: 5, to: 21 },
   { type: 'ladder', from: 12, to: 28 },
@@ -75,11 +75,20 @@ function Snake({ from, to }) {
   const tail = cellCenter(to);
   const controlX = (head.x + tail.x) / 2 + (head.x < tail.x ? 42 : -42);
   const controlY = (head.y + tail.y) / 2;
+  const headAngle = Math.atan2(head.y - controlY, head.x - controlX) * (180 / Math.PI);
+  const bodyPath = `M ${head.x} ${head.y} Q ${controlX} ${controlY} ${tail.x} ${tail.y}`;
   return <g className="snake-route">
-    <path d={`M ${head.x} ${head.y} Q ${controlX} ${controlY} ${tail.x} ${tail.y}`} />
-    <circle className="snake-head" cx={head.x} cy={head.y} r="13" />
-    <circle className="snake-eye" cx={head.x - 4} cy={head.y - 3} r="2.5" />
-    <circle className="snake-eye" cx={head.x + 4} cy={head.y - 3} r="2.5" />
+    <path className="snake-body-outline" d={bodyPath} />
+    <path className="snake-body" d={bodyPath} />
+    <path className="snake-belly" d={bodyPath} />
+    <g transform={`translate(${head.x} ${head.y}) rotate(${headAngle})`}>
+      <ellipse className="snake-head" cx="0" cy="0" rx="16" ry="12" />
+      <circle className="snake-eye" cx="5" cy="-5" r="3.2" />
+      <circle className="snake-eye" cx="5" cy="5" r="3.2" />
+      <circle className="snake-pupil" cx="6" cy="-5" r="1.3" />
+      <circle className="snake-pupil" cx="6" cy="5" r="1.3" />
+      <path className="snake-tongue" d="M 15 0 L 23 0 M 21 0 L 25 -4 M 21 0 L 25 4" />
+    </g>
   </g>;
 }
 
@@ -144,7 +153,14 @@ export function SlangenEnLadders() {
           const row = Math.floor(index / BOARD_SIZE);
           const column = index % BOARD_SIZE;
           const number = getCellNumber(row, column);
-          return <div className={`cell ${number === 1 ? 'start' : ''} ${number === FINAL_CELL ? 'finish' : ''}`} key={number}><span className="cell-number">{number}</span><span className="cell-word">{number === 1 ? 'Start' : number === FINAL_CELL ? 'Mål' : game.words[number]}</span></div>;
+          const word = number === 1 ? 'Start' : number === FINAL_CELL ? 'Mål' : game.words[number];
+          return <div className={`cell ${number === 1 ? 'start' : ''} ${number === FINAL_CELL ? 'finish' : ''}`} aria-label={`Rute ${number}: ${word}`} key={number}><span className="cell-number">{number}</span></div>;
+        })}</div>
+        <div className="word-labels" aria-hidden="true">{Array.from({ length: FINAL_CELL }, (_, index) => {
+          const number = index + 1;
+          const center = cellCenter(number);
+          const word = number === 1 ? 'Start' : number === FINAL_CELL ? 'Mål' : game.words[number];
+          return <span className={`word-label ${number === 1 ? 'start' : ''} ${number === FINAL_CELL ? 'finish' : ''}`} key={number} style={{ left: `${center.x / 8}%`, top: `${center.y / 8}%` }}>{word}</span>;
         })}</div>
         <div className="tokens" aria-hidden="true">{game.players.map((player, index) => {
           const center = cellCenter(player.position);
