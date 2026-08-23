@@ -5,7 +5,7 @@ A collection of small reading, counting, and maths games for children.
 ## Games
 
 - [Snakes and ladders](./games/slangen-en-ladders/) - practise Norwegian words while playing snakes and ladders.
-- [Butikken](./games/butikken/) - run a pretend shop: pick items, pay at the till and work out the change (addition and subtraction up to 100).
+- Butikken (hidden) - run a pretend shop: pick items, pay at the till and work out the change (addition and subtraction up to 100). Still in development, so it is not shown in the game library, but it is built and reachable at [/games/butikken/](./games/butikken/).
 
 ## Local development
 

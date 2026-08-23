@@ -153,13 +153,7 @@ export function Butikken() {
 
   function goToCheckout() {
     setChosen(null);
-    if (showTotals) {
-      setStep('ask-change');
-      setOptions(makeOptions(correctChange, changeDistractions(wallet, total, correctChange)));
-    } else {
-      setStep('ask-total');
-      setOptions(makeOptions(total, totalDistractions(total)));
-    }
+    setStep(showTotals ? 'ask-change' : 'ask-total');
     setPhase('checkout');
     sounds.select();
   }
@@ -178,7 +172,6 @@ export function Butikken() {
     setChosen(value);
     sounds.success();
     setStep('ask-change');
-    setOptions(makeOptions(correctChange, changeDistractions(wallet, total, correctChange)));
   }
 
   function answerChange(value) {
