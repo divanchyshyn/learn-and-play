@@ -25,6 +25,7 @@ const TILE_ART = {
   cards: () => <><span className="tile-card card-a">7</span><span className="tile-card card-b">12</span><span className="tile-boom">💥</span></>,
   shop: () => <><span className="tile-awning" /><span className="tile-cart">🛒</span><span className="tile-tag">tilbud!</span></>,
   fishing: () => <><span className="tile-wave" /><span className="tile-trout">🐟</span><span className="tile-hook">🎣</span></>,
+  jump: () => <><span className="tile-ground" /><span className="tile-arc" /><span className="tile-hopper">🐸</span></>,
 };
 
 function TileArt({ art }) {
@@ -62,6 +63,4 @@ function Home() {
 }
 
 createRoot(document.getElementById('root')).render(<Home />);
-
-
 

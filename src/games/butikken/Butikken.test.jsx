@@ -22,9 +22,12 @@ function addItem(view, name, times = 1) {
 }
 
 // The card's own remove button – the cart also has steppers with similar labels.
+// Match the exact .item-name span rather than the whole card's text, so price
+// digits or neighbouring names can never point at the wrong card.
 function removeOne(view, itemName) {
   const cards = [...view.container.querySelectorAll('.item-card')];
-  const card = cards.find((element) => element.textContent.includes(itemName));
+  const card = cards.find((element) => element.querySelector('.item-name')?.textContent === itemName);
+  expect(card).toBeTruthy();
   fireEvent.click(card.querySelector('.item-remove'));
 }
 

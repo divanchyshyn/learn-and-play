@@ -9,6 +9,7 @@ A collection of small reading, counting, and maths games for children.
 - Sound labyrinth (hidden) - explore a maze and choose doors labelled with Norwegian words to find the way out. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/lyd-labyrint/](./games/lyd-labyrint/).
 - Butikken (hidden) - run a pretend shop: pick items, pay at the till and work out the change (addition and subtraction up to 100). Still in development, so it is not shown in the game library, but it is built and reachable at [/games/butikken/](./games/butikken/).
 - Ordfiske (hidden) - go fishing for words: tap a fish to bring it up from the pond, hear the word out loud if you like, and fill the bucket at your own pace. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/ordfiske/](./games/ordfiske/).
+- Tierhopp (hidden) - help the frog hop along a 0–100 number line: look at the sum, point to where you think the answer lives, and land together. Addition and subtraction practice with no wrong answers, no timers, and no score. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/tierhopp/](./games/tierhopp/).
 
 ## Local development
 
@@ -47,5 +48,6 @@ Publish the contents of `dist/`. This creates these static pages:
 - `/games/kortkrig/` - Kortkrig (the card battle)
 - `/games/butikken/` - Butikken (the shop)
 - `/games/ordfiske/` - Ordfiske (the word-fishing pond)
+- `/games/tierhopp/` - Tierhopp (the number-line jumper)
 
 The workflow in `.github/workflows/deploy-pages.yml` builds and publishes the site automatically when you push to `main`. Select **GitHub Actions** as the Pages source in the repository's Settings > Pages once.

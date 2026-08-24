@@ -1,0 +1,162 @@
+.game-page.hop-page { width: min(100% - 28px, 1080px); margin: 0 auto; padding: 18px 0 38px; }
+
+.hop-intro { max-width: 66ch; margin: 0; color: #285362; font-size: 1.03rem; line-height: 1.45; }
+
+.game-controls { position: absolute; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+.chip { min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
+.chip:hover { transform: translateY(-2px); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- Stage -------------------------------------------------------------- */
+.hop-stage { position: relative; display: grid; gap: 20px; justify-items: center; padding-bottom: 26px; }
+
+.problem-card {
+  display: grid; justify-items: center; gap: 7px;
+  width: min(100%, 520px);
+  padding: 16px 22px 14px;
+  border: 3px solid #e5ae45; border-radius: 16px;
+  background: #fffdf3;
+  box-shadow: 0 6px 0 rgba(20, 63, 78, .14);
+}
+.problem-sum { margin: 0; color: #143f4e; font-size: clamp(2rem, 7vw, 2.7rem); font-weight: 900; letter-spacing: 2px; line-height: 1.1; text-align: center; }
+.sum-answer { color: #e46e4b; animation: answer-pop .35s ease; display: inline-block; }
+@keyframes answer-pop { from { transform: scale(.4); } to { transform: scale(1); } }
+.hear-button {
+  min-width: 44px; min-height: 44px; padding: 4px 12px;
+  border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3;
+  font-size: 1.15rem; line-height: 1; transition: transform .12s ease;
+}
+.hear-button:hover { transform: translateY(-2px) scale(1.05); }
+.problem-hint { margin: 0; color: #285362; font-weight: 700; font-size: .98rem; text-align: center; }
+
+/* ---- The number strip (the whole thing is the tap target) ---------------- */
+.number-strip {
+  position: relative;
+  width: min(100%, 980px);
+  height: clamp(150px, 26vh, 205px);
+  border: 3px solid #14688a; border-radius: 18px;
+  background: linear-gradient(#f4fbfa 0%, #e2f3ef 52%, #bfe3cf 76%, #a3ceae 100%);
+  box-shadow: inset 0 8px 0 rgba(255, 255, 255, .5), 0 8px 0 rgba(20, 63, 78, .13);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overflow: hidden;
+}
+.number-strip:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
+.number-strip:not(.phase-ready) { cursor: default; }
+
+/* The baseline the frog stands on. */
+.number-strip::before {
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: 62px; z-index: 2;
+  height: 5px; border-radius: 3px; background: #143f4e;
+}
+
+.tick-track { position: absolute; inset: 0; pointer-events: none; }
+.tick { position: absolute; bottom: 67px; z-index: 2; width: 2px; height: 13px; translate: -50% 0; border-radius: 2px; background: rgba(20, 63, 78, .55); }
+.tick.major { width: 3px; height: 24px; background: #143f4e; }
+.tick-label {
+  position: absolute; bottom: 24px; z-index: 2; translate: -50% 0;
+  color: #143f4e; font-weight: 900; font-size: clamp(.74rem, 2vw, .95rem);
+  text-shadow: 0 1px 0 rgba(255, 255, 253, .65);
+}
+
+.meadow { position: absolute; bottom: 30px; z-index: 1; font-size: 1.05rem; line-height: 1; opacity: .85; filter: drop-shadow(0 2px 0 rgba(20, 63, 78, .18)); pointer-events: none; }
+.flower-a { left: 4%; }
+.grass-b { right: 17%; }
+.flower-c { left: 40%; font-size: .9rem; }
+
+/* ---- Keyboard aim marker -------------------------------------------------- */
+.aim-marker {
+  position: absolute; bottom: 128px; z-index: 6; translate: -50% 0;
+  width: 16px; height: 11px;
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+  background: #0c9fc4;
+  animation: aim-bob .8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes aim-bob { to { translate: -50% -7px; } }
+
+/* ---- Answer flag: neutral information, never a verdict -------------------- */
+.answer-flag {
+  position: absolute; bottom: 64px; z-index: 4; translate: -50% 0;
+  display: grid; justify-items: center;
+  animation: flag-pop .3s ease;
+  pointer-events: none;
+}
+@keyframes flag-pop { from { transform: translateY(10px) scale(.6); } to { transform: translateY(0) scale(1); } }
+.flag-number {
+  margin-bottom: 4px; padding: 2px 11px;
+  border: 2px solid #d09b45; border-radius: 999px;
+  background: #fffdf3; color: #143f4e;
+  font-weight: 900; font-size: 1rem; line-height: 1.4;
+  box-shadow: 0 2px 0 rgba(20, 63, 78, .18);
+}
+.flag-pole { position: relative; width: 4px; height: 54px; border-radius: 2px; background: #143f4e; }
+.flag-cloth {
+  position: absolute; top: 0; left: 2px;
+  width: 32px; height: 21px;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  background: linear-gradient(140deg, #f08a63, #e46e4b);
+  transform-origin: left center;
+  animation: cloth-wave 1.6s ease-in-out infinite alternate;
+}
+@keyframes cloth-wave { to { transform: skewY(-7deg) scaleX(.92); } }
+
+/* ---- The frog -------------------------------------------------------------- */
+.frog {
+  position: absolute; bottom: 60px; z-index: 5;
+  width: 58px; aspect-ratio: 64 / 54;
+  translate: -50% 0;
+  transition: left var(--travel, 0ms) cubic-bezier(.45, .05, .35, 1);
+  pointer-events: none;
+}
+.frog-hop { width: 100%; height: 100%; transform-origin: 50% 100%; }
+.frog-hop:not(.airborne) { animation: breathe 2.8s ease-in-out infinite alternate; }
+@keyframes breathe { to { transform: translateY(-4px) scaleY(1.04); } }
+.frog-hop.airborne { animation: hop-arc var(--travel, 450ms) ease-in-out; }
+@keyframes hop-arc {
+  0% { transform: translateY(0) scale(1.08, .86); }
+  35% { transform: translateY(-56px) scale(.94, 1.1) rotate(-5deg); }
+  65% { transform: translateY(-46px) scale(.97, 1.06) rotate(4deg); }
+  85% { transform: translateY(-6px) scale(1.06, .9); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+
+.frog-sprite { width: 100%; height: 100%; filter: drop-shadow(0 3px 0 rgba(20, 63, 78, .22)); }
+.frog-body { fill: #63a375; stroke: #3c7a52; stroke-width: 2.5; }
+.frog-belly { fill: #dcefe0; }
+.frog-leg { fill: #4c8a60; }
+.frog-eye { fill: #fffdf3; stroke: #3c7a52; stroke-width: 2; }
+.frog-pupil { fill: #143f4e; }
+.frog-cheek { fill: rgba(228, 110, 75, .45); }
+.frog-smile { fill: none; stroke: #2c5e3d; stroke-width: 2.6; stroke-linecap: round; }
+
+/* ---- Celebration beat ------------------------------------------------------ */
+.cheer-banner {
+  position: absolute; left: 50%; top: 36%; z-index: 40;
+  translate: -50% -50%;
+  padding: 13px 30px;
+  border: 4px solid #63a375; border-radius: 999px;
+  background: #fffdf3; color: #2e8b57;
+  font-weight: 900; font-size: clamp(1.5rem, 5vw, 2.1rem);
+  box-shadow: 0 8px 0 rgba(20, 63, 78, .16);
+  animation: cheer-pop .28s ease;
+  pointer-events: none;
+}
+@keyframes cheer-pop { from { opacity: 0; translate: -50% calc(-50% + 14px) scale(.7); } to { opacity: 1; translate: -50% -50%; } }
+
+.chip:focus-visible, .hear-button:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
+
+@media (max-width: 640px) {
+  .game-controls { position: static; justify-content: flex-start; margin-top: 2px; }
+  .hop-stage { gap: 14px; }
+  .number-strip { height: 150px; border-width: 2px; }
+  .frog { width: 46px; bottom: 61px; }
+  .aim-marker { bottom: 112px; }
+  .tick-label { font-size: .72rem; }
+  .problem-card { padding: 12px 14px 11px; }
+  .flower-c { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
