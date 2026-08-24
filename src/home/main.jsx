@@ -3,7 +3,8 @@ import '../styles/base.css';
 import './style.css';
 
 const games = [
-  { title: 'Lyd-labyrinten', description: 'Gå gjennom labyrinten og velg dører med ord – hvilken vei går reven?', href: './games/lyd-labyrint/', badge: 'Lesespill', art: 'maze' },
+  // Lyd-labyrinten er skjult fra biblioteket mens spillet videreutvikles – den bygges fortsatt og nås via ./games/lyd-labyrint/
+  // { title: 'Lyd-labyrinten', description: 'Gå gjennom labyrinten og velg dører med ord – hvilken vei går reven?', href: './games/lyd-labyrint/', badge: 'Lesespill', art: 'maze' },
   { title: 'Slanger og stiger', description: 'Les norske ord, klatre opp stiger og pass på slangene.', href: './games/slangen-en-ladders/', badge: 'Ordspill', art: 'snake' },
   // Butikken er skjult fra biblioteket mens spillet videreutvikles – den bygges fortsatt og nås via ./games/butikken/
   // { title: 'Butikken', description: 'Kjøp varer, betal i kassen og regn ut vekslepengene du får tilbake.', href: './games/butikken/', badge: 'Regnespill', art: 'shop' },

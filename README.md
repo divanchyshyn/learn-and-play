@@ -1,11 +1,11 @@
-# Learn and play
+feat:# Learn and play
 
 A collection of small reading, counting, and maths games for children.
 
 ## Games
 
-- [Sound labyrinth](./games/lyd-labyrint/) - explore a maze and choose doors labelled with Norwegian words to find the way out.
 - [Snakes and ladders](./games/slangen-en-ladders/) - practise Norwegian words while playing snakes and ladders.
+- Sound labyrinth (hidden) - explore a maze and choose doors labelled with Norwegian words to find the way out. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/lyd-labyrint/](./games/lyd-labyrint/).
 - Butikken (hidden) - run a pretend shop: pick items, pay at the till and work out the change (addition and subtraction up to 100). Still in development, so it is not shown in the game library, but it is built and reachable at [/games/butikken/](./games/butikken/).
 
 ## Local development
