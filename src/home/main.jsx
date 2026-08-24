@@ -2,16 +2,19 @@ import { createRoot } from 'react-dom/client';
 import '../styles/base.css';
 import './style.css';
 
-// One entry per game in the library. A game under development can be
-// commented out here (and marked "(hidden)" in README.md) while it keeps
-// building, so its direct URL under ./games/<slug>/ keeps working.
+// One entry per published game. Unfinished games stay commented out (and
+// marked "(hidden)" in README.md) but keep building, so their direct URLs
+// under ./games/<slug>/ keep working.
 const GAMES = [
-  { title: 'Lyd-labyrinten', description: 'Gå gjennom labyrinten og velg dører med ord – hvilken vei går reven?', href: './games/lyd-labyrint/', badge: 'Lesespill', art: 'maze' },
-  { title: 'Slanger og stiger', description: 'Les norske ord, klatre opp stiger og pass på slangene.', href: './games/slangen-en-ladders/', badge: 'Ordspill', art: 'snake' },
-  { title: 'Kortkrig', description: 'Kortduell mot Rex – snu kortene, sammenlign tall og se hvem som slår hardest.', href: './games/kortkrig/', badge: 'Regnespill', art: 'cards' },
-  { title: 'Ordfiske', description: 'Fisk ord-fisker opp av vatnet i roligt tempo og fyll bøtta di – helt i eget tempo.', href: './games/ordfiske/', badge: 'Lesespill', art: 'fishing' },
-  { title: 'Butikken', description: 'Kjøp varer, betal i kassen og regn ut vekslepengene du får tilbake.', href: './games/butikken/', badge: 'Regnespill', art: 'shop' },
-  { title: 'Tierhopp', description: 'Frosken hopper langs tallinja – trykk der du tror svaret bor, og land sammen med den.', href: './games/tierhopp/', badge: 'Regnespill', art: 'jump' },
+  // Lyd-labyrinten er skjult fra biblioteket mens spillet videreutvikles – den bygges fortsatt og nås via ./games/lyd-labyrint/
+  // { title: 'Lyd-labyrinten', description: 'Gå gjennom labyrinten og velg dører med ord – hvilken vei går reven?', href: './games/lyd-labyrint/', badge: 'Lesespill', art: 'maze' },
+    { title: 'Slanger og stiger', description: 'Les norske ord, klatre opp stiger og pass på slangene.', href: './games/slangen-en-ladders/', badge: 'Ordspill', art: 'snake' },
+  // Kortkrig er skjult fra biblioteket mens spillet videreutvikles – det bygges fortsatt og nås via ./games/kortkrig/
+  // { title: 'Kortkrig', description: 'Kortduell mot Rex – snu kortene, sammenlign tall og se hvem som slår hardest.', href: './games/kortkrig/', badge: 'Regnespill', art: 'cards' },
+  // Ordfiske er skjult fra biblioteket mens spillet videreutvikles – det bygges fortsatt og nås via ./games/ordfiske/
+  // { title: 'Ordfiske', description: 'Fisk ord-fisker opp av vatnet i roligt tempo og fyll bøtta di – helt i eget tempo.', href: './games/ordfiske/', badge: 'Lesespill', art: 'fishing' },
+  // Butikken er skjult fra biblioteket mens spillet videreutvikles – den bygges fortsatt og nås via ./games/butikken/
+  // { title: 'Butikken', description: 'Kjøp varer, betal i kassen og regn ut vekslepengene du får tilbake.', href: './games/butikken/', badge: 'Regnespill', art: 'shop' },
 ];
 
 // Decorative tile artwork, one small drawing per game. A new game either
