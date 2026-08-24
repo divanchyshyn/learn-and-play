@@ -1,10 +1,11 @@
-feat:# Learn and play
+# Learn and play
 
 A collection of small reading, counting, and maths games for children.
 
 ## Games
 
 - [Snakes and ladders](./games/slangen-en-ladders/) - practise Norwegian words while playing snakes and ladders.
+- Kortkrig (hidden) - a card battle against Rex the dinosaur: flip cards, compare numbers, and pick up addition and subtraction along the way. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/kortkrig/](./games/kortkrig/).
 - Sound labyrinth (hidden) - explore a maze and choose doors labelled with Norwegian words to find the way out. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/lyd-labyrint/](./games/lyd-labyrint/).
 - Butikken (hidden) - run a pretend shop: pick items, pay at the till and work out the change (addition and subtraction up to 100). Still in development, so it is not shown in the game library, but it is built and reachable at [/games/butikken/](./games/butikken/).
 
@@ -39,6 +40,7 @@ Publish the contents of `dist/`. This creates these static pages:
 - `/` - game library
 - `/games/lyd-labyrint/` - Sound labyrinth
 - `/games/slangen-en-ladders/` - Snakes and ladders
+- `/games/kortkrig/` - Kortkrig (the card battle)
 - `/games/butikken/` - Butikken (the shop)
 
 The workflow in `.github/workflows/deploy-pages.yml` builds and publishes the site automatically when you push to `main`. Select **GitHub Actions** as the Pages source in the repository's Settings > Pages once.

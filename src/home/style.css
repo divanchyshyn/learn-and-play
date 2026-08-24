@@ -10,6 +10,11 @@
 .tile-body { padding: 20px; }.tile-body > span { color: #e26b44; font-size: .82rem; font-weight: 900; letter-spacing: .8px; text-transform: uppercase; }.tile-body h2 { margin: 7px 0 8px; color: #0c8fb6; font-size: 1.55rem; }.tile-body p { margin: 0; line-height: 1.45; }.tile-body strong { display: block; margin-top: 20px; color: #e26b44; }
 .tile-art-shop { background: #0c9fc4; }
 .tile-art-maze { background: #8fbf6f; }
+.tile-art-cards { background: #e46e4b; }
+.tile-card { position: absolute; display: grid; place-items: center; width: 64px; height: 88px; border-radius: 10px; background: #fffdf3; font-size: 34px; font-weight: 900; box-shadow: 0 6px 0 rgba(20, 63, 78, .2); }
+.card-a { left: 21%; top: 14%; color: #0b7897; transform: rotate(-10deg); }
+.card-b { right: 21%; top: 24%; color: #b34a26; transform: rotate(9deg); }
+.tile-boom { position: absolute; left: 50%; top: 60%; transform: translate(-50%, -50%); font-size: 54px; line-height: 1; filter: drop-shadow(0 5px 0 rgba(20, 63, 78, .22)); }
 .tile-hedge { position: absolute; height: 42px; border-radius: 4px; background: #41724b; box-shadow: inset 0 -6px 0 rgba(20, 63, 78, .2); transform: rotate(-7deg); }
 .hedge-a { top: 20px; left: -10px; width: 56%; }
 .hedge-b { bottom: 16px; right: -10px; width: 64%; }

@@ -46,7 +46,8 @@ describe('butikken shopping flow', () => {
 
     expect(screen.getByText(`2 × ${first.name}`)).toBeInTheDocument();
     expect(screen.getByText(`1 × ${second.name}`)).toBeInTheDocument();
-    expect(screen.getByText(`${total} kr`)).toBeInTheDocument();
+    // Scope to the cart total – a shelf price may coincidentally equal it.
+    expect(within(screen.getByLabelText('Handlekurven')).getByText(`${total} kr`, { selector: '.cart-total strong' })).toBeInTheDocument();
     expect(screen.getByText(/3 varer/)).toBeInTheDocument();
   });
 

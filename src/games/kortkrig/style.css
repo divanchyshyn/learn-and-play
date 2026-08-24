@@ -1,0 +1,74 @@
+.game-page { width: min(100% - 28px, 900px); margin: 0 auto; padding: 18px 0 44px; }
+.game-header { position: relative; display: grid; gap: 10px; margin-bottom: 20px; }
+.back-link { width: max-content; color: #0b7897; font-weight: 800; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.title-strip { padding: 13px 20px; background: #0c9fc4; box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .12); }
+.title-strip h1 { margin: 0; color: white; font-size: clamp(1.85rem, 5vw, 3.4rem); line-height: 1.05; text-align: center; text-shadow: 0 3px 0 rgba(9, 79, 99, .35); }
+.game-header > p { max-width: 64ch; margin: 0; color: #285362; font-size: 1.03rem; line-height: 1.4; }
+
+.game-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rounds-chip { padding: 6px 11px; border: 2px solid #d09b45; border-radius: 999px; background: #fff3d6; color: #7a4c08; font-size: .88rem; font-weight: 900; white-space: nowrap; }
+.rounds-chip.hidden-chip { visibility: hidden; }
+.chip { min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
+.chip:hover { transform: translateY(-2px); }
+.chip.active { border-color: #e46e4b; background: #ffe4d8; color: #b34a26; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.arena { display: flex; align-items: stretch; justify-content: center; gap: clamp(8px, 3vw, 26px); margin: 0 auto 18px; padding: clamp(14px, 3vw, 24px); border: 4px solid #0c9fc4; border-radius: 16px; background: radial-gradient(circle at 50% 14%, #fffdf3 0%, #eaf6f4 78%); box-shadow: 0 9px 0 rgba(20, 63, 78, .13); }
+
+.fighter { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
+.fighter-avatar { font-size: clamp(2.1rem, 6vw, 2.9rem); line-height: 1; }
+.fighter h2 { margin: 0; color: #143f4e; font-size: clamp(.98rem, 2.6vw, 1.22rem); letter-spacing: .5px; text-transform: uppercase; }
+.versus { align-self: center; flex-shrink: 0; color: #e46e4b; font-size: clamp(1.05rem, 3vw, 1.55rem); font-weight: 900; transform: rotate(-8deg); text-shadow: 0 2px 0 rgba(20, 63, 78, .12); }
+
+.battle-card { perspective: 720px; width: min(42vw, 164px); aspect-ratio: 3 / 4; }
+.battle-card-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .5s cubic-bezier(.3, 1.35, .5, 1); }
+.battle-card.face-up .battle-card-inner { transform: rotateY(180deg); }
+.battle-face { position: absolute; inset: 0; display: grid; place-items: center; backface-visibility: hidden; border-radius: 14px; border: 4px solid; }
+.battle-back { border-color: #085f79; background: repeating-linear-gradient(45deg, #0c9fc4 0 12px, #0a86a8 12px 24px); box-shadow: inset 0 0 0 6px rgba(255, 253, 243, .85), inset 0 -7px 0 rgba(20, 63, 78, .28); }
+.battle-back span { font-size: clamp(1.7rem, 6vw, 2.5rem); filter: drop-shadow(0 3px 0 rgba(20, 63, 78, .3)); }
+.battle-front { transform: rotateY(180deg); border-color: #d09b45; background: #fffdf3; box-shadow: inset 0 -7px 0 rgba(20, 63, 78, .1); }
+.card-value { font-size: clamp(2.5rem, 9vw, 3.9rem); font-weight: 900; color: #143f4e; }
+.fighter-player .card-value { color: #b34a26; }
+.fighter-opponent .card-value { color: #0b7897; }
+.battle-card.thinking .battle-card-inner { animation: card-wiggle .45s ease-in-out infinite alternate; }
+@keyframes card-wiggle { from { transform: rotate(-3.5deg) translateY(0); } to { transform: rotate(3.5deg) translateY(-5px); } }
+
+.card-flip-btn { border: 0; background: none; padding: 0; border-radius: 14px; transition: transform .12s ease; }
+.card-flip-btn:hover:not(:disabled) { transform: translateY(-3px); }
+.card-flip-btn:focus-visible, .chip:focus-visible, .strike-button:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
+
+.result-zone { display: grid; justify-items: center; gap: 13px; width: min(100%, 620px); margin: 0 auto; }
+.status-line { margin: 0; color: #0b7897; font-size: 1.08rem; font-weight: 900; }
+.result-card { display: grid; gap: 7px; justify-items: center; width: 100%; padding: 16px 18px; border: 4px solid #92c1c8; border-radius: 12px; background: #fffdf3; box-shadow: 0 7px 0 rgba(20, 63, 78, .11); animation: result-pop .3s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes result-pop { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: none; } }
+.result-card[data-outcome="player"] { border-color: #e46e4b; background: #fff3ea; }
+.result-card[data-outcome="opponent"] { border-color: #0c9fc4; background: #ecf7fb; }
+.result-card[data-outcome="tie"] { border-color: #e5ae45; background: #fff8e2; }
+.math-line { margin: 0; padding: 4px 14px; border-radius: 999px; background: #fff; border: 2px dashed #d09b45; color: #143f4e; font-size: clamp(1.25rem, 4vw, 1.65rem); font-weight: 900; letter-spacing: 1px; }
+.headline { margin: 0; color: #143f4e; font-size: clamp(1.2rem, 4vw, 1.6rem); line-height: 1.25; text-align: center; }
+.quip { display: flex; gap: 8px; align-items: center; margin: 0; color: #285362; font-weight: 700; }
+.quip span { font-size: 1.4rem; }
+
+.strike-button { min-width: min(100%, 280px); min-height: 56px; border: 2px solid #e46e4b; border-radius: 10px; background: #e46e4b; color: white; font-size: 1.3rem; font-weight: 900; box-shadow: inset 0 -4px 0 rgba(114, 43, 30, .22), 0 5px 0 rgba(20, 63, 78, .13); transition: transform .12s ease; }
+.strike-button:hover:not(:disabled) { transform: translateY(-2px); }
+.strike-button:active:not(:disabled) { transform: translateY(1px); }
+.mode-hint { margin: 0; color: #4d6b72; font-size: .95rem; text-align: center; }
+
+.burst-layer { position: fixed; inset: 0; z-index: 20; overflow: hidden; pointer-events: none; }
+.burst-bit { position: absolute; left: 50%; top: 42%; animation-name: bit-burst; animation-duration: 1.15s; animation-timing-function: ease-out; animation-fill-mode: forwards; opacity: 0; }
+.burst-bit.round { width: 13px; height: 13px; border-radius: 50%; background: currentColor; overflow: hidden; }
+@keyframes bit-burst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) rotate(var(--spin, 300deg)) scale(1.15); }
+}
+
+@media (max-width: 480px) {
+  .versus { font-size: .95rem; }
+  .game-controls { justify-content: center; }
+  .result-card { padding: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
