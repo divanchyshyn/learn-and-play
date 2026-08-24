@@ -14,7 +14,7 @@ const GAMES = [
   // Ordfiske er skjult fra biblioteket mens spillet videreutvikles – det bygges fortsatt og nås via ./games/ordfiske/
   // { title: 'Ordfiske', description: 'Fisk ord-fisker opp av vatnet i roligt tempo og fyll bøtta di – helt i eget tempo.', href: './games/ordfiske/', badge: 'Lesespill', art: 'fishing' },
   // Butikken er skjult fra biblioteket mens spillet videreutvikles – den bygges fortsatt og nås via ./games/butikken/
-  // { title: 'Butikken', description: 'Kjøp varer, betal i kassen og regn ut vekslepengene du får tilbake.', href: './games/butikken/', badge: 'Regnespill', art: 'shop' },
+  // { title: 'Butikken', description: 'Handle i butikken: kjøp opptil tre varer, lever tilbake det du angrer på – og hold styr på pengene til både deg og selgeren.', href: './games/butikken/', badge: 'Regnespill', art: 'shop' },
 ];
 
 // Decorative tile artwork, one small drawing per game. A new game either
@@ -63,4 +63,3 @@ function Home() {
 }
 
 createRoot(document.getElementById('root')).render(<Home />);
-

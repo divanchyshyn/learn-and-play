@@ -1,155 +1,212 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, fireEvent, screen, within, cleanup } from '@testing-library/react';
-import { Butikken } from './Butikken.jsx';
-
+import { Butikken, MAX_PER_TRANSACTION, SELLER_START_MONEY } from './Butikken.jsx';
 afterEach(() => {
   cleanup();
 });
 
-// The shop deals 12 random items each round, so tests read whatever is on
-// the shelf instead of assuming specific goods.
-function getShelfItems(view) {
-  return [...view.container.querySelectorAll('.item-card')].map((card) => ({
-    name: card.querySelector('.item-name').textContent,
-    price: Number(card.querySelector('.item-price').textContent.match(/\d+/)[0]),
+// Shelves are labelled sections – look them up by aria-label and read whatever
+// random goods were dealt onto them instead of assuming specific items.
+function shelf(view, label) {
+  const element = view.container.querySelector(`[aria-label="${label}"]`);
+  expect(element).toBeTruthy();
+  return element;
+}
+
+function cardsIn(shelfElement) {
+  return [...shelfElement.querySelectorAll('.card-toggle')].map((button) => ({
+    button,
+    name: button.querySelector('.item-name').textContent,
+    price: Number(button.querySelector('.item-price').textContent.match(/\d+/)[0]),
   }));
 }
 
-function addItem(view, name, times = 1) {
-  // Accessible names concatenate the spans without whitespace ("eple8 kr…").
-  const button = screen.getByRole('button', { name: new RegExp(`${name}\\s*\\d+\\s*kr`) });
-  for (let i = 0; i < times; i += 1) fireEvent.click(button);
+function cardByPrice(shelfElement, rankFromCheapest) {
+  return cardsIn(shelfElement).sort((a, b) => a.price - b.price)[rankFromCheapest];
 }
 
-// The card's own remove button – the cart also has steppers with similar labels.
-// Match the exact .item-name span rather than the whole card's text, so price
-// digits or neighbouring names can never point at the wrong card.
-function removeOne(view, itemName) {
-  const cards = [...view.container.querySelectorAll('.item-card')];
-  const card = cards.find((element) => element.querySelector('.item-name')?.textContent === itemName);
-  expect(card).toBeTruthy();
-  fireEvent.click(card.querySelector('.item-remove'));
-}
-
-// Both the cart panel and the mobile pay bar contain a "Betal" button;
-// they do exactly the same thing, so the first one is fine.
-function pay() {
-  fireEvent.click(screen.getAllByRole('button', { name: 'Betal' })[0]);
+function purse(view, who) {
+  return view.container.querySelector(`[aria-label="${who}"]`);
 }
 
 describe('butikken shopping flow', () => {
-  it('collects items in the cart and shows the running total', () => {
+  it('collects up to three items and never shows a running total', () => {
     const view = render(<Butikken />);
-    const shelf = getShelfItems(view).sort((a, b) => a.price - b.price);
-    const [first, second] = shelf;
+    const shopShelf = shelf(view, 'Varer til salgs');
+    const [cheapest, second] = cardsIn(shopShelf).sort((a, b) => a.price - b.price);
 
-    addItem(view, first.name, 2);
-    addItem(view, second.name);
-    const total = 2 * first.price + second.price;
+    fireEvent.click(cheapest.button);
+    fireEvent.click(second.button);
 
-    expect(screen.getByText(`2 × ${first.name}`)).toBeInTheDocument();
-    expect(screen.getByText(`1 × ${second.name}`)).toBeInTheDocument();
-    // Scope to the cart total – a shelf price may coincidentally equal it.
-    expect(within(screen.getByLabelText('Handlekurven')).getByText(`${total} kr`, { selector: '.cart-total strong' })).toBeInTheDocument();
-    expect(screen.getByText(/3 varer/)).toBeInTheDocument();
+    expect(within(shopShelf).getByText(`${cheapest.name}`)).toBeInTheDocument();
+    expect(screen.getByText('2 av 3 valgt til kjøp')).toBeInTheDocument();
+    // No sums of selected goods anywhere on the trading floor.
+    expect(view.container.textContent).not.toContain('Samlet');
+    expect(view.container.querySelector('.cart-total')).toBeNull();
+    expect(view.container.textContent).not.toContain('? kr');
+
+    fireEvent.click(second.button); // deselecting works too
+    expect(screen.getByText('1 av 3 valgt til kjøp')).toBeInTheDocument();
   });
 
-  it('removes a single item with the minus button on the card', () => {
+  it('refuses a fourth item and explains the limit', () => {
     const view = render(<Butikken />);
-    const shelf = getShelfItems(view).sort((a, b) => a.price - b.price);
-    const item = shelf[0];
+    const shopShelf = shelf(view, 'Varer til salgs');
+    const four = cardsIn(shopShelf)
+      .sort((a, b) => a.price - b.price)
+      .slice(0, MAX_PER_TRANSACTION + 1);
 
-    addItem(view, item.name, 2);
-    removeOne(view, item.name);
+    four.slice(0, MAX_PER_TRANSACTION).forEach((card) => fireEvent.click(card.button));
+    expect(screen.queryByText(/Maks 3 varer per handel/)).not.toBeInTheDocument();
 
-    expect(screen.getByText(`1 × ${item.name}`)).toBeInTheDocument();
-    // Scope to the line sum – the card price and the running total may show
-    // the same amount.
-    expect(within(screen.getByLabelText('Handlekurven')).getByText(`${item.price} kr`, { selector: '.line-sum' })).toBeInTheDocument();
+    fireEvent.click(four[MAX_PER_TRANSACTION].button);
+    expect(screen.getByText(`Maks ${MAX_PER_TRANSACTION} varer per handel.`)).toBeInTheDocument();
+    expect(document.querySelectorAll('.card-toggle.selected')).toHaveLength(MAX_PER_TRANSACTION);
   });
 
-  it('checks out straight to change when sums are visible, then celebrates', () => {
+  it('sells goods over the counter and moves them to the customer shelf', () => {
     const view = render(<Butikken />);
-    const shelf = getShelfItems(view).sort((a, b) => a.price - b.price);
-    const [first, second] = shelf;
+    const [cheapest, second] = cardsIn(shelf(view, 'Varer til salgs')).sort((a, b) => a.price - b.price);
+    const total = cheapest.price + second.price;
 
-    addItem(view, first.name, 2);
-    addItem(view, second.name);
-    const total = 2 * first.price + second.price;
-    const change = 100 - total;
-
-    pay();
-
-    // Totals are visible by default, so the game only asks for the change.
-    expect(screen.queryByText('Hvor mye koster alle varene sammen?')).not.toBeInTheDocument();
-    expect(screen.getByText(`Du betaler ${total} kr med 100 kr.`)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: `${change} kr` }));
-
-    expect(screen.getByText(/riktig/i)).toBeInTheDocument();
-    expect(screen.getByText(/Takk for handelen!/)).toBeInTheDocument();
-    expect(document.querySelector('.confetti-layer')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: /Ny handel/ }));
-    expect(screen.getByText(/Handlekurven er tom/)).toBeInTheDocument();
-  });
-
-  it('asks for the total first when the sums are hidden', () => {
-    const view = render(<Butikken />);
-    const shelf = getShelfItems(view).sort((a, b) => a.price - b.price);
-    const [first, second] = shelf;
-
-    addItem(view, first.name);
-    addItem(view, second.name);
-    const total = first.price + second.price;
-    const change = 100 - total;
-
-    fireEvent.click(screen.getByRole('button', { name: /Sum: synlig/ })); // hide totals
-    pay();
-
+    fireEvent.click(cheapest.button);
+    fireEvent.click(second.button);
+    fireEvent.click(screen.getByRole('button', { name: /Kjøp/ }));
     expect(screen.getByText('Hvor mye koster alle varene sammen?')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: `${total} kr` }));
 
-    expect(screen.getByText(/fint regnet!/)).toBeInTheDocument();
-    expect(screen.getByText('Hvor mye får du tilbake?')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: `${change} kr` }));
-
-    expect(screen.getByText(/riktig/i)).toBeInTheDocument();
+    const ownedShelf = shelf(view, 'Varene dine');
+    expect(cardsIn(ownedShelf).map((card) => card.name).sort()).toEqual([cheapest.name, second.name].sort());
+    expect(purse(view, 'Deg som kunde').textContent).toContain(`${100 - total} kr`);
+    expect(purse(view, 'Selgeren').textContent).toContain(`${SELLER_START_MONEY + total} kr`);
+    expect(document.querySelector('.confetti-layer')).toBeTruthy();
+    expect(screen.getByText(/1 handel i dag/)).toBeInTheDocument();
   });
 
-  it('lends extra money at the till when the wallet is too small', () => {
+  it('shows a policeman pointing at the right answer after a wrong guess', () => {
     const view = render(<Butikken />);
-    const priciest = getShelfItems(view).sort((a, b) => b.price - a.price)[0];
+    const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
 
-    // Three of the most expensive item always overshoots the 100 kr wallet.
-    addItem(view, priciest.name, 3);
-    const total = priciest.price * 3;
-    expect(total).toBeGreaterThan(100);
+    fireEvent.click(cheapest.button);
+    fireEvent.click(screen.getByRole('button', { name: /Kjøp/ }));
+    const wrong = [...document.querySelectorAll('.choice-btn')].find(
+      (button) => !button.textContent.includes(`${cheapest.price} kr`),
+    );
+    fireEvent.click(wrong);
 
-    pay();
-    // The sentence is split across <strong> children, so match on textContent.
-    const fundsBox = view.container.querySelector('.funds-box');
-    expect(fundsBox.textContent).toContain(`Varene koster ${total} kr`);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(document.querySelector('.police-mascot').textContent).toBe('👮');
+    const pointed = document.querySelector('.choice-btn.pointed');
+    expect(pointed).toBeTruthy();
+    expect(pointed.textContent).toContain(`${cheapest.price} kr`);
+    expect(pointed.textContent).toContain('👉');
+    expect(pointed.disabled).toBe(false);
+    // Every non-answer is locked away once the policeman steps in.
+    [...document.querySelectorAll('.choice-btn')]
+      .filter((button) => button !== pointed)
+      .forEach((button) => expect(button.disabled).toBe(true));
+    expect(wrong.className).toContain('crossed');
 
-    // The shop tops the wallet up to the next 50 kr multiple.
-    fireEvent.click(screen.getByRole('button', { name: 'Få ekstra penger' }));
-    const toppedUp = Math.ceil((total + 1) / 50) * 50;
-
-    expect(screen.getByText(`Du betaler ${total} kr med ${toppedUp} kr.`)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: `${toppedUp - total} kr` }));
-
-    expect(screen.getByText(/riktig/i)).toBeInTheDocument();
-    expect(view.container.textContent).toContain(`nå har du ${toppedUp} kr`);
+    fireEvent.click(pointed);
+    expect(shelf(view, 'Varene dine').textContent).toContain(cheapest.name);
+    expect(purse(view, 'Deg som kunde').textContent).toContain(`${100 - cheapest.price} kr`);
   });
 
-  it('lets the shopper go back and remove items instead of borrowing', () => {
+  it('blocks buying when the customer cannot afford it', () => {
     const view = render(<Butikken />);
-    const priciest = getShelfItems(view).sort((a, b) => b.price - a.price)[0];
+    const dearestThree = cardsIn(shelf(view, 'Varer til salgs'))
+      .sort((a, b) => b.price - a.price)
+      .slice(0, 3);
+    expect(dearestThree.reduce((sum, card) => sum + card.price, 0)).toBeGreaterThan(100);
 
-    addItem(view, priciest.name, 3);
-    pay();
-    fireEvent.click(screen.getByRole('button', { name: 'Legge noe tilbake' }));
+    dearestThree.forEach((card) => fireEvent.click(card.button));
+    fireEvent.click(screen.getByRole('button', { name: /Kjøp/ }));
 
-    expect(screen.getByText(/Handlekurven/)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: new RegExp(`${priciest.name}\\s*${priciest.price}\\s*kr`) })).toHaveLength(1);
+    expect(view.container.textContent).toContain('Du har ikke råd til disse varene');
+    expect(screen.queryByText('Hvor mye koster alle varene sammen?')).not.toBeInTheDocument();
+  });
+
+  it('lets the customer return items and get the money back', () => {
+    const view = render(<Butikken />);
+    const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
+
+    // Buy first…
+    fireEvent.click(cheapest.button);
+    fireEvent.click(screen.getByRole('button', { name: /Kjøp/ }));
+    fireEvent.click(screen.getByRole('button', { name: `${cheapest.price} kr` }));
+    expect(purse(view, 'Deg som kunde').textContent).toContain(`${100 - cheapest.price} kr`);
+
+    // …then regret it and sell it back.
+    const ownedCard = cardByPrice(shelf(view, 'Varene dine'), 0);
+    expect(ownedCard.name).toBe(cheapest.name);
+    fireEvent.click(ownedCard.button);
+    fireEvent.click(screen.getByRole('button', { name: /Lever tilbake/ }));
+    expect(screen.getByText('Hvor mye skal butikken betale deg for varene?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: `${cheapest.price} kr` }));
+
+    expect(cardsIn(shelf(view, 'Varer til salgs')).some((card) => card.name === cheapest.name)).toBe(true);
+    expect(shelf(view, 'Varene dine').textContent).toContain('Tomt her ennå');
+    expect(purse(view, 'Deg som kunde').textContent).toContain('100 kr');
+    expect(purse(view, 'Selgeren').textContent).toContain(`${SELLER_START_MONEY} kr`);
+  });
+
+  it('starts a fresh day on demand', () => {
+    const view = render(<Butikken />);
+    const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
+
+    fireEvent.click(cheapest.button);
+    fireEvent.click(screen.getByRole('button', { name: /Kjøp/ }));
+    fireEvent.click(screen.getByRole('button', { name: `${cheapest.price} kr` }));
+    fireEvent.click(screen.getByRole('button', { name: '🔁 Ny dag' }));
+
+    expect(shelf(view, 'Varene dine').textContent).toContain('Tomt her ennå');
+    expect(purse(view, 'Deg som kunde').textContent).toContain('100 kr');
+    expect(purse(view, 'Selgeren').textContent).toContain(`${SELLER_START_MONEY} kr`);
+    const roundsChip = screen.getByText(/handler i dag/);
+    expect(roundsChip.textContent).toBe('🛒 0 handler i dag');
+    expect(roundsChip.className).toContain('hidden-chip');
+  });
+
+  it('speaks the norwegian item name when it is selected, unless muted', () => {
+    const spoken = [];
+    window.SpeechSynthesisUtterance = class FakeUtterance {
+      constructor(text) { this.text = text; }
+    };
+    window.speechSynthesis = {
+      getVoices: () => [{ lang: 'nb-NO', name: 'Bokmål' }],
+      cancel() {},
+      speak(utterance) { spoken.push(utterance); },
+    };
+
+    try {
+      const view = render(<Butikken />);
+      const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
+
+      fireEvent.click(cheapest.button);
+      expect(spoken).toHaveLength(1);
+      expect(spoken[0].text).toBe(cheapest.name);
+      expect(spoken[0].lang).toBe('nb-NO');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Slå av lyd' })); // mute
+      fireEvent.click(cheapest.button); // deselect
+      fireEvent.click(cheapest.button); // select again while muted
+      expect(spoken).toHaveLength(1);
+    } finally {
+      delete window.speechSynthesis;
+      delete window.SpeechSynthesisUtterance;
+    }
+  });
+
+  it('keeps the checkout escapable without answering', () => {
+    const view = render(<Butikken />);
+    const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
+
+    fireEvent.click(cheapest.button);
+    fireEvent.click(screen.getByRole('button', { name: /Kjøp/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Tilbake til butikken/ }));
+
+    expect(screen.queryByText('Hvor mye koster alle varene sammen?')).not.toBeInTheDocument();
+    // The half-made purchase stays in the basket for another try.
+    expect(screen.getByText('1 av 3 valgt til kjøp')).toBeInTheDocument();
   });
 });
