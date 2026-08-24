@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { pickOne, shuffle } from '../../shared/random.js';
+import { speakNorwegian } from '../../shared/speech.js';
+import { GameHeader } from '../../shared/GameHeader.jsx';
 import { setMuted as setAudioMuted, sounds } from './sounds.js';
+
+// Read-aloud stays part of this game's public surface for tests/tools.
+export { speakNorwegian };
 
 const OPPONENT_DELAY_MS = 850;
 const TALLY_KEY = 'kortkrig-tally';
@@ -41,15 +47,6 @@ const BURST_COLORS = {
   tie: ['#63a375', '#0c9fc4', '#e46e4b'],
 };
 
-function shuffle(values) {
-  const copy = [...values];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[target]] = [copy[target], copy[index]];
-  }
-  return copy;
-}
-
 export function createDeck() {
   return shuffle(DECK_VALUES);
 }
@@ -71,7 +68,7 @@ export function roundOutcome(playerValue, opponentValue) {
 }
 
 export function pickLine(lines) {
-  return lines[Math.floor(Math.random() * lines.length)];
+  return pickOne(lines);
 }
 
 export function mathLine(modeId, playerValue, opponentValue) {
@@ -108,21 +105,7 @@ export function spokenMath(modeId, playerValue, opponentValue) {
   return `${numberToNorwegian(playerValue)} mot ${numberToNorwegian(opponentValue)}`;
 }
 
-// Opt-in read-aloud support. Returns false when the browser has no speech
-// engine so callers can treat narration as best-effort.
-export function speakNorwegian(text) {
-  if (typeof window === 'undefined' || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return false;
-  try {
-    window.speechSynthesis.cancel();
-    const utterance = new window.SpeechSynthesisUtterance(text);
-    utterance.lang = 'nb-NO';
-    utterance.rate = 0.95;
-    window.speechSynthesis.speak(utterance);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// Opt-in read-aloud support lives in src/shared/speech.js.
 
 export function todayKey(now = new Date()) {
   const pad = (part) => String(part).padStart(2, '0');
@@ -305,9 +288,7 @@ export function Kortkrig() {
   const line = phase === 'revealed' && result ? mathLine(mode, playerCard, opponentCard) : null;
 
   return <main className="game-page battle-page">
-    <header className="game-header">
-      <a className="back-link" href="../../">Spillbibliotek</a>
-      <div className="title-strip"><h1>Kortkrig</h1></div>
+    <GameHeader title="Kortkrig">
       <p>Kortduell mot Rex! Snu kortet ditt og se hvem som slår hardest.</p>
       <div className="game-controls">
         <span className={`rounds-chip${roundsToday === 0 ? ' hidden-chip' : ''}`}>⚔️ {roundsToday} slag i dag</span>
@@ -319,7 +300,7 @@ export function Kortkrig() {
         <button className="chip toggle" aria-pressed={voiceOn} aria-label={voiceOn ? 'Slå av opplesning' : 'Les tallene høyt'} onClick={toggleVoice} type="button">{voiceOn ? '🗣 Lesing: på' : '🗣 Lesing: av'}</button>
         <button className="chip toggle" aria-pressed={!soundOn} aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'} onClick={toggleSound} type="button">{soundOn ? '🔊' : '🔇'}</button>
       </div>
-    </header>
+    </GameHeader>
 
     <section className="arena" aria-label="Kortkrig-arenaen">
       <div className="fighter fighter-player" data-side="player">

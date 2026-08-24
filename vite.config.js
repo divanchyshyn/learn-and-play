@@ -1,6 +1,21 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+const root = import.meta.dirname;
+
+// Every folder under games/ that contains an index.html becomes a build
+// entry automatically. Adding a game means creating its folder – this file
+// never needs to change.
+function discoverGameEntries() {
+  const gamesDir = resolve(root, 'games');
+  if (!existsSync(gamesDir)) return [];
+  return readdirSync(gamesDir)
+    .filter((name) => statSync(resolve(gamesDir, name)).isDirectory())
+    .filter((slug) => existsSync(resolve(gamesDir, slug, 'index.html')))
+    .map((slug) => [slug, resolve(gamesDir, slug, 'index.html')]);
+}
 
 export default defineConfig({
   base: './',
@@ -8,11 +23,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        home: resolve(import.meta.dirname, 'index.html'),
-        slangenEnLadders: resolve(import.meta.dirname, 'games/slangen-en-ladders/index.html'),
-        kortkrig: resolve(import.meta.dirname, 'games/kortkrig/index.html'),
-        butikken: resolve(import.meta.dirname, 'games/butikken/index.html'),
-        lydLabyrint: resolve(import.meta.dirname, 'games/lyd-labyrint/index.html'),
+        home: resolve(root, 'index.html'),
+        ...Object.fromEntries(discoverGameEntries()),
       },
     },
   },

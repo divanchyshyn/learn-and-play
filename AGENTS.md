@@ -17,6 +17,7 @@ Build a small, friendly collection of browser games for children. Games should b
 ```text
 index.html                              Game library entry point
 src/home/                               Library React view and styles
+src/shared/                             Shared helpers used by several games (audio engine, random helpers, speech, ConfettiLayer, GameHeader) with their own tests
 games/<game-slug>/index.html            Deployable entry point for one game
 src/games/<game-slug>/main.jsx          React entry point for one game
 src/games/<game-slug>/<Game>.jsx        Game component and game logic
@@ -35,13 +36,15 @@ For a new game with the slug `word-match`:
 
 1. Create `games/word-match/index.html`. Copy the HTML entry point from an existing game and point its module script to `/src/games/word-match/main.jsx`.
 2. Create `src/games/word-match/` with `main.jsx`, the main React component, and `style.css`.
-3. Add `wordMatch: resolve(import.meta.dirname, 'games/word-match/index.html')` to `build.rollupOptions.input` in `vite.config.js`.
+3. Nothing to register: the build discovers every `games/<slug>/index.html` automatically (see `discoverGameEntries` in `vite.config.js`).
 4. Add tests in `src/games/word-match/*.test.js(x)` (see Testing below).
 5. Add a game tile linking to `./games/word-match/` in `src/home/main.jsx`.
 6. Update `README.md` with the new game link and short description.
 7. Run `npm.cmd run build` and `npm.cmd run test` on Windows. Confirm the build includes `dist/games/word-match/index.html` and all tests pass.
 
 The trailing slash in a game URL is intentional: it lets GitHub Pages load that game's `index.html` directly.
+
+Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`pickOne`, the audio engine (`tone`, mute state), `speakNorwegian`, `ConfettiLayer`, and `GameHeader`. Sound *definitions* stay per game in its local `sounds.js`, built on the shared engine.
 
 ## Testing
 

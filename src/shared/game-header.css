@@ -1,0 +1,2 @@
+.game-header { position: relative; display: grid; gap: 10px; margin-bottom: 20px; }
+.back-link { width: max-content; color: #0b7897; font-weight: 800; text-decoration-thickness: 2px; text-underline-offset: 3px; }

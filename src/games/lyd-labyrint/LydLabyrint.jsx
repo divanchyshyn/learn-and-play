@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { shuffle } from '../../shared/random.js';
+import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
+import { GameHeader } from '../../shared/GameHeader.jsx';
 import { MAZES } from './mazes.js';
 import { pickWords, speakWord } from './words.js';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
@@ -25,17 +28,6 @@ const BOUNCE_MS = 400;
 const DOOR_OPEN_MS = 280;
 const CELEBRATE_DELAY_MS = 340;
 
-const CONFETTI_COLORS = ['#e46e4b', '#0c9fc4', '#d09b45', '#e5ae45', '#63a375'];
-
-function shuffle(items) {
-  const copy = [...items];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[target]] = [copy[target], copy[index]];
-  }
-  return copy;
-}
-
 function createGame(mazeIndex) {
   const maze = MAZES[mazeIndex % MAZES.length];
   // Doors are labelled in reading order (top-to-bottom, left-to-right), and
@@ -50,25 +42,6 @@ function createGame(mazeIndex) {
     tilt: index % 2 === 0 ? '-1.8deg' : '1.6deg',
   }));
   return { mazeIndex, maze, doors, pos: { ...maze.start }, phase: 'play' };
-}
-
-function ConfettiLayer() {
-  const pieces = useMemo(() => Array.from({ length: 36 }, (_, index) => ({
-    id: index,
-    left: Math.random() * 100,
-    delay: Math.random() * 0.6,
-    duration: 2.2 + Math.random() * 1.8,
-    color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
-    spin: `${Math.round((Math.random() > 0.5 ? 1 : -1) * (360 + Math.random() * 360))}deg`,
-    round: Math.random() > 0.5,
-  })), []);
-  return <div className="confetti-layer" aria-hidden="true">
-    {pieces.map((piece) => <span
-      className={`confetti-piece${piece.round ? ' round' : ''}`}
-      key={piece.id}
-      style={{ left: `${piece.left}%`, backgroundColor: piece.color, animationDelay: `${piece.delay}s`, animationDuration: `${piece.duration}s`, '--spin': piece.spin }}
-    />)}
-  </div>;
 }
 
 export function LydLabyrint() {
@@ -247,9 +220,7 @@ export function LydLabyrint() {
   }
 
   return <main className={`game-page labyrinth-page theme-${maze.theme}`}>
-    <header className="game-header">
-      <a className="back-link" href="../../">Spillbibliotek</a>
-      <div className="title-strip"><h1>Lyd-labyrinten</h1></div>
+    <GameHeader title="Lyd-labyrinten">
       <p className="labyrinth-intro">
         Hjelp reven <span aria-hidden="true">🦊</span> å finne veien ut av labyrinten.
         Gå med piltastene eller knappene under kartet. Lurer du på hva et ord sier?
@@ -268,7 +239,7 @@ export function LydLabyrint() {
           {soundOn ? '🔊' : '🔇'}
         </button>
       </div>
-    </header>
+    </GameHeader>
 
     <section className="labyrinth-stage">
       <div className="board-frame">
@@ -289,7 +260,7 @@ export function LydLabyrint() {
         </div>
 
         {phase === 'celebrate' && <>
-          <ConfettiLayer />
+          <ConfettiLayer count={36} />
           <div className="celebrate-card" aria-live="polite">
             <p className="celebrate-mascot" aria-hidden="true">🦊</p>
             <h2>Du fant veien ut!</h2>

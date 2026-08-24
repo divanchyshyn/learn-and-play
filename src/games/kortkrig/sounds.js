@@ -1,32 +1,7 @@
-let audioCtx = null;
-let muted = false;
+import { tone, setMuted } from '../../shared/audio.js';
 
-function context() {
-  if (typeof window === 'undefined') return null;
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return null;
-  if (!audioCtx) audioCtx = new Ctx();
-  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-  return audioCtx;
-}
-
-function tone({ freq, freqEnd, delay = 0, duration = 0.12, type = 'sine', volume = 0.15 }) {
-  const ctx = context();
-  if (!ctx || muted) return;
-  const start = ctx.currentTime + delay;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, start);
-  if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, start + duration);
-  gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(start);
-  osc.stop(start + duration + 0.05);
-}
-
+// Kortkrig's own sound character – effect definitions stay with the game,
+// the Web Audio engine comes from src/shared.
 export const sounds = {
   flip() {
     tone({ freq: 420, duration: 0.06, type: 'triangle', volume: 0.13 });
@@ -50,6 +25,4 @@ export const sounds = {
   },
 };
 
-export function setMuted(value) {
-  muted = value;
-}
+export { setMuted };

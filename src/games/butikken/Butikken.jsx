@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react';
+import { shuffle } from '../../shared/random.js';
+import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
+import { GameHeader } from '../../shared/GameHeader.jsx';
 import { setMuted as setAudioMuted, sounds } from './sounds.js';
 
 const ITEM_BANK = [
@@ -32,16 +35,6 @@ const ITEM_BANK = [
 ];
 const WALLET_CHOICES = [50, 100, 200];
 const PICKS_PER_CATEGORY = { mat: 6, leker: 3, skole: 3 };
-const CONFETTI_COLORS = ['#e46e4b', '#0c9fc4', '#d09b45', '#e5ae45', '#63a375'];
-
-function shuffle(items) {
-  const copy = [...items];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[target]] = [copy[target], copy[index]];
-  }
-  return copy;
-}
 
 export function sampleShop() {
   const grouped = { mat: [], leker: [], skole: [] };
@@ -75,25 +68,6 @@ export function changeDistractions(wallet, total, correct) {
 
 export function totalDistractions(total) {
   return [Math.round(total / 10) * 10, total + 10, total - 10, total + 5, total - 5, total + 1, total - 2];
-}
-
-function ConfettiLayer() {
-  const pieces = useMemo(() => Array.from({ length: 34 }, (_, index) => ({
-    id: index,
-    left: Math.random() * 100,
-    delay: Math.random() * 0.6,
-    duration: 2.4 + Math.random() * 1.6,
-    color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
-    spin: `${Math.round((Math.random() > 0.5 ? 1 : -1) * (360 + Math.random() * 360))}deg`,
-    round: Math.random() > 0.5,
-  })), []);
-  return <div className="confetti-layer" aria-hidden="true">
-    {pieces.map((piece) => <span
-      className={`confetti-piece${piece.round ? ' round' : ''}`}
-      key={piece.id}
-      style={{ left: `${piece.left}%`, backgroundColor: piece.color, animationDelay: `${piece.delay}s`, animationDuration: `${piece.duration}s`, '--spin': piece.spin }}
-    />)}
-  </div>;
 }
 
 export function Butikken() {
@@ -191,9 +165,7 @@ export function Butikken() {
   }
 
   return <main className="game-page shop-page">
-    <header className="game-header">
-      <a className="back-link" href="../../">Spillbibliotek</a>
-      <div className="title-strip"><h1>Butikken</h1></div>
+    <GameHeader title="Butikken">
       <p>Velkommen til butikken! Klikk på varene du vil kjøpe, og gå til kassen når handlekurven er klar.</p>
       <div className="game-controls">
         <span className={`rounds-chip${rounds === 0 ? ' hidden-chip' : ''}`}>🛒 {rounds} {rounds === 1 ? 'handel' : 'handler'} i dag</span>
@@ -206,7 +178,7 @@ export function Butikken() {
         <button className="chip toggle" aria-pressed={showTotals} onClick={toggleTotals} type="button">{showTotals ? '👁 Sum: synlig' : '🙈 Sum: gjemt'}</button>
         <button className="chip toggle" aria-pressed={!soundOn} aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'} onClick={toggleSound} type="button">{soundOn ? '🔊' : '🔇'}</button>
       </div>
-    </header>
+    </GameHeader>
 
     {phase === 'shop' ? (
       <section className="shop-layout">

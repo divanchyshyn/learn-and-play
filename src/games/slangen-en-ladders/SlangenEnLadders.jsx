@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { shuffle } from '../../shared/random.js';
+import { GameHeader } from '../../shared/GameHeader.jsx';
 
 export const BOARD_SIZE = 8;
 export const FINAL_CELL = BOARD_SIZE ** 2;
@@ -22,15 +24,6 @@ const DICE_PIPS = {
   5: [0, 2, 4, 6, 8],
   6: [0, 2, 3, 5, 6, 8],
 };
-
-function shuffle(items) {
-  const copy = [...items];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[target]] = [copy[target], copy[index]];
-  }
-  return copy;
-}
 
 export function makeWords() {
   const words = Array(FINAL_CELL + 1).fill('');
@@ -147,12 +140,10 @@ export function SlangenEnLadders() {
   }
 
   return <main className="game-page">
-    <header className="game-header">
-      <a className="back-link" href="../../">Spillbibliotek</a>
-      <div className="title-strip"><h1>Slanger og stiger spill</h1></div>
+    <GameHeader title="Slanger og stiger spill">
       <p>Les ordet høyt når du lander på en rute. Klatre opp stiger og prøv å unngå slangene.</p>
       <div className="game-controls"><button className="outline-button" onClick={resetGame} type="button">Nytt spill</button></div>
-    </header>
+    </GameHeader>
     <section className="game-layout" aria-label="Slanger og stiger">
       <div className="board-frame">
         <BoardRoutes />
