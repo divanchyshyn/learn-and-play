@@ -27,6 +27,7 @@ Every game is covered by Vitest tests (game logic plus rendered behaviour):
 ```sh
 npm run test        # run all tests once
 npm run test:watch  # watch mode while developing
+npm run lint        # eslint over the whole project
 ```
 
 Tests live next to the code they cover (for example `src/games/lyd-labyrint/mazes.test.js`) and are not included in the production build.

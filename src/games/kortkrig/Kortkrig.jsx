@@ -159,7 +159,9 @@ function BurstLayer({ tone }) {
       color: BURST_COLORS[tone][index % BURST_COLORS[tone].length],
       round: index % 3 === 0,
     };
-  }), []);
+    // `tone` never changes while mounted (the layer unmounts between
+    // rounds), so listing it only satisfies correctness for the future.
+  }), [tone]);
   return <div className="burst-layer" aria-hidden="true">
     {bits.map((bit) => <span
       className={`burst-bit${bit.round ? ' round' : ''}`}

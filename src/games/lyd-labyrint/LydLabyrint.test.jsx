@@ -101,7 +101,7 @@ describe('lyd-labyrint game', () => {
       speak(utterance) { spoken.push(utterance.text); },
     });
 
-    const view = renderGame();
+    renderGame();
     const sign = screen.getAllByRole('button', { name: /Hør ordet/ })[0];
     fireEvent.click(sign);
 

@@ -26,8 +26,9 @@ src/games/<game-slug>/style.css         Game-specific styles
 src/styles/base.css                     Shared reset and base styles
 src/test/setup.js                       Vitest setup (jest-dom matchers)
 vite.config.js                          Multi-page build entry points and test config
-.github/workflows/ci.yml                Runs the test suite on pushes and pull requests
-.github/workflows/deploy-pages.yml      GitHub Pages build and deployment (tests gate the deploy)
+eslint.config.js                        ESLint flat config (core, react, react-hooks rules)
+.github/workflows/ci.yml                Runs lint and the test suite on pushes and pull requests
+.github/workflows/deploy-pages.yml      GitHub Pages build and deployment (lint and tests gate the deploy)
 ```
 
 ## Adding a game
@@ -57,7 +58,14 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 
 ## CI
 
-`.github/workflows/ci.yml` runs the whole test suite on every push and pull request. `.github/workflows/deploy-pages.yml` runs the same suite before building, so failing tests can never reach GitHub Pages. Keep both green before handing off changes.
+`.github/workflows/ci.yml` runs lint and the whole test suite on every push and pull request. `.github/workflows/deploy-pages.yml` runs the same before building, so failing checks can never reach GitHub Pages. Keep both green before handing off changes.
+
+## Linting
+
+- `npm.cmd run lint` runs ESLint (flat config in `eslint.config.js`): core recommended rules, React rules, and the classic React Hooks rules (`rules-of-hooks`, `exhaustive-deps`).
+- The compiler-grade extras from react-hooks v7 (`purity`, `refs`, `set-state-in-render`, …) are intentionally not enabled: games randomise at mount time on purpose (confetti bursts, dealt word boards, picked mazes). Revisit only if a game's design moves that logic into effects or event handlers.
+- Fix findings at the source instead of adding suppressions. If a suppression is truly warranted, scope it to the line with a comment explaining why.
+- Browser globals are enabled for `src/`; Node globals for `vite.config.js` and `eslint.config.js`. Tests may use Vitest's injected globals, though explicit imports remain the convention.
 
 ## Design direction
 
@@ -74,7 +82,7 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 - Prefer simple React state and small components over adding a state-management library.
 - Preserve existing games while adding new ones. Do not rename a game slug without also preserving or intentionally redirecting its published URL.
 - Hide an unfinished game by commenting out its tile in `src/home/main.jsx` and marking it "(hidden)" in `README.md`. Keep its entry point in the build so the direct URL keeps working (see Butikken and Lyd-labyrinten).
-- Build (`npm.cmd run build`) and test (`npm.cmd run test`) before handing off changes. For interactive changes, also verify the relevant game route locally.
+- Build (`npm.cmd run build`), lint (`npm.cmd run lint`), and test (`npm.cmd run test`) before handing off changes. For interactive changes, also verify the relevant game route locally.
 
 ## Useful commands
 
@@ -83,6 +91,7 @@ npm.cmd install
 npm.cmd run dev
 npm.cmd run build
 npm.cmd run preview
+npm.cmd run lint
 npm.cmd run test
 npm.cmd run test:watch
 ```

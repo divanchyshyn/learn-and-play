@@ -95,7 +95,7 @@ export function Butikken() {
     if (phase !== 'checkout' || !affordable || step === 'reveal') return [];
     if (step === 'ask-total') return makeOptions(total, totalDistractions(total));
     return makeOptions(correctChange, changeDistractions(wallet, total, correctChange));
-  }, [phase, affordable, step, total, wallet]);
+  }, [phase, affordable, step, total, wallet, correctChange]);
 
   function addItem(item) {
     setCart((current) => ({ ...current, [item.id]: (current[item.id] || 0) + 1 }));
