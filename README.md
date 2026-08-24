@@ -5,11 +5,11 @@ A collection of small reading, counting, and maths games for children.
 ## Games
 
 - [Snakes and ladders](./games/slangen-en-ladders/) - practise Norwegian words while playing snakes and ladders.
-- Kortkrig (hidden) - a card battle against Rex the dinosaur: flip cards, compare numbers, and pick up addition and subtraction along the way. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/kortkrig/](./games/kortkrig/).
-- Sound labyrinth (hidden) - explore a maze and choose doors labelled with Norwegian words to find the way out. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/lyd-labyrint/](./games/lyd-labyrint/).
-- Butikken (hidden) - run a pretend shop: pick items, pay at the till and work out the change (addition and subtraction up to 100). Still in development, so it is not shown in the game library, but it is built and reachable at [/games/butikken/](./games/butikken/).
-- Ordfiske (hidden) - go fishing for words: tap a fish to bring it up from the pond, hear the word out loud if you like, and fill the bucket at your own pace. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/ordfiske/](./games/ordfiske/).
-- Tierhopp (hidden) - help the frog hop along a 0–100 number line: look at the sum, point to where you think the answer lives, and land together. Addition and subtraction practice with no wrong answers, no timers, and no score. Still in development, so it is not shown in the game library, but it is built and reachable at [/games/tierhopp/](./games/tierhopp/).
+- [Kortkrig](./games/kortkrig/) - a card battle against Rex the dinosaur: flip cards, compare numbers, and pick up addition and subtraction along the way.
+- [Sound labyrinth](./games/lyd-labyrint/) - explore a maze and choose doors labelled with Norwegian words to find the way out.
+- [Butikken](./games/butikken/) - run a pretend shop: pick items, pay at the till and work out the change (addition and subtraction up to 100).
+- [Ordfiske](./games/ordfiske/) - go fishing for words: tap a fish to bring it up from the pond, hear the word out loud if you like, and fill the bucket at your own pace.
+- [Tierhopp](./games/tierhopp/) - help the frog hop along a 0–100 number line: look at the sum, point to where you think the answer lives, and land together. Addition and subtraction practice with no wrong answers, no timers, and no score.
 
 ## Local development
 
