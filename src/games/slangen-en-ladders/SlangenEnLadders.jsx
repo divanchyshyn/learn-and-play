@@ -155,15 +155,16 @@ export function SlangenEnLadders() {
 
   function acceptWord() {
     if (!game.pending) return;
-    const { playerIndex, position, route } = game.pending;
+    const { playerIndex, route } = game.pending;
     const player = game.players[playerIndex];
     const players = route ? game.players.map((item, index) => index === playerIndex ? { ...item, position: route.to } : item) : game.players;
     const landedAtGoal = route?.to === FINAL_CELL;
     const message = route ? `Riktig lest! ${player.name} ${route.type === 'ladder' ? 'klatrer opp' : 'sklir ned'} til rute ${route.to}.` : `Riktig lest! ${player.name} holder posisjonen.`;
-    // Keep hopping through the squares that are left of the dice walk, then
-    // continue straight on to the snake/ladder target square.
+    // Finish any dice-walk hops that are still queued, then glide straight to
+    // the snake/ladder target square in one move instead of visiting every
+    // square in between.
     const walkTail = movement && movement.playerIndex === playerIndex ? movement.path.slice(movement.index + 1) : [];
-    const slide = route ? buildPath(position, route.to) : [];
+    const slide = route ? [route.to] : [];
     setMovement(walkTail.length + slide.length > 0 ? { playerIndex, path: [...walkTail, ...slide], index: 0 } : null);
     setGame({ ...game, players, pending: null, winner: landedAtGoal ? playerIndex : null, currentPlayer: landedAtGoal ? game.currentPlayer : (game.currentPlayer + 1) % players.length, message });
   }

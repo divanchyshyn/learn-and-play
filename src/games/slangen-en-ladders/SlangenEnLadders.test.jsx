@@ -103,6 +103,27 @@ describe('slangen-en-ladders game', () => {
     expectTokenAt(container, 'one', 5);
   });
 
+  it('slides straight to the ladder top without visiting the squares between', () => {
+    const { container } = render(<SlangenEnLadders />);
+    rollQueue.push(2); // Spiller 1 lands on cell 3, the first ladder.
+    settle();
+    fireEvent.click(rollButton());
+    // Confirm immediately, while the dice walk is still animating.
+    expectTokenAt(container, 'one', 2);
+    fireEvent.click(confirmButton());
+
+    // The leftover hop of the dice roll is still walked square by square.
+    expectTokenAt(container, 'one', 3);
+
+    // The very next step is one direct slide to the ladder top, skipping cells 4–9.
+    act(() => { vi.advanceTimersByTime(ANIMATION_STEP_MS); });
+    expectTokenAt(container, 'one', 10);
+
+    // The movement finishes and the token stays on the target square.
+    act(() => { vi.advanceTimersByTime(ANIMATION_STEP_MS); });
+    expectTokenAt(container, 'one', 10);
+  });
+
   it('keeps the position on a plain square after the word is read and passes the turn', () => {
     render(<SlangenEnLadders />);
     takeTurn();

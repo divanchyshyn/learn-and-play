@@ -104,7 +104,7 @@ describe('slangen-en-ladders token path', () => {
     expect(buildPath(1, 5)).toEqual([2, 3, 4, 5]);
   });
 
-  it('walks backwards down a snake one square at a time', () => {
+  it('steps through every square when the path runs backwards', () => {
     expect(buildPath(41, 32)).toEqual([40, 39, 38, 37, 36, 35, 34, 33, 32]);
   });
 
