@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 
-const BOARD_SIZE = 8;
-const FINAL_CELL = BOARD_SIZE ** 2;
-const WORDS = ['sol', 'måne', 'hus', 'bil', 'båt', 'tog', 'jeg', 'bro', 'skog', 'tre', 'blad', 'dra', 'fjell', 'snø', 'fly', 'vind', 'sky', 'elv', 'is', 'ild', 'vann', 'mat', 'brød', 'ost', 'egg', 'melk', 'kake', 'ris', 'fisk', 'eple', 'banan', 'pære', 'hund', 'katt', 'ku', 'gris', 'hest', 'sau', 'mus', 'rev', 'fugl', 'and', 'bjørn', 'løve', 'ball', 'bok', 'penn', 'stol', 'bord', 'dør', 'rom', 'seng', 'pute', 'sko', 'lue', 'vott', 'sekk', 'kart', 'flagg', 'telt', 'lek', 'mål', 'glad', 'fin'];
-const ROUTES = [
+export const BOARD_SIZE = 8;
+export const FINAL_CELL = BOARD_SIZE ** 2;
+export const WORDS = ['sol', 'måne', 'hus', 'bil', 'båt', 'tog', 'jeg', 'bro', 'skog', 'tre', 'blad', 'dra', 'fjell', 'snø', 'fly', 'vind', 'sky', 'elv', 'is', 'ild', 'vann', 'mat', 'brød', 'ost', 'egg', 'melk', 'kake', 'ris', 'fisk', 'eple', 'banan', 'pære', 'hund', 'katt', 'ku', 'gris', 'hest', 'sau', 'mus', 'rev', 'fugl', 'and', 'bjørn', 'løve', 'ball', 'bok', 'penn', 'stol', 'bord', 'dør', 'rom', 'seng', 'pute', 'sko', 'lue', 'vott', 'sekk', 'kart', 'flagg', 'telt', 'lek', 'mål', 'glad', 'fin'];
+export const ROUTES = [
   { type: 'ladder', from: 5, to: 21 },
   { type: 'ladder', from: 12, to: 28 },
   { type: 'ladder', from: 23, to: 39 },
@@ -32,13 +32,13 @@ function shuffle(items) {
   return copy;
 }
 
-function makeWords() {
+export function makeWords() {
   const words = Array(FINAL_CELL + 1).fill('');
   shuffle(WORDS).forEach((word, index) => { words[index + 2] = word; });
   return words;
 }
 
-function cellToGridPosition(number) {
+export function cellToGridPosition(number) {
   const index = number - 1;
   const rowFromBottom = Math.floor(index / BOARD_SIZE);
   const columnInRow = index % BOARD_SIZE;
@@ -50,7 +50,7 @@ function cellCenter(number) {
   return { x: column * 100 + 50, y: row * 100 + 50 };
 }
 
-function getCellNumber(row, column) {
+export function getCellNumber(row, column) {
   const rowFromBottom = BOARD_SIZE - 1 - row;
   return rowFromBottom % 2 === 0 ? rowFromBottom * BOARD_SIZE + column + 1 : rowFromBottom * BOARD_SIZE + BOARD_SIZE - column;
 }

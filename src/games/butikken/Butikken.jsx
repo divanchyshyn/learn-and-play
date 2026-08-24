@@ -43,7 +43,7 @@ function shuffle(items) {
   return copy;
 }
 
-function sampleShop() {
+export function sampleShop() {
   const grouped = { mat: [], leker: [], skole: [] };
   ITEM_BANK.forEach((item) => grouped[item.category].push(item));
   const picked = Object.keys(PICKS_PER_CATEGORY)
@@ -51,7 +51,7 @@ function sampleShop() {
   return shuffle(picked);
 }
 
-function makeOptions(correct, candidates) {
+export function makeOptions(correct, candidates) {
   const values = new Set([correct]);
   shuffle(candidates).forEach((candidate) => {
     if (values.size >= 4 || !Number.isInteger(candidate)) return;
@@ -69,11 +69,11 @@ function makeOptions(correct, candidates) {
   return shuffle([...values]);
 }
 
-function changeDistractions(wallet, total, correct) {
+export function changeDistractions(wallet, total, correct) {
   return [total, wallet + correct, correct + 10, correct - 10, correct + 5, correct - 5, correct + 2, correct - 1];
 }
 
-function totalDistractions(total) {
+export function totalDistractions(total) {
   return [Math.round(total / 10) * 10, total + 10, total - 10, total + 5, total - 5, total + 1, total - 2];
 }
 
