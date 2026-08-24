@@ -1,20 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { shuffle } from '../../shared/random.js';
 import { GameHeader } from '../../shared/GameHeader.jsx';
 
-export const BOARD_SIZE = 8;
+export const BOARD_SIZE = 7;
 export const FINAL_CELL = BOARD_SIZE ** 2;
 export const WORDS = ['sol', 'måne', 'hus', 'bil', 'båt', 'tog', 'jeg', 'bro', 'skog', 'tre', 'blad', 'dra', 'fjell', 'snø', 'fly', 'vind', 'sky', 'elv', 'is', 'ild', 'vann', 'mat', 'brød', 'ost', 'egg', 'melk', 'kake', 'ris', 'fisk', 'eple', 'banan', 'pære', 'hund', 'katt', 'ku', 'gris', 'hest', 'sau', 'mus', 'rev', 'fugl', 'and', 'bjørn', 'løve', 'ball', 'bok', 'penn', 'stol', 'bord', 'dør', 'rom', 'seng', 'pute', 'sko', 'lue', 'vott', 'sekk', 'kart', 'flagg', 'telt', 'lek', 'mål', 'glad', 'fin'];
+// Ladders climb at most two levels (one row), snakes take off at most ten
+// squares, and the two types are mixed across the whole board instead of being
+// grouped on one side each.
 export const ROUTES = [
-  { type: 'ladder', from: 5, to: 21 },
-  { type: 'ladder', from: 12, to: 28 },
-  { type: 'ladder', from: 23, to: 39 },
-  { type: 'ladder', from: 42, to: 58 },
-  { type: 'snake', from: 18, to: 7 },
-  { type: 'snake', from: 32, to: 16 },
-  { type: 'snake', from: 49, to: 34 },
-  { type: 'snake', from: 61, to: 44 },
+  { type: 'ladder', from: 3, to: 10 },
+  { type: 'ladder', from: 16, to: 23 },
+  { type: 'ladder', from: 26, to: 33 },
+  { type: 'ladder', from: 38, to: 45 },
+  { type: 'snake', from: 20, to: 11 },
+  { type: 'snake', from: 34, to: 25 },
+  { type: 'snake', from: 41, to: 32 },
 ];
+export const ANIMATION_STEP_MS = 200;
 const playerDefinitions = [{ name: 'Spiller 1', tone: 'one' }, { name: 'Spiller 2', tone: 'two' }];
 const DICE_PIPS = {
   1: [4],
@@ -27,8 +30,17 @@ const DICE_PIPS = {
 
 export function makeWords() {
   const words = Array(FINAL_CELL + 1).fill('');
-  shuffle(WORDS).forEach((word, index) => { words[index + 2] = word; });
+  shuffle(WORDS).slice(0, FINAL_CELL - 2).forEach((word, index) => { words[index + 2] = word; });
   return words;
+}
+
+// Every square between start and target (inclusive of the target), so tokens
+// can hop from square to square instead of jumping straight to the destination.
+export function buildPath(from, to) {
+  const step = from <= to ? 1 : -1;
+  const path = [];
+  for (let cell = from + step; cell !== to + step; cell += step) path.push(cell);
+  return path;
 }
 
 export function cellToGridPosition(number) {
@@ -94,7 +106,7 @@ function Snake({ from, to }) {
 }
 
 function BoardRoutes() {
-  return <svg className="routes" viewBox="0 0 800 800" aria-hidden="true">
+  return <svg className="routes" viewBox="0 0 700 700" aria-hidden="true">
     <defs><filter id="route-shadow" x="-25%" y="-25%" width="150%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="2" floodOpacity=".24" /></filter></defs>
     {ROUTES.map((route) => route.type === 'ladder' ? <Ladder key={`${route.type}-${route.from}`} {...route} /> : <Snake key={`${route.type}-${route.from}`} {...route} />)}
   </svg>;
@@ -112,16 +124,28 @@ function newGame() {
 
 export function SlangenEnLadders() {
   const [game, setGame] = useState(() => newGame());
+  const [movement, setMovement] = useState(null);
   const routeByStart = useMemo(() => new Map(ROUTES.map((route) => [route.from, route])), []);
   const currentPlayer = game.players[game.currentPlayer];
-  const resetGame = () => setGame(newGame());
+  const animating = movement !== null;
+  const resetGame = () => { setMovement(null); setGame(newGame()); };
   const wordToRead = game.pending ? game.words[game.pending.position] : '';
 
+  useEffect(() => {
+    if (!movement) return undefined;
+    const timer = setTimeout(() => {
+      setMovement((current) => (current.index >= current.path.length - 1 ? null : { ...current, index: current.index + 1 }));
+    }, ANIMATION_STEP_MS);
+    return () => clearTimeout(timer);
+  }, [movement]);
+
   function rollDice() {
-    if (game.pending || game.winner !== null) return;
+    if (game.pending || game.winner !== null || animating) return;
     const roll = Math.floor(Math.random() * 6) + 1;
-    const nextPosition = Math.min(FINAL_CELL, currentPlayer.position + roll);
+    const startPosition = currentPlayer.position;
+    const nextPosition = Math.min(FINAL_CELL, startPosition + roll);
     const players = game.players.map((player, index) => index === game.currentPlayer ? { ...player, position: nextPosition } : player);
+    setMovement({ playerIndex: game.currentPlayer, path: buildPath(startPosition, nextPosition), index: 0 });
     if (nextPosition === FINAL_CELL) {
       setGame({ ...game, players, roll, winner: game.currentPlayer, message: `${currentPlayer.name} kom til mål!` });
       return;
@@ -131,11 +155,16 @@ export function SlangenEnLadders() {
 
   function acceptWord() {
     if (!game.pending) return;
-    const { playerIndex, route } = game.pending;
+    const { playerIndex, position, route } = game.pending;
     const player = game.players[playerIndex];
     const players = route ? game.players.map((item, index) => index === playerIndex ? { ...item, position: route.to } : item) : game.players;
     const landedAtGoal = route?.to === FINAL_CELL;
     const message = route ? `Riktig lest! ${player.name} ${route.type === 'ladder' ? 'klatrer opp' : 'sklir ned'} til rute ${route.to}.` : `Riktig lest! ${player.name} holder posisjonen.`;
+    // Keep hopping through the squares that are left of the dice walk, then
+    // continue straight on to the snake/ladder target square.
+    const walkTail = movement && movement.playerIndex === playerIndex ? movement.path.slice(movement.index + 1) : [];
+    const slide = route ? buildPath(position, route.to) : [];
+    setMovement(walkTail.length + slide.length > 0 ? { playerIndex, path: [...walkTail, ...slide], index: 0 } : null);
     setGame({ ...game, players, pending: null, winner: landedAtGoal ? playerIndex : null, currentPlayer: landedAtGoal ? game.currentPlayer : (game.currentPlayer + 1) % players.length, message });
   }
 
@@ -158,15 +187,16 @@ export function SlangenEnLadders() {
           const number = index + 1;
           const center = cellCenter(number);
           const word = number === 1 ? 'Start' : number === FINAL_CELL ? 'Mål' : game.words[number];
-          return <span className={`word-label ${number === 1 ? 'start' : ''} ${number === FINAL_CELL ? 'finish' : ''}`} key={number} style={{ left: `${center.x / 8}%`, top: `${center.y / 8}%` }}>{word}</span>;
+          return <span className={`word-label ${number === 1 ? 'start' : ''} ${number === FINAL_CELL ? 'finish' : ''}`} key={number} style={{ left: `${center.x / BOARD_SIZE}%`, top: `${center.y / BOARD_SIZE}%` }}>{word}</span>;
         })}</div>
         <div className="tokens" aria-hidden="true">{game.players.map((player, index) => {
-          const center = cellCenter(player.position);
-          return <span className={`token ${player.tone}`} key={player.name} style={{ left: `${center.x / 8}%`, top: `${center.y / 8}%`, '--token-offset': game.players.length > 1 ? `${index === 0 ? -12 : 12}px` : '0px' }}>{index + 1}</span>;
+          const moving = movement?.playerIndex === index;
+          const center = cellCenter(moving ? movement.path[movement.index] : player.position);
+          return <span className={`token ${player.tone}`} key={player.name} style={{ left: `${center.x / BOARD_SIZE}%`, top: `${center.y / BOARD_SIZE}%`, '--token-offset': game.players.length > 1 ? `${index === 0 ? -12 : 12}px` : '0px' }}>{index + 1}</span>;
         })}</div>
       </div>
       <aside className="game-panel">
-        <section className="status-box" aria-live="polite"><p className="panel-label">{game.winner === null ? currentPlayer.name : 'Spillet er ferdig'}</p><p className="message">{game.message}</p><div className="dice-row"><button className="roll-button" onClick={rollDice} disabled={Boolean(game.pending || game.winner !== null)} type="button">Kast terningen</button><output className="dice" aria-label={`Terningen viser ${game.roll}`}><span className="dice-number">{game.roll}</span><DiceFace value={game.roll} /></output></div></section>
+        <section className="status-box" aria-live="polite"><p className="panel-label">{game.winner === null ? currentPlayer.name : 'Spillet er ferdig'}</p><p className="message">{game.message}</p><div className="dice-row"><button className="roll-button" onClick={rollDice} disabled={Boolean(game.pending || game.winner !== null || animating)} type="button">Kast terningen</button><output className="dice" aria-label={`Terningen viser ${game.roll}`}><span className="dice-number">{game.roll}</span><DiceFace value={game.roll} /></output></div></section>
         {game.pending && <section className="reading-box" aria-live="polite"><p className="panel-label">Les høyt</p><p className="reading-word">{wordToRead}</p><div className="reading-actions"><button className="roll-button" onClick={acceptWord} type="button">Riktig</button><button className="outline-button" onClick={() => setGame({ ...game, message: `${currentPlayer.name}, prøv ordet én gang til.` })} type="button">Øv mer</button></div></section>}
         <section className="players-box">{game.players.map((player, index) => <div className={`player-row ${index === game.currentPlayer && game.winner === null ? 'active' : ''}`} key={player.name}><span className={`player-dot ${player.tone}`}>{index + 1}</span><strong>{player.name}</strong><span>Rute {player.position}</span></div>)}</section>
         <section className="how-to"><h2>Slik spiller dere</h2><p>Ta annenhver tur. Kast terningen, les ordet på ruten høyt og velg Riktig når ordet er lest.</p></section>
@@ -175,3 +205,4 @@ export function SlangenEnLadders() {
     {game.winner !== null && <div className="winner" role="dialog" aria-modal="true" aria-label="Vinner"><section><p className="panel-label">Hurra!</p><h2>{game.players[game.winner].name} vant!</h2><p>Først til mål.</p><button className="roll-button" onClick={() => resetGame()} type="button">Spill igjen</button></section></div>}
   </main>;
 }
+
