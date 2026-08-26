@@ -60,10 +60,12 @@ export function sumPrices(items) {
 }
 
 // The expected answer at the checkout. Buying one single item is a subtraction
-// exercise – how much is left of the money you hold; everything else (a basket
-// of several goods, or returning goods) is about working out a total.
+// exercise (how much is left of the money you hold), and returning a single
+// item is an addition exercise (how much you will hold once it is back). A
+// basket of several goods – bought or returned – is about working out a total.
 export function expectedAnswer(kind, money, items) {
   if (kind === 'buy' && items.length === 1) return money - items[0].price;
+  if (kind === 'sellBack' && items.length === 1) return money + items[0].price;
   return sumPrices(items);
 }
 
@@ -87,6 +89,14 @@ export function checkoutCopy(kind, items) {
       label: 'I kassen',
       heading: 'Hvor mye har du igjen?',
       hint: `Du kjøper ${item.name} for ${item.price} kr.`,
+    };
+  }
+  if (kind === 'sellBack' && items.length === 1) {
+    const item = items[0];
+    return {
+      label: 'Returdisken',
+      heading: 'Hvor mye har du etter returen?',
+      hint: `Du leverer tilbake ${item.name} og får ${item.price} kr.`,
     };
   }
   return {

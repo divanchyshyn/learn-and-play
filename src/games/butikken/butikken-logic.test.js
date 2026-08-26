@@ -85,6 +85,11 @@ describe('butikken checkout answer', () => {
     expect(expectedAnswer('buy', 100, [apple])).toBe(100 - apple.price);
   });
 
+  it('works out a single-item return as an addition to the money you hold', () => {
+    const apple = ITEM_BANK.find((item) => item.id === 'eple');
+    expect(expectedAnswer('sellBack', 40, [apple])).toBe(40 + apple.price);
+  });
+
   it('keeps a multi-item basket as a sum for both buying and returning', () => {
     const eple = ITEM_BANK.find((item) => item.id === 'eple');
     const melk = ITEM_BANK.find((item) => item.id === 'melk');
@@ -100,11 +105,18 @@ describe('butikken checkout answer', () => {
     expect(copy.hint).toContain(`${eple.price} kr`);
   });
 
-  it('asks for the total when buying several things or returning any', () => {
+  it('asks about a single return as an addition to what you hold', () => {
+    const eple = ITEM_BANK.find((item) => item.id === 'eple');
+    const copy = checkoutCopy('sellBack', [eple]);
+    expect(copy.heading).toBe('Hvor mye har du etter returen?');
+    expect(copy.hint).toContain(`${eple.price} kr`);
+  });
+
+  it('asks for the total when buying several things or returning several', () => {
     const eple = ITEM_BANK.find((item) => item.id === 'eple');
     const melk = ITEM_BANK.find((item) => item.id === 'melk');
     expect(checkoutCopy('buy', [eple, melk]).heading).toBe('Hvor mye koster alle varene sammen?');
-    expect(checkoutCopy('sellBack', [eple]).heading).toBe('Hvor mye skal butikken betale deg for varene?');
+    expect(checkoutCopy('sellBack', [eple, melk]).heading).toBe('Hvor mye skal butikken betale deg for varene?');
   });
 });
 

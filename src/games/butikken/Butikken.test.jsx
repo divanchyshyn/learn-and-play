@@ -185,13 +185,14 @@ it('shows a policeman without revealing the answer, then three wrong tries send 
     giveAnswer(START_MONEY - cheapest.price);
     expect(purse(view, 'Deg som kunde').textContent).toContain(`${START_MONEY - cheapest.price} kr`);
 
-    // …then regret it and sell it back – a single return is a total again.
+    // …then regret it and sell it back – a single return asks how much you will
+    // hold once the item's price is added back.
     const ownedCard = cardByPrice(shelf(view, 'Varene dine'), 0);
     expect(ownedCard.name).toBe(cheapest.name);
     fireEvent.click(ownedCard.button);
     fireEvent.click(screen.getByRole('button', { name: /Lever tilbake/ }));
-    expect(screen.getByText('Hvor mye skal butikken betale deg for varene?')).toBeInTheDocument();
-    giveAnswer(cheapest.price);
+    expect(screen.getByText('Hvor mye har du etter returen?')).toBeInTheDocument();
+    giveAnswer(START_MONEY); // (START_MONEY - price) + price
 
     expect(cardsIn(shelf(view, 'Varer til salgs')).some((card) => card.name === cheapest.name)).toBe(true);
     expect(shelf(view, 'Varene dine').textContent).toContain('Tomt her ennå');
