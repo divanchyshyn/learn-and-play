@@ -1,51 +1,54 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { shuffle } from '../../shared/random.js';
 import { speakNorwegian } from '../../shared/speech.js';
 import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { GameHeader } from '../../shared/GameHeader.jsx';
 import { setMuted as setAudioMuted, sounds } from './sounds.js';
 
+// Every item costs a whole number of kroner. Two-digit prices keep their ones
+// digit small (0–5) so the counting and subtraction puzzles stay friendly.
 export const ITEM_BANK = [
   { id: 'eple', name: 'eple', emoji: '🍎', price: 8, category: 'mat' },
   { id: 'banan', name: 'banan', emoji: '🍌', price: 6, category: 'mat' },
   { id: 'appelsin', name: 'appelsin', emoji: '🍊', price: 9, category: 'mat' },
   { id: 'druer', name: 'druer', emoji: '🍇', price: 15, category: 'mat' },
-  { id: 'jordbaer', name: 'jordbær', emoji: '🍓', price: 18, category: 'mat' },
+  { id: 'jordbaer', name: 'jordbær', emoji: '🍓', price: 15, category: 'mat' },
   { id: 'gulrot', name: 'gulrot', emoji: '🥕', price: 7, category: 'mat' },
   { id: 'melk', name: 'melk', emoji: '🥛', price: 14, category: 'mat' },
   { id: 'juice', name: 'juice', emoji: '🧃', price: 21, category: 'mat' },
   { id: 'brod', name: 'brød', emoji: '🍞', price: 23, category: 'mat' },
-  { id: 'ost', name: 'ost', emoji: '🧀', price: 29, category: 'mat' },
-  { id: 'is', name: 'is', emoji: '🍦', price: 26, category: 'mat' },
-  { id: 'kanelbolle', name: 'kanelbolle', emoji: '🥐', price: 17, category: 'mat' },
+  { id: 'ost', name: 'ost', emoji: '🧀', price: 25, category: 'mat' },
+  { id: 'is', name: 'is', emoji: '🍦', price: 25, category: 'mat' },
+  { id: 'kanelbolle', name: 'kanelbolle', emoji: '🥐', price: 15, category: 'mat' },
   { id: 'sjokolade', name: 'sjokolade', emoji: '🍫', price: 24, category: 'mat' },
   { id: 'godteri', name: 'godteri', emoji: '🍬', price: 3, category: 'mat' },
   { id: 'popcorn', name: 'popcorn', emoji: '🍿', price: 20, category: 'mat' },
   { id: 'ball', name: 'ball', emoji: '⚽', price: 33, category: 'leker' },
-  { id: 'bil', name: 'bil', emoji: '🚗', price: 36, category: 'leker' },
+  { id: 'bil', name: 'bil', emoji: '🚗', price: 35, category: 'leker' },
   { id: 'tog', name: 'tog', emoji: '🚂', price: 42, category: 'leker' },
-  { id: 'bamse', name: 'bamse', emoji: '🧸', price: 48, category: 'leker' },
+  { id: 'bamse', name: 'bamse', emoji: '🧸', price: 45, category: 'leker' },
   { id: 'ballong', name: 'ballong', emoji: '🎈', price: 10, category: 'leker' },
   { id: 'drake', name: 'drake', emoji: '🪁', price: 45, category: 'leker' },
-  { id: 'lekefly', name: 'lekefly', emoji: '✈️', price: 39, category: 'leker' },
+  { id: 'lekefly', name: 'lekefly', emoji: '✈️', price: 35, category: 'leker' },
   { id: 'helikopter', name: 'helikopter', emoji: '🚁', price: 55, category: 'leker' },
   { id: 'blyant', name: 'blyant', emoji: '✏️', price: 5, category: 'skole' },
   { id: 'linjal', name: 'linjal', emoji: '📏', price: 12, category: 'skole' },
-  { id: 'bok', name: 'bok', emoji: '📕', price: 38, category: 'skole' },
-  { id: 'saks', name: 'saks', emoji: '✂️', price: 19, category: 'skole' },
-  { id: 'sekk', name: 'sekk', emoji: '🎒', price: 46, category: 'skole' },
-  { id: 'farger', name: 'fargeblyanter', emoji: '🖍️', price: 27, category: 'skole' },
-  { id: 'donald-tynn', name: 'tynt Donald-hefte', emoji: '📰', price: 12, category: 'skole' },
-  { id: 'donald-middels', name: 'middels Donald-hefte', emoji: '📖', price: 29, category: 'skole' },
-  { id: 'donald-tykk', name: 'tykt Donald-hefte', emoji: '📚', price: 49, category: 'skole' },
+  { id: 'bok', name: 'bok', emoji: '📕', price: 35, category: 'skole' },
+  { id: 'saks', name: 'saks', emoji: '✂️', price: 15, category: 'skole' },
+  { id: 'sekk', name: 'sekk', emoji: '🎒', price: 45, category: 'skole' },
+  { id: 'farger', name: 'fargeblyanter', emoji: '🖍️', price: 25, category: 'skole' },
+  { id: 'donald', name: 'Donald', emoji: '🦆', price: 25, category: 'skole' },
 ];
-const WALLET_CHOICES = [50, 100, 200];
 const PICKS_PER_CATEGORY = { mat: 6, leker: 4, skole: 4 };
 
 // Trade rules: every transaction moves at most three physical items, and both
 // sides of the counter have their own purse to keep honest.
 export const MAX_PER_TRANSACTION = 3;
 export const SELLER_START_MONEY = 400;
+// The customer always starts a day with this purse, whatever the game's fate.
+export const START_MONEY = 100;
+// The policeman gives the child three tries before the deal falls through.
+export const MAX_ATTEMPTS = 3;
 
 const ITEMS_BY_ID = new Map(ITEM_BANK.map((item) => [item.id, item]));
 export function itemsFor(ids) {
@@ -54,6 +57,14 @@ export function itemsFor(ids) {
 
 export function sumPrices(items) {
   return items.reduce((sum, item) => sum + item.price, 0);
+}
+
+// The expected answer at the checkout. Buying one single item is a subtraction
+// exercise – how much is left of the money you hold; everything else (a basket
+// of several goods, or returning goods) is about working out a total.
+export function expectedAnswer(kind, money, items) {
+  if (kind === 'buy' && items.length === 1) return money - items[0].price;
+  return sumPrices(items);
 }
 
 // The policeman never repeats himself too much – one scolding per cheat try.
@@ -67,18 +78,23 @@ export function pickPoliceLine(random = Math.random) {
   return POLICE_LINES[Math.floor(random() * POLICE_LINES.length)];
 }
 
-const CHECKOUT_META = {
-  buy: {
-    label: 'I kassen',
-    heading: 'Hvor mye koster alle varene sammen?',
-    hint: 'Du kjøper:',
-  },
-  sellBack: {
-    label: 'Returdisken',
-    heading: 'Hvor mye skal butikken betale deg for varene?',
-    hint: 'Du leverer tilbake:',
-  },
-};
+export function checkoutCopy(kind, items, money) {
+  if (kind === 'buy' && items.length === 1) {
+    const item = items[0];
+    return {
+      label: 'I kassen',
+      heading: 'Hvor mye har du igjen?',
+      hint: `Du har ${money} kr og kjøper ${item.name} for ${item.price} kr. Hvor mye har du igjen?`,
+    };
+  }
+  return {
+    label: kind === 'buy' ? 'I kassen' : 'Returdisken',
+    heading: kind === 'buy'
+      ? 'Hvor mye koster alle varene sammen?'
+      : 'Hvor mye skal butikken betale deg for varene?',
+    hint: kind === 'buy' ? 'Du kjøper:' : 'Du leverer tilbake:',
+  };
+}
 
 export function sampleShop() {
   const grouped = { mat: [], leker: [], skole: [] };
@@ -88,53 +104,28 @@ export function sampleShop() {
   return shuffle(picked);
 }
 
-export function makeOptions(correct, candidates) {
-  const values = new Set([correct]);
-  shuffle(candidates).forEach((candidate) => {
-    if (values.size >= 4 || !Number.isInteger(candidate)) return;
-    if (candidate >= 0 && candidate !== correct) values.add(candidate);
-  });
-  let distance = 1;
-  while (values.size < 4) {
-    [distance, -distance].some((offset) => {
-      const candidate = correct + offset;
-      if (candidate >= 0 && !values.has(candidate)) values.add(candidate);
-      return values.size >= 4;
-    });
-    distance += 1;
-  }
-  return shuffle([...values]);
-}
-
-export function totalDistractions(total) {
-  return [Math.round(total / 10) * 10, total + 10, total - 10, total + 5, total - 5, total + 1, total - 2];
-}
-
 export function Butikken() {
   const [shopItems, setShopItems] = useState(sampleShop);
   const [ownedIds, setOwnedIds] = useState([]);
   const [buyIds, setBuyIds] = useState([]);
   const [returnIds, setReturnIds] = useState([]);
-  const [walletChoice, setWalletChoice] = useState(100);
-  const [customerMoney, setCustomerMoney] = useState(100);
+  const [customerMoney, setCustomerMoney] = useState(START_MONEY);
   const [sellerMoney, setSellerMoney] = useState(SELLER_START_MONEY);
   const [soundOn, setSoundOn] = useState(true);
   const [phase, setPhase] = useState('trade');
   const [pendingKind, setPendingKind] = useState('buy');
   const [pendingIds, setPendingIds] = useState([]);
-  const [chosen, setChosen] = useState(null);
   const [policeLine, setPoliceLine] = useState(null);
+  const [attemptsLeft, setAttemptsLeft] = useState(MAX_ATTEMPTS);
+  const [answerInput, setAnswerInput] = useState('');
   const [warn, setWarn] = useState(null);
   const [celebrate, setCelebrate] = useState(false);
   const [rounds, setRounds] = useState(0);
 
   const pendingItems = itemsFor(pendingIds);
   const pendingTotal = sumPrices(pendingItems);
-  const checkoutMeta = CHECKOUT_META[pendingKind];
-
-  const options = useMemo(() => (
-    phase === 'checkout' ? makeOptions(pendingTotal, totalDistractions(pendingTotal)) : []
-  ), [phase, pendingTotal]);
+  const checkout = checkoutCopy(pendingKind, pendingItems, customerMoney);
+  const expected = expectedAnswer(pendingKind, customerMoney, pendingItems);
 
   function say(itemName) {
     // Selecting goods speaks their Norwegian name instead of playing a click.
@@ -184,7 +175,9 @@ export function Butikken() {
     }
     setPendingKind(kind);
     setPendingIds(basket);
-    setChosen(null);
+    setPoliceLine(null);
+    setAttemptsLeft(MAX_ATTEMPTS);
+    setAnswerInput('');
     setPhase('checkout');
     sounds.select();
   }
@@ -193,9 +186,18 @@ export function Butikken() {
     setPhase('trade');
     setPendingKind('buy');
     setPendingIds([]);
-    setChosen(null);
     setPoliceLine(null);
+    setAttemptsLeft(MAX_ATTEMPTS);
+    setAnswerInput('');
     sounds.select();
+  }
+
+  function cancelCheckout() {
+    // Three failed tries: the deal is off and the basket is cleared.
+    setBuyIds([]);
+    setReturnIds([]);
+    clearTransient();
+    backToTrade();
   }
 
   function completeTransaction() {
@@ -215,28 +217,32 @@ export function Butikken() {
     setReturnIds([]);
     setPendingIds([]);
     setPendingKind('buy');
-    setChosen(null);
     setPoliceLine(null);
+    setAttemptsLeft(MAX_ATTEMPTS);
+    setAnswerInput('');
     setPhase('trade');
     setCelebrate(true);
     setRounds(rounds + 1);
     sounds.fanfare();
   }
 
-  function answer(value) {
-    if (value !== pendingTotal) {
-      setChosen(value);
+  function submitAnswer(event) {
+    event.preventDefault();
+    const value = Number(answerInput);
+    if (answerInput.trim() === '' || !Number.isInteger(value) || value < 0) return;
+    if (value !== expected) {
+      const remaining = attemptsLeft - 1;
+      if (remaining <= 0) {
+        sounds.whistle();
+        cancelCheckout();
+        return;
+      }
+      setAttemptsLeft(remaining);
       setPoliceLine(pickPoliceLine());
       sounds.whistle();
       return;
     }
     completeTransaction();
-  }
-
-  function chooseWallet(amount) {
-    setWalletChoice(amount);
-    setCustomerMoney(amount);
-    sounds.select();
   }
 
   function toggleSound() {
@@ -251,7 +257,7 @@ export function Butikken() {
     setOwnedIds([]);
     setBuyIds([]);
     setReturnIds([]);
-    setCustomerMoney(walletChoice);
+    setCustomerMoney(START_MONEY);
     setSellerMoney(SELLER_START_MONEY);
     setRounds(0);
     clearTransient();
@@ -281,12 +287,6 @@ export function Butikken() {
       <p>Velkommen til butikken! Klikk på varene du vil kjøpe – opptil {MAX_PER_TRANSACTION} per handel. Angre du på noe, velg det på hylla di og lever det tilbake til selgeren.</p>
       <div className="game-controls">
         <span className={`rounds-chip${rounds === 0 ? ' hidden-chip' : ''}`}>🛒 {rounds} {rounds === 1 ? 'handel' : 'handler'} i dag</span>
-        <div className="chip-group" role="group" aria-label="Lommeboken din">
-          <span className="chip-label" aria-hidden="true">🐷</span>
-          {WALLET_CHOICES.map((amount) => (
-            <button className={`chip${walletChoice === amount ? ' active' : ''}`} aria-pressed={walletChoice === amount} key={amount} onClick={() => chooseWallet(amount)} type="button">{amount} kr</button>
-          ))}
-        </div>
         <button className="chip" onClick={newDay} type="button">🔁 Ny dag</button>
         <button className="chip toggle" aria-pressed={!soundOn} aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'} onClick={toggleSound} type="button">{soundOn ? '🔊' : '🔇'}</button>
       </div>
@@ -337,9 +337,9 @@ export function Butikken() {
     ) : (
       <section className="checkout-wrap">
         <article className="checkout-card" aria-live="polite">
-          <p className="panel-label">{checkoutMeta.label}</p>
-          <h2>{checkoutMeta.heading}</h2>
-          <p className="hint-line">{checkoutMeta.hint}</p>
+          <p className="panel-label">{checkout.label}</p>
+          <h2>{checkout.heading}</h2>
+          <p className="hint-line">{checkout.hint}</p>
           <ul className="pending-list">
             {pendingItems.map((item) => <li key={item.id}>
               <span className="line-emoji" aria-hidden="true">{item.emoji}</span>
@@ -347,31 +347,35 @@ export function Butikken() {
               <strong>{item.price} kr</strong>
             </li>)}
           </ul>
-          {chosen !== null && chosen !== pendingTotal && (
+          {policeLine && (
             <div className="police-box" role="alert">
               <span className="police-mascot" aria-hidden="true">👮</span>
-              <p className="police-line"><strong>{policeLine}</strong> Se, her peker jeg på riktig svar!</p>
-              <span className="police-arm" aria-hidden="true">👇</span>
+              <p className="police-line"><strong>{policeLine}</strong></p>
             </div>
           )}
-          <div className="choices">
-            {options.map((option) => {
-              const isCorrect = option === pendingTotal;
-              const isWrongPick = chosen === option && !isCorrect;
-              const revealed = chosen !== null;
-              return <button
-                key={option}
-                type="button"
-                className={`choice-btn${revealed && isCorrect ? ' pointed' : ''}${isWrongPick ? ' crossed' : ''}`}
-                disabled={revealed && !isCorrect}
-                onClick={() => answer(option)}
-              >
-                {revealed && isCorrect && <span className="point-marker" aria-hidden="true">👉</span>}
-                {option} kr
-                {isWrongPick && <span aria-hidden="true"> ❌</span>}
-              </button>;
-            })}
-          </div>
+          {policeLine && attemptsLeft < MAX_ATTEMPTS && (
+            <p className="police-note" role="status">Prøv igjen – du har {attemptsLeft} {attemptsLeft === 1 ? 'forsøk' : 'forsøk'} igjen.</p>
+          )}
+          <form className="answer-form" onSubmit={submitAnswer}>
+            <div className="answer-row">
+              <label className="answer-label" htmlFor="checkout-answer">Svaret ditt:</label>
+              <input
+                className="answer-input"
+                id="checkout-answer"
+                name="checkout-answer"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                placeholder="?"
+                value={answerInput}
+                onChange={(event) => setAnswerInput(event.target.value)}
+                autoFocus
+              />
+              <span className="answer-unit" aria-hidden="true">kr</span>
+              <button className="answer-submit" type="submit">Svar</button>
+            </div>
+          </form>
           <button className="link-back" onClick={backToTrade} type="button">← Tilbake til butikken</button>
         </article>
       </section>

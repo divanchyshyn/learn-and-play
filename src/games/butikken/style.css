@@ -6,8 +6,6 @@
 .game-header > p { max-width: 64ch; margin: 0; color: #285362; font-size: 1.03rem; line-height: 1.4; }
 
 .game-controls { position: absolute; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
-.chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.chip-label { font-size: 1.25rem; }
 .rounds-chip { padding: 6px 11px; border: 2px solid #d09b45; border-radius: 999px; background: #fff3d6; color: #7a4c08; font-size: .88rem; font-weight: 900; white-space: nowrap; }
 .rounds-chip.hidden-chip { visibility: hidden; }
 .chip { min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
@@ -73,27 +71,26 @@
 .pending-list li strong { font-variant-numeric: tabular-nums; }
 .line-emoji { font-size: 1.2rem; }
 
-/* The cheating-check policeman: funny, loud, and pointing at the truth. */
-.police-box { position: relative; display: flex; gap: 12px; align-items: center; margin-top: 4px; padding: 13px 15px 17px; border: 3px solid #143f6e; border-radius: 12px; background: #eaf1fb; animation: police-pop .3s cubic-bezier(.34, 1.56, .64, 1); }
+/* The cheating-check policeman: funny and loud, but he never spoils the sum. */
+.police-box { display: flex; gap: 12px; align-items: center; margin-top: 4px; padding: 13px 15px; border: 3px solid #143f6e; border-radius: 12px; background: #eaf1fb; animation: police-pop .3s cubic-bezier(.34, 1.56, .64, 1); }
 @keyframes police-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
 .police-mascot { font-size: 2.7rem; line-height: 1; animation: police-wobble .45s ease-in-out infinite alternate; }
 @keyframes police-wobble { from { transform: rotate(-9deg) translateY(0); } to { transform: rotate(9deg) translateY(-4px); } }
 .police-line { margin: 0; color: #143f6e; font-size: 1.04rem; line-height: 1.4; }
 .police-line strong { display: block; margin-bottom: 3px; font-size: 1.1rem; }
-.police-arm { position: absolute; bottom: -27px; left: 58%; font-size: 2rem; line-height: 1; animation: arm-bob .45s ease-in-out infinite alternate; }
-@keyframes arm-bob { from { transform: translateY(-3px); } to { transform: translateY(3px); } }
+.police-note { margin: 0; color: #b34a26; font-size: .95rem; font-weight: 800; }
 
-.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
-.choice-btn { min-height: 64px; border: 3px solid #0c8fb6; border-radius: 10px; background: #eaf6f4; color: #0b7897; font-size: 1.55rem; font-weight: 900; box-shadow: inset 0 -5px 0 rgba(20, 63, 78, .08); transition: transform .12s ease, background .12s ease; }
-.choice-btn:hover:not(:disabled) { background: #dff0ed; transform: translateY(-2px); }
-.choice-btn:active:not(:disabled) { transform: translateY(1px); }
-.choice-btn:disabled { cursor: not-allowed; }
-.choice-btn.crossed { opacity: .5; text-decoration: line-through; text-decoration-thickness: 4px; text-decoration-color: #b34a26; }
-.choice-btn.pointed { border-color: #d09b45; background: #fff3d6; color: #7a4c08; box-shadow: 0 0 0 5px rgba(208, 155, 69, .35); animation: point-pulse .7s ease-in-out infinite alternate; }
-@keyframes point-pulse { from { transform: scale(1); } to { transform: scale(1.06); } }
-.point-marker { margin-right: 5px; }
+/* The answer field: type the number and press Svar (or Enter). */
+.answer-form { margin-top: 4px; }
+.answer-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+.answer-label { color: #143f4e; font-weight: 800; }
+.answer-input { width: 150px; min-height: 58px; padding: 8px 14px; border: 3px solid #0c8fb6; border-radius: 10px; background: #fffdf3; color: #143f4e; font: inherit; font-size: 1.6rem; font-weight: 900; font-variant-numeric: tabular-nums; text-align: center; box-shadow: inset 0 -5px 0 rgba(20, 63, 78, .08); }
+.answer-input:focus { outline: none; border-color: #e46e4b; background: #fff8f4; }
+.answer-unit { color: #0b7897; font-size: 1.1rem; font-weight: 900; }
+.answer-submit { min-height: 58px; padding: 8px 22px; border: 2px solid #e46e4b; border-radius: 999px; background: #e46e4b; color: #fff; font-size: 1.15rem; font-weight: 900; box-shadow: inset 0 -4px 0 rgba(114, 43, 30, .2), 0 4px 0 rgba(20, 63, 78, .13); transition: transform .12s ease; }
+.answer-submit:hover { transform: translateY(-2px); }
 .link-back { justify-self: start; border: 0; background: none; color: #0b7897; font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
-.card-toggle:focus-visible, .choice-btn:focus-visible, .chip:focus-visible, .trade-button:focus-visible, .link-back:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
+.card-toggle:focus-visible, .answer-input:focus-visible, .chip:focus-visible, .trade-button:focus-visible, .link-back:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
 
 @media (min-width: 1101px) {
   .market-layout { min-height: 62vh; }
@@ -107,7 +104,8 @@
   .game-controls { position: static; justify-content: flex-start; margin-top: 2px; }
   .item-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
   .checkout-card { padding: 17px; }
-  .choices { grid-template-columns: repeat(2, 1fr); }
+  .answer-row { justify-content: stretch; }
+  .answer-input { flex: 1 1 auto; width: auto; }
   .rounds-chip.hidden-chip { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {

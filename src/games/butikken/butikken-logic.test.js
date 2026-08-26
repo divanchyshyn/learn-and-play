@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  ITEM_BANK, MAX_PER_TRANSACTION, SELLER_START_MONEY,
-  sampleShop, makeOptions,
-  totalDistractions, sumPrices, itemsFor, POLICE_LINES, pickPoliceLine,
+  ITEM_BANK, MAX_PER_TRANSACTION, SELLER_START_MONEY, START_MONEY, MAX_ATTEMPTS,
+  sampleShop, expectedAnswer, checkoutCopy,
+  sumPrices, itemsFor, POLICE_LINES, pickPoliceLine,
 } from './Butikken.jsx';
 
 describe('butikken shop sampler', () => {
@@ -19,18 +19,24 @@ describe('butikken shop sampler', () => {
 });
 
 describe('butikken goods bank', () => {
-  it('offers the three Donald Duck magazines in thin, medium and thick', () => {
-    const donalds = ITEM_BANK.filter((item) => item.name.includes('Donald'));
-    expect(donalds.map((item) => item.name).sort()).toEqual([
-      'middels Donald-hefte',
-      'tykt Donald-hefte',
-      'tynt Donald-hefte',
-    ]);
-    // Thin < medium < thick – the sizes must be distinguishable by price too.
-    const [thin, medium, thick] = ['donald-tynn', 'donald-middels', 'donald-tykk']
-      .map((id) => ITEM_BANK.find((item) => item.id === id));
-    expect(thin.price).toBeLessThan(medium.price);
-    expect(medium.price).toBeLessThan(thick.price);
+  it('sells a single Donald Duck magazine with a duck icon', () => {
+    const donald = ITEM_BANK.find((item) => item.id === 'donald');
+    expect(donald).toBeTruthy();
+    expect(donald.emoji).toBe('🦆');
+    expect(donald.category).toBe('skole');
+    // Only one Donald exists now – the tynn/middels/tykk trio is gone.
+    expect(ITEM_BANK.filter((item) => item.name.toLowerCase().includes('donald'))).toHaveLength(1);
+    expect(ITEM_BANK.some((item) => item.name.includes('hefte'))).toBe(false);
+  });
+
+  it('keeps two-digit prices friendly: ones digit never above 5', () => {
+    for (const item of ITEM_BANK) {
+      expect(Number.isInteger(item.price)).toBe(true);
+      expect(item.price).toBeGreaterThan(0);
+      if (item.price >= 10) {
+        expect(item.price % 10).toBeLessThanOrEqual(5);
+      }
+    }
   });
 
   it('sells a toy airplane and a helicopter', () => {
@@ -54,6 +60,11 @@ describe('butikken trade rules', () => {
     expect(MAX_PER_TRANSACTION).toBe(3);
   });
 
+  it('starts the customer and seller with their purses', () => {
+    expect(START_MONEY).toBe(100);
+    expect(MAX_ATTEMPTS).toBe(3);
+  });
+
   it('starts the seller with enough money to buy returns back', () => {
     // Three of anything on the shelf must be affordable for the seller.
     const dearestThree = [...ITEM_BANK].sort((a, b) => b.price - a.price).slice(0, MAX_PER_TRANSACTION);
@@ -68,37 +79,32 @@ describe('butikken trade rules', () => {
   });
 });
 
-describe('butikken answer options', () => {
-  it('offers exactly four unique non-negative options including the answer', () => {
-    for (let trial = 0; trial < 100; trial += 1) {
-      const options = makeOptions(30, [30, 40, 20, 25, 31, 45]);
-      expect(options).toHaveLength(4);
-      expect(new Set(options).size).toBe(4);
-      expect(options).toContain(30);
-      expect(options.filter((value) => value === 30)).toHaveLength(1);
-      expect(options.every((value) => Number.isInteger(value) && value >= 0)).toBe(true);
-    }
+describe('butikken checkout answer', () => {
+  it('works out a single-item purchase as a subtraction from the money you hold', () => {
+    const apple = ITEM_BANK.find((item) => item.id === 'eple');
+    expect(expectedAnswer('buy', 100, [apple])).toBe(100 - apple.price);
   });
 
-  it('ignores negative candidates and never duplicates the answer', () => {
-    const options = makeOptions(10, [-5, -1, 0, 10, 11]);
-    expect(options).toHaveLength(4);
-    expect(options).toContain(10);
-    expect(options.every((value) => value >= 0)).toBe(true);
-    expect(options.filter((value) => value === 10)).toHaveLength(1);
+  it('keeps a multi-item basket as a sum for both buying and returning', () => {
+    const eple = ITEM_BANK.find((item) => item.id === 'eple');
+    const melk = ITEM_BANK.find((item) => item.id === 'melk');
+    const basket = [eple, melk];
+    expect(expectedAnswer('buy', 100, basket)).toBe(eple.price + melk.price);
+    expect(expectedAnswer('sellBack', 100, basket)).toBe(eple.price + melk.price);
   });
 
-  it('fills up with nearby numbers when no candidates are usable', () => {
-    const options = makeOptions(3, [-8, -9]);
-    expect(options).toHaveLength(4);
-    expect(options).toContain(3);
-    expect(new Set(options).size).toBe(4);
-    expect(options.every((value) => value >= 0 && Number.isInteger(value))).toBe(true);
+  it('asks about what is left when buying one thing', () => {
+    const eple = ITEM_BANK.find((item) => item.id === 'eple');
+    const copy = checkoutCopy('buy', [eple], 100);
+    expect(copy.heading).toBe('Hvor mye har du igjen?');
+    expect(copy.hint).toContain(`${eple.price} kr`);
   });
 
-  it('seeds total distractors around the real total', () => {
-    expect(totalDistractions(30)).toContain(30);
-    expect(totalDistractions(30).every((value) => Number.isInteger(value))).toBe(true);
+  it('asks for the total when buying several things or returning any', () => {
+    const eple = ITEM_BANK.find((item) => item.id === 'eple');
+    const melk = ITEM_BANK.find((item) => item.id === 'melk');
+    expect(checkoutCopy('buy', [eple, melk], 100).heading).toBe('Hvor mye koster alle varene sammen?');
+    expect(checkoutCopy('sellBack', [eple], 100).heading).toBe('Hvor mye skal butikken betale deg for varene?');
   });
 });
 
