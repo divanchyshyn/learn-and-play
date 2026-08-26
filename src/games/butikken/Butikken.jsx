@@ -29,7 +29,7 @@ export const ITEM_BANK = [
   { id: 'bamse', name: 'bamse', emoji: '🧸', price: 45, category: 'leker' },
   { id: 'ballong', name: 'ballong', emoji: '🎈', price: 10, category: 'leker' },
   { id: 'drake', name: 'drake', emoji: '🪁', price: 45, category: 'leker' },
-  { id: 'lekefly', name: 'lekefly', emoji: '✈️', price: 35, category: 'leker' },
+  { id: 'fly', name: 'fly', emoji: '✈️', price: 35, category: 'leker' },
   { id: 'helikopter', name: 'helikopter', emoji: '🚁', price: 55, category: 'leker' },
   { id: 'blyant', name: 'blyant', emoji: '✏️', price: 5, category: 'skole' },
   { id: 'linjal', name: 'linjal', emoji: '📏', price: 12, category: 'skole' },
@@ -78,13 +78,15 @@ export function pickPoliceLine(random = Math.random) {
   return POLICE_LINES[Math.floor(random() * POLICE_LINES.length)];
 }
 
-export function checkoutCopy(kind, items, money) {
+// The copy shown at the checkout. The current purse (customerMoney) is rendered
+// as its own highlighted element in the component, so it is not repeated here.
+export function checkoutCopy(kind, items) {
   if (kind === 'buy' && items.length === 1) {
     const item = items[0];
     return {
       label: 'I kassen',
       heading: 'Hvor mye har du igjen?',
-      hint: `Du har ${money} kr og kjøper ${item.name} for ${item.price} kr. Hvor mye har du igjen?`,
+      hint: `Du kjøper ${item.name} for ${item.price} kr.`,
     };
   }
   return {
@@ -124,7 +126,7 @@ export function Butikken() {
 
   const pendingItems = itemsFor(pendingIds);
   const pendingTotal = sumPrices(pendingItems);
-  const checkout = checkoutCopy(pendingKind, pendingItems, customerMoney);
+  const checkout = checkoutCopy(pendingKind, pendingItems);
   const expected = expectedAnswer(pendingKind, customerMoney, pendingItems);
 
   function say(itemName) {
@@ -339,6 +341,11 @@ export function Butikken() {
         <article className="checkout-card" aria-live="polite">
           <p className="panel-label">{checkout.label}</p>
           <h2>{checkout.heading}</h2>
+          <div className="checkout-purse" aria-label="Pengene du har i kassen">
+            <span className="purse-emoji" aria-hidden="true">💰</span>
+            <span className="purse-copy">Du har</span>
+            <strong className="purse-amount">{customerMoney} kr</strong>
+          </div>
           <p className="hint-line">{checkout.hint}</p>
           <ul className="pending-list">
             {pendingItems.map((item) => <li key={item.id}>

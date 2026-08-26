@@ -71,6 +71,12 @@
 .pending-list li strong { font-variant-numeric: tabular-nums; }
 .line-emoji { font-size: 1.2rem; }
 
+/* The purse is the star of the checkout – big, warm and unmissable. */
+.checkout-purse { display: inline-flex; gap: 8px; align-items: center; justify-self: start; padding: 7px 16px; border: 3px dashed #e46e4b; border-radius: 999px; background: #fff3ea; color: #b34a26; box-shadow: 0 3px 0 rgba(20, 63, 78, .08); }
+.checkout-purse .purse-emoji { font-size: 1.25rem; }
+.checkout-purse .purse-copy { font-size: 1.05rem; font-weight: 900; }
+.checkout-purse .purse-amount { font-size: 1.7rem; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; }
+
 /* The cheating-check policeman: funny and loud, but he never spoils the sum. */
 .police-box { display: flex; gap: 12px; align-items: center; margin-top: 4px; padding: 13px 15px; border: 3px solid #143f6e; border-radius: 12px; background: #eaf1fb; animation: police-pop .3s cubic-bezier(.34, 1.56, .64, 1); }
 @keyframes police-pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }

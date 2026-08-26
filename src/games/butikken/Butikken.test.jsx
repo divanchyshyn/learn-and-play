@@ -95,14 +95,43 @@ it('sells goods over the counter and moves them to the customer shelf', () => {
 
     // The task is "how much is left of your 100 kr", not the printed price.
     expect(screen.getByText('Hvor mye har du igjen?')).toBeInTheDocument();
+    // The current purse is shown big and highlighted at the checkout…
+    const purseEl = view.container.querySelector('.checkout-purse');
+    expect(purseEl).toBeTruthy();
+    expect(purseEl.textContent).toContain(`${START_MONEY} kr`);
+    // …and the hint names the single item and its price.
     expect(view.container.textContent).toContain(
-      `Du har ${START_MONEY} kr og kjøper ${cheapest.name} for ${cheapest.price} kr.`,
+      `Du kjøper ${cheapest.name} for ${cheapest.price} kr.`,
     );
     const expected = START_MONEY - cheapest.price;
     giveAnswer(expected);
 
     expect(shelf(view, 'Varene dine').textContent).toContain(cheapest.name);
     expect(purse(view, 'Deg som kunde').textContent).toContain(`${expected} kr`);
+  });
+it('shows the current purse highlighted at a later checkout, even after money is spent', () => {
+    const view = render(<Butikken />);
+    const first = cardByPrice(shelf(view, 'Varer til salgs'), 0);
+
+    // Spend once, so the purse is no longer the opening 100 kr.
+    fireEvent.click(first.button);
+    fireEvent.click(screen.getByRole('button', { name: /Kjøp/ }));
+    const leftAfterFirst = START_MONEY - first.price;
+    giveAnswer(leftAfterFirst);
+    expect(purse(view, 'Deg som kunde').textContent).toContain(`${leftAfterFirst} kr`);
+
+    // A second purchase – this time a two-item (sum) checkout – still shows the
+    // current, now-reduced purse, highlighted at the top.
+    const [a, b] = cardsIn(shelf(view, 'Varer til salgs')).sort((x, y) => x.price - y.price);
+    fireEvent.click(a.button);
+    fireEvent.click(b.button);
+    fireEvent.click(screen.getByRole('button', { name: /Kjøp/ }));
+
+    expect(screen.getByText('Hvor mye koster alle varene sammen?')).toBeInTheDocument();
+    const purseEl = view.container.querySelector('.checkout-purse');
+    expect(purseEl).toBeTruthy();
+    expect(purseEl.textContent).toContain(`${leftAfterFirst} kr`);
+    expect(purseEl.textContent).not.toContain(`${START_MONEY} kr`);
   });
 it('shows a policeman without revealing the answer, then three wrong tries send you back', () => {
     const view = render(<Butikken />);

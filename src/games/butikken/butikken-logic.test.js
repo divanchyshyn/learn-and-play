@@ -40,7 +40,7 @@ describe('butikken goods bank', () => {
   });
 
   it('sells a toy airplane and a helicopter', () => {
-    for (const name of ['lekefly', 'helikopter']) {
+    for (const name of ['fly', 'helikopter']) {
       const item = ITEM_BANK.find((candidate) => candidate.id === name);
       expect(item).toBeTruthy();
       expect(item.category).toBe('leker');
@@ -95,7 +95,7 @@ describe('butikken checkout answer', () => {
 
   it('asks about what is left when buying one thing', () => {
     const eple = ITEM_BANK.find((item) => item.id === 'eple');
-    const copy = checkoutCopy('buy', [eple], 100);
+    const copy = checkoutCopy('buy', [eple]);
     expect(copy.heading).toBe('Hvor mye har du igjen?');
     expect(copy.hint).toContain(`${eple.price} kr`);
   });
@@ -103,8 +103,8 @@ describe('butikken checkout answer', () => {
   it('asks for the total when buying several things or returning any', () => {
     const eple = ITEM_BANK.find((item) => item.id === 'eple');
     const melk = ITEM_BANK.find((item) => item.id === 'melk');
-    expect(checkoutCopy('buy', [eple, melk], 100).heading).toBe('Hvor mye koster alle varene sammen?');
-    expect(checkoutCopy('sellBack', [eple], 100).heading).toBe('Hvor mye skal butikken betale deg for varene?');
+    expect(checkoutCopy('buy', [eple, melk]).heading).toBe('Hvor mye koster alle varene sammen?');
+    expect(checkoutCopy('sellBack', [eple]).heading).toBe('Hvor mye skal butikken betale deg for varene?');
   });
 });
 
