@@ -6,12 +6,12 @@ import {
 } from './Butikken.jsx';
 
 describe('butikken shop sampler', () => {
-  it('always picks 14 unique items: 6 food, 4 toys, 4 school things', () => {
+  it('always picks 15 unique items: 7 food, 4 toys, 4 school things', () => {
     for (let trial = 0; trial < 50; trial += 1) {
       const shop = sampleShop();
-      expect(shop).toHaveLength(14);
-      expect(new Set(shop.map((item) => item.id)).size).toBe(14);
-      expect(shop.filter((item) => item.category === 'mat')).toHaveLength(6);
+      expect(shop).toHaveLength(15);
+      expect(new Set(shop.map((item) => item.id)).size).toBe(15);
+      expect(shop.filter((item) => item.category === 'mat')).toHaveLength(7);
       expect(shop.filter((item) => item.category === 'leker')).toHaveLength(4);
       expect(shop.filter((item) => item.category === 'skole')).toHaveLength(4);
     }

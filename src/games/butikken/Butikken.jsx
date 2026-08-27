@@ -39,7 +39,7 @@ export const ITEM_BANK = [
   { id: 'farger', name: 'fargeblyanter', emoji: '🖍️', price: 25, category: 'skole' },
   { id: 'donald', name: 'Donald', emoji: '🦆', price: 25, category: 'skole' },
 ];
-const PICKS_PER_CATEGORY = { mat: 6, leker: 4, skole: 4 };
+const PICKS_PER_CATEGORY = { mat: 7, leker: 4, skole: 4 };
 
 // Trade rules: every transaction moves at most three physical items, and both
 // sides of the counter have their own purse to keep honest.
@@ -314,13 +314,13 @@ export function Butikken() {
 
         <section className="shelf-block buy-block" aria-label="Butikkhylla">
           <h2 className="shelf-title"><span aria-hidden="true">🏪</span> Butikkhylla</h2>
-          <ul className="item-grid" aria-label="Varer til salgs">
-            {shopItems.map((item) => renderShelfCard('shop', item, buyIds, toggleBuy))}
-          </ul>
           <div className="trade-actions">
             <p className="basket-note" aria-live="polite">{buyIds.length} av {MAX_PER_TRANSACTION} valgt til kjøp</p>
             <button className="trade-button buy-button" disabled={buyIds.length === 0} onClick={() => startCheckout('buy')} type="button">Kjøp 🛒</button>
-              </div>
+          </div>
+          <ul className="item-grid" aria-label="Varer til salgs">
+            {shopItems.map((item) => renderShelfCard('shop', item, buyIds, toggleBuy))}
+          </ul>
           {warn?.side === 'buy' && <p className="warn-box" role="status">{warnText(warn)}</p>}
       </section>
 
