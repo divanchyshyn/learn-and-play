@@ -161,18 +161,24 @@ it('shows a policeman without revealing the answer, then three wrong tries send 
     expect(screen.getByRole('button', { name: /Kjøp/ })).toBeInTheDocument();
   });
 
-  it('blocks buying when the customer cannot afford it', () => {
+  it('lets the generous starting purse afford even the dearest basket', () => {
     const view = render(<Butikken />);
     const dearestThree = cardsIn(shelf(view, 'Varer til salgs'))
       .sort((a, b) => b.price - a.price)
       .slice(0, 3);
-    expect(dearestThree.reduce((sum, card) => sum + card.price, 0)).toBeGreaterThan(START_MONEY);
+    const total = dearestThree.reduce((sum, card) => sum + card.price, 0);
+    // With the starting purse at 900, the dearest possible basket still fits.
+    expect(total).toBeLessThan(START_MONEY);
 
     dearestThree.forEach((card) => fireEvent.click(card.button));
     fireEvent.click(screen.getByRole('button', { name: /Kjøp/ }));
 
-    expect(view.container.textContent).toContain('Du har ikke råd til disse varene');
-    expect(screen.queryByText('Hvor mye koster alle varene sammen?')).not.toBeInTheDocument();
+    // The sale is allowed instead of being blocked for lack of funds.
+    expect(view.container.textContent).not.toContain('Du har ikke råd til disse varene');
+    expect(screen.getByText('Hvor mye koster alle varene sammen?')).toBeInTheDocument();
+    giveAnswer(total);
+    expect(purse(view, 'Deg som kunde').textContent).toContain(`${START_MONEY - total} kr`);
+    expect(purse(view, 'Selgeren').textContent).toContain(`${total} kr`);
   });
 
   it('lets the customer return items and get the money back', () => {

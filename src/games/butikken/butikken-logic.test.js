@@ -61,14 +61,13 @@ describe('butikken trade rules', () => {
   });
 
   it('starts the customer and seller with their purses', () => {
-    expect(START_MONEY).toBe(100);
+    expect(START_MONEY).toBe(900);
     expect(MAX_ATTEMPTS).toBe(3);
   });
 
-  it('starts the seller with enough money to buy returns back', () => {
-    // Three of anything on the shelf must be affordable for the seller.
-    const dearestThree = [...ITEM_BANK].sort((a, b) => b.price - a.price).slice(0, MAX_PER_TRANSACTION);
-    expect(SELLER_START_MONEY).toBeGreaterThanOrEqual(sumPrices(dearestThree));
+  it('starts the seller with an empty till that fills as goods are bought', () => {
+    // The seller starts with nothing; they only gain money when the customer buys.
+    expect(SELLER_START_MONEY).toBe(0);
   });
 
   it('sums prices and resolves ids to items', () => {
