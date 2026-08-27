@@ -66,7 +66,8 @@ export const ITEM_BANK = [
   { id: 'telt', name: 'telt', emoji: '⛺', price: 33, category: 'teknikk' },
   { id: 'nøkkel', name: 'nøkkel', emoji: '🗝️', price: 2, category: 'teknikk' },
   { id: 'kran', name: 'kran', emoji: '🏗️', price: 40, category: 'teknikk' },
-  { id: 'skattekiste', name: 'skattekiste', emoji: '🧰', price: 53 },
+  { id: 'skattekiste', name: 'skattekiste', emoji: '🧰', price: 53, category: 'teknikk' },
+  { id: 'perle', name: 'perle', emoji: '💎', price: 40, category: 'leker' },
 ];
 const PICKS_PER_CATEGORY = { mat: 3, leker: 3, skole: 2, teknikk: 7 };
 
