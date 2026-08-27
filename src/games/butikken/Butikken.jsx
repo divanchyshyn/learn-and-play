@@ -43,7 +43,6 @@ export const ITEM_BANK = [
   { id: 'bat', name: 'båt', emoji: '🚢', price: 20, category: 'teknikk' },
   { id: 'roket', name: 'roket', emoji: '🚀', price: 30, category: 'teknikk' },
   { id: 'ubat', name: 'ubåt', emoji: '🚤', price: 25, category: 'teknikk' },
-  { id: 'tank', name: 'tank', emoji: '🚙', price: 35, category: 'teknikk' },
   { id: 'buss', name: 'buss', emoji: '🚌', price: 21, category: 'teknikk' },
   { id: 'tram', name: 'tram', emoji: '🚋', price: 20, category: 'teknikk' },
   { id: 'tbane', name: 'T-bane', emoji: '🚇', price: 25, category: 'teknikk' },
@@ -57,9 +56,16 @@ export const ITEM_BANK = [
   { id: 'scooter', name: 'scooter', emoji: '🛵', price: 30, category: 'teknikk' },
   { id: 'sykkel', name: 'sykkel', emoji: '🚲', price: 23, category: 'teknikk' },
   { id: 'seilbat', name: 'seilbåt', emoji: '⛵', price: 30, category: 'teknikk' },
+  { id: 'antenne', name: 'antenne', emoji: '📡', price: 12, category: 'teknikk' },
+  { id: 'magnet', name: 'magnet', emoji: '🧲', price: 35, category: 'teknikk' },
+  { id: 'mikroskop', name: 'mikroskop', emoji: '🔬', price: 45, category: 'teknikk' },
+  { id: 'kompass', name: 'kompass', emoji: '🧭', price: 25, category: 'teknikk' },
   { id: 'robot', name: 'robot', emoji: '🤖', price: 55, category: 'teknikk' },
   { id: 'satellitt', name: 'satellitt', emoji: '🛰️', price: 45, category: 'teknikk' },
   { id: 'ufo', name: 'ufo', emoji: '🛸', price: 55, category: 'teknikk' },
+  { id: 'telt', name: 'telt', emoji: '⛺', price: 33, category: 'teknikk' },
+  { id: 'skattekiste', name: 'skattekiste', emoji: '🗝️', price: 53, category: 'teknikk' },
+  { id: 'kran', name: 'kran', emoji: '🏗️', price: 40, category: 'teknikk' },
 ];
 const PICKS_PER_CATEGORY = { mat: 3, leker: 3, skole: 2, teknikk: 7 };
 
@@ -352,15 +358,15 @@ export function Butikken() {
 
         <section className="shelf-block sell-block" aria-label="Din hylle">
           <h2 className="shelf-title"><span aria-hidden="true">🧺</span> Din hylle</h2>
+          <div className="trade-actions">
+            <p className="basket-note" aria-live="polite">{returnIds.length} av {MAX_PER_TRANSACTION} valgt til retur</p>
+            <button className="trade-button return-button" disabled={returnIds.length === 0} onClick={() => startCheckout('sellBack')} type="button">Lever tilbake ↩️</button>
+          </div>
           <ul className="item-grid" aria-label="Varene dine">
             {ownedIds.length === 0
               ? <li className="empty-note">Tomt her ennå. Kjøp noe fra butikkhylla!</li>
               : ownedIds.map((id) => renderShelfCard('owned', itemsFor([id])[0], returnIds, toggleReturn))}
           </ul>
-          <div className="trade-actions">
-            <p className="basket-note" aria-live="polite">{returnIds.length} av {MAX_PER_TRANSACTION} valgt til retur</p>
-            <button className="trade-button return-button" disabled={returnIds.length === 0} onClick={() => startCheckout('sellBack')} type="button">Lever tilbake ↩️</button>
-          </div>
           {warn?.side === 'sellBack' && <p className="warn-box" role="status">{warnText(warn)}</p>}
         </section>
 

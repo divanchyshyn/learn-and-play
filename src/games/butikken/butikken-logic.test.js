@@ -52,7 +52,7 @@ describe('butikken goods bank', () => {
   it('stocks a teknikk machinery shelf with boats, rockets and vehicles', () => {
     const teknikk = ITEM_BANK.filter((item) => item.category === 'teknikk');
     expect(teknikk.length).toBeGreaterThanOrEqual(10);
-    for (const id of ['bat', 'roket', 'ubat', 'tank', 'buss', 'tram']) {
+    for (const id of ['bat', 'roket', 'ubat', 'buss', 'tram', 'antenne', 'magnet', 'mikroskop', 'kompass']) {
       expect(ITEM_BANK.some((item) => item.id === id && item.category === 'teknikk')).toBe(true);
     }
   });
