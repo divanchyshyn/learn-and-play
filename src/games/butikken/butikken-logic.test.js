@@ -30,12 +30,12 @@ describe('butikken goods bank', () => {
     expect(ITEM_BANK.some((item) => item.name.includes('hefte'))).toBe(false);
   });
 
-  it('sells a pearl gem with a gem icon in the toys category', () => {
-    const perle = ITEM_BANK.find((item) => item.id === 'perle');
-    expect(perle).toBeTruthy();
-    expect(perle.emoji).toBe('💎');
-    expect(perle.name).toBe('perle');
-    expect(perle.category).toBe('leker');
+  it('sells a edelsten gem with a gem icon in the toys category', () => {
+    const edelsten = ITEM_BANK.find((item) => item.id === 'edelsten');
+    expect(edelsten).toBeTruthy();
+    expect(edelsten.emoji).toBe('💎');
+    expect(edelsten.name).toBe('edelsten');
+    expect(edelsten.category).toBe('leker');
   });
 
   it('keeps two-digit prices friendly: ones digit never above 5', () => {
