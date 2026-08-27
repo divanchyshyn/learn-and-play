@@ -44,9 +44,9 @@ const PICKS_PER_CATEGORY = { mat: 6, leker: 4, skole: 4 };
 // Trade rules: every transaction moves at most three physical items, and both
 // sides of the counter have their own purse to keep honest.
 export const MAX_PER_TRANSACTION = 3;
-export const SELLER_START_MONEY = 400;
+export const SELLER_START_MONEY = 0;
 // The customer always starts a day with this purse, whatever the game's fate.
-export const START_MONEY = 100;
+export const START_MONEY = 900;
 // The policeman gives the child three tries before the deal falls through.
 export const MAX_ATTEMPTS = 3;
 
