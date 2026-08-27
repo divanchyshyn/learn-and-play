@@ -57,6 +57,10 @@
    scroll past the whole item grid to reach "Kjøp". The bar repeats the block
    background so item cards scrolling beneath stay hidden. */
 .buy-block .trade-actions { position: sticky; top: 16px; z-index: 2; margin-top: 0; padding: 8px 6px; border-radius: 10px; background: #f2faf9; }
+/* The same pin for "Lever tilbake": even when your shelf grows full it never
+   falls out of reach. Uses the sell block's warmer background so owned-item
+   cards scrolling beneath stay hidden. */
+.sell-block .trade-actions { position: sticky; top: 16px; z-index: 2; margin-top: 0; padding: 8px 6px; border-radius: 10px; background: #fdf6f1; }
 .basket-note { margin: 0; color: #285362; font-size: .95rem; font-weight: 800; }
 .trade-button { min-height: 48px; padding: 8px 18px; border-radius: 999px; font-size: 1.08rem; font-weight: 900; color: white; transition: transform .12s ease, opacity .12s ease; }
 .buy-button { border: 2px solid #e46e4b; background: #e46e4b; box-shadow: inset 0 -4px 0 rgba(114, 43, 30, .2), 0 4px 0 rgba(20, 63, 78, .13); }
