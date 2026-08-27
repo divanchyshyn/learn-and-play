@@ -6,14 +6,15 @@ import {
 } from './Butikken.jsx';
 
 describe('butikken shop sampler', () => {
-  it('always picks 15 unique items: 7 food, 4 toys, 4 school things', () => {
+  it('always picks 15 unique items: 3 food, 3 toys, 2 school things, 7 machinery', () => {
     for (let trial = 0; trial < 50; trial += 1) {
       const shop = sampleShop();
       expect(shop).toHaveLength(15);
       expect(new Set(shop.map((item) => item.id)).size).toBe(15);
-      expect(shop.filter((item) => item.category === 'mat')).toHaveLength(7);
-      expect(shop.filter((item) => item.category === 'leker')).toHaveLength(4);
-      expect(shop.filter((item) => item.category === 'skole')).toHaveLength(4);
+      expect(shop.filter((item) => item.category === 'mat')).toHaveLength(3);
+      expect(shop.filter((item) => item.category === 'leker')).toHaveLength(3);
+      expect(shop.filter((item) => item.category === 'skole')).toHaveLength(2);
+      expect(shop.filter((item) => item.category === 'teknikk')).toHaveLength(7);
     }
   });
 });
@@ -45,6 +46,14 @@ describe('butikken goods bank', () => {
       expect(item).toBeTruthy();
       expect(item.category).toBe('leker');
       expect(item.price).toBeGreaterThan(0);
+    }
+  });
+
+  it('stocks a teknikk machinery shelf with boats, rockets and vehicles', () => {
+    const teknikk = ITEM_BANK.filter((item) => item.category === 'teknikk');
+    expect(teknikk.length).toBeGreaterThanOrEqual(10);
+    for (const id of ['bat', 'roket', 'ubat', 'tank', 'buss', 'tram']) {
+      expect(ITEM_BANK.some((item) => item.id === id && item.category === 'teknikk')).toBe(true);
     }
   });
 

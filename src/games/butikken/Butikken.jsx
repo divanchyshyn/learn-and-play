@@ -38,8 +38,30 @@ export const ITEM_BANK = [
   { id: 'sekk', name: 'sekk', emoji: '🎒', price: 45, category: 'skole' },
   { id: 'farger', name: 'fargeblyanter', emoji: '🖍️', price: 25, category: 'skole' },
   { id: 'donald', name: 'Donald', emoji: '🦆', price: 25, category: 'skole' },
+  // Teknikk – machinery and vehicles. Prices follow the same friendly rule:
+  // every two-digit ones digit stays 0–5 so the counting stays easy.
+  { id: 'bat', name: 'båt', emoji: '🚢', price: 20, category: 'teknikk' },
+  { id: 'roket', name: 'roket', emoji: '🚀', price: 30, category: 'teknikk' },
+  { id: 'ubat', name: 'ubåt', emoji: '🚤', price: 25, category: 'teknikk' },
+  { id: 'tank', name: 'tank', emoji: '🚙', price: 35, category: 'teknikk' },
+  { id: 'buss', name: 'buss', emoji: '🚌', price: 21, category: 'teknikk' },
+  { id: 'tram', name: 'tram', emoji: '🚋', price: 20, category: 'teknikk' },
+  { id: 'tbane', name: 'T-bane', emoji: '🚇', price: 25, category: 'teknikk' },
+  { id: 'lastebil', name: 'lastebil', emoji: '🚚', price: 42, category: 'teknikk' },
+  { id: 'traktor', name: 'traktor', emoji: '🚜', price: 34, category: 'teknikk' },
+  { id: 'brannbil', name: 'brannbil', emoji: '🚒', price: 33, category: 'teknikk' },
+  { id: 'ambulanse', name: 'ambulanse', emoji: '🚑', price: 30, category: 'teknikk' },
+  { id: 'politibil', name: 'politibil', emoji: '🚓', price: 42, category: 'teknikk' },
+  { id: 'taxi', name: 'taxi', emoji: '🚕', price: 25, category: 'teknikk' },
+  { id: 'racerbil', name: 'racerbil', emoji: '🏎️', price: 55, category: 'teknikk' },
+  { id: 'scooter', name: 'scooter', emoji: '🛵', price: 30, category: 'teknikk' },
+  { id: 'sykkel', name: 'sykkel', emoji: '🚲', price: 23, category: 'teknikk' },
+  { id: 'seilbat', name: 'seilbåt', emoji: '⛵', price: 30, category: 'teknikk' },
+  { id: 'robot', name: 'robot', emoji: '🤖', price: 55, category: 'teknikk' },
+  { id: 'satellitt', name: 'satellitt', emoji: '🛰️', price: 45, category: 'teknikk' },
+  { id: 'ufo', name: 'ufo', emoji: '🛸', price: 55, category: 'teknikk' },
 ];
-const PICKS_PER_CATEGORY = { mat: 7, leker: 4, skole: 4 };
+const PICKS_PER_CATEGORY = { mat: 3, leker: 3, skole: 2, teknikk: 7 };
 
 // Trade rules: every transaction moves at most three physical items, and both
 // sides of the counter have their own purse to keep honest.
@@ -109,8 +131,12 @@ export function checkoutCopy(kind, items) {
 }
 
 export function sampleShop() {
-  const grouped = { mat: [], leker: [], skole: [] };
-  ITEM_BANK.forEach((item) => grouped[item.category].push(item));
+  // Group the whole bank by category so the per-category caps stay honest even
+  // as the bank grows; a category with fewer picks than the cap never overflows.
+  const grouped = {};
+  ITEM_BANK.forEach((item) => {
+    (grouped[item.category] ||= []).push(item);
+  });
   const picked = Object.keys(PICKS_PER_CATEGORY)
     .flatMap((category) => shuffle(grouped[category]).slice(0, PICKS_PER_CATEGORY[category]));
   return shuffle(picked);
