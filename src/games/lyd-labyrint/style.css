@@ -128,6 +128,23 @@
 .pad-right { grid-area: right; }
 .pad-center { grid-area: paw; display: grid; place-items: center; font-size: 1.25rem; opacity: .5; }
 
+/* From tablets and up the direction pad sits beside the maze instead of under
+   it. The board shrinks just enough to make room, so both the maze and the
+   controls stay on screen without scrolling. Below 700px they stack again. */
+@media (min-width: 700px) {
+  .labyrinth-stage {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'board pad';
+    align-items: center;
+    column-gap: clamp(16px, 3vw, 28px);
+  }
+  .board-frame { grid-area: board; }
+  .dpad { grid-area: pad; }
+  .board {
+    --cell: max(21px, min(54px, calc((min(100vw - 28px, 900px) - 170px) / var(--cw)), calc((100vh - 320px) / var(--ch))));
+  }
+}
+
 /* ---- Spelling lock -------------------------------------------------- */
 .spell-backdrop {
   position: fixed; inset: 0; z-index: 40;
@@ -214,10 +231,6 @@
   .game-controls { position: static; justify-content: flex-start; }
   .labyrinth-intro { font-size: .97rem; }
   .spell-tile, .spell-slot, .spell-ghost { width: 42px; height: 50px; font-size: 1.4rem; }
-}
-@media (max-width: 640px) {
-  .game-controls { position: static; justify-content: flex-start; }
-  .labyrinth-intro { font-size: .97rem; }
 }
 @media (max-width: 480px) {
   .pad { width: 58px; height: 58px; }
