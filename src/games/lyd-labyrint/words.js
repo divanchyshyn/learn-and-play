@@ -1,7 +1,7 @@
 // Simple Norwegian animal words at 1st-grade level: short, phonetically
 // regular where possible, with a picture for word–meaning support. Words are
 // grouped by habitat so each themed maze only meets animals that belong
-// there – forest, ocean, savannah. Every word must be at most 7 letters so
+// there – forest, ocean, savannah. Every word must be at most 5 letters so
 // the spelling tray stays comfortable on small screens (see LydLabyrint.jsx).
 
 export const WORDS_BY_THEME = {
@@ -17,32 +17,29 @@ export const WORDS_BY_THEME = {
     { word: 'hauk', emoji: '🦅' },
     { word: 'mus', emoji: '🐭' },
     { word: 'maur', emoji: '🐜' },
+    { word: 'and', emoji: '🦆' },
+    { word: 'kanin', emoji: '🐰' },
+    { word: 'frosk', emoji: '🐸' },
   ],
   hav: [
     { word: 'fisk', emoji: '🐟' },
     { word: 'hai', emoji: '🦈' },
-    { word: 'krabbe', emoji: '🦀' },
     { word: 'hval', emoji: '🐋' },
     { word: 'sel', emoji: '🦭' },
-    { word: 'delfin', emoji: '🐬' },
-    { word: 'hummer', emoji: '🦞' },
     { word: 'reke', emoji: '🦐' },
-    { word: 'oktopus', emoji: '🐙' },
     { word: 'akkar', emoji: '🦑' },
-    { word: 'østers', emoji: '🦪' },
-    { word: 'korall', emoji: '🪸' },
+    { word: 'måke', emoji: '🕊️' },
+    { word: 'kreps', emoji: '🦞' },
   ],
   savanne: [
     { word: 'løve', emoji: '🦁' },
     { word: 'sebra', emoji: '🦓' },
-    { word: 'elefant', emoji: '🐘' },
-    { word: 'sjiraff', emoji: '🦒' },
-    { word: 'neshorn', emoji: '🦏' },
     { word: 'bison', emoji: '🐃' },
     { word: 'kamel', emoji: '🐫' },
-    { word: 'gepard', emoji: '🐆' },
-    { word: 'slange', emoji: '🐍' },
     { word: 'ape', emoji: '🐒' },
+    { word: 'øgle', emoji: '🦎' },
+    { word: 'ørn', emoji: '🦅' },
+    { word: 'geit', emoji: '🐐' },
   ],
 };
 

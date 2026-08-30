@@ -35,10 +35,10 @@ describe('lyd-labyrint word picker', () => {
     expect(two).toHaveLength(2);
   });
 
-  it('keeps every word at most 7 letters for the spelling tray', () => {
+  it('keeps every word at most 5 letters for the spelling tray', () => {
     for (const theme of Object.keys(WORDS_BY_THEME)) {
       for (const entry of WORDS_BY_THEME[theme]) {
-        expect(entry.word.length, `${theme}: ${entry.word}`).toBeLessThanOrEqual(7);
+        expect(entry.word.length, `${theme}: ${entry.word}`).toBeLessThanOrEqual(5);
       }
     }
   });
