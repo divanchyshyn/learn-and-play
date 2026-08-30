@@ -5,10 +5,24 @@
 .title-strip h1 { margin: 0; color: white; font-size: clamp(1.85rem, 5vw, 3.1rem); line-height: 1.05; text-align: center; text-shadow: 0 3px 0 rgba(114, 43, 30, .3); }
 .labyrinth-intro { max-width: 64ch; margin: 0; color: #285362; font-size: 1.03rem; line-height: 1.45; }
 
-.game-controls { position: absolute; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+.game-controls { position: static; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
 .maze-chip { padding: 6px 11px; border: 2px solid #63a375; border-radius: 999px; background: #eef6e6; color: #2f5d33; font-size: .88rem; font-weight: 900; white-space: nowrap; }
 .chip { min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
 .chip:hover { transform: translateY(-2px); }
+
+/* The maze chip and action buttons sit beside the intro text on larger
+   screens instead of absolutely floating over it. The header becomes two
+   columns so the description and the controls share one row without overlap. */
+@media (min-width: 641px) {
+  .labyrinth-page .game-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'link link' 'strip strip' 'intro controls';
+  }
+  .labyrinth-page .game-header .back-link { grid-area: link; }
+  .labyrinth-page .game-header .title-strip { grid-area: strip; }
+  .labyrinth-page .labyrinth-intro { grid-area: intro; }
+  .labyrinth-page .game-controls { grid-area: controls; justify-content: flex-end; }
+}
 
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -228,7 +242,7 @@
 }
 
 @media (max-width: 640px) {
-  .game-controls { position: static; justify-content: flex-start; }
+  .game-controls { justify-content: flex-start; }
   .labyrinth-intro { font-size: .97rem; }
   .spell-tile, .spell-slot, .spell-ghost { width: 42px; height: 50px; font-size: 1.4rem; }
 }
