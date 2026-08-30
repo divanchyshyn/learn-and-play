@@ -35,8 +35,16 @@ describe('lyd-labyrint word picker', () => {
     expect(two).toHaveLength(2);
   });
 
+  it('keeps every word at most 7 letters for the spelling tray', () => {
+    for (const theme of Object.keys(WORDS_BY_THEME)) {
+      for (const entry of WORDS_BY_THEME[theme]) {
+        expect(entry.word.length, `${theme}: ${entry.word}`).toBeLessThanOrEqual(7);
+      }
+    }
+  });
+
   it('throws when a habitat cannot fill the request', () => {
-    expect(() => pickWords(9, 'skog')).toThrow();
+    expect(() => pickWords(WORDS_BY_THEME.skog.length + 1, 'skog')).toThrow();
     expect(() => pickWords(3, 'unknown')).toThrow();
   });
 });
