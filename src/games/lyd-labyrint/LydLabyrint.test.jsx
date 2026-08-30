@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, within } from '@testing-library/react';
 import { THEMES, generateMaze } from './mazes.js';
 import { pickWords, WORDS_BY_THEME } from './words.js';
+import { shuffle } from '../../shared/random.js';
 import { LydLabyrint } from './LydLabyrint.jsx';
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
@@ -48,7 +49,7 @@ function runnerPosition(view) {
 // tests know where the doors are and which animal word sits on each.
 function expectedGame() {
   const maze = generateMaze({ ...THEMES[0], random: Math.random });
-  const words = pickWords(maze.doors.length, maze.theme, Math.random);
+  const words = shuffle(pickWords(maze.doors.length, maze.theme, Math.random));
   const doors = maze.doors.map((door, index) => ({
     ...door,
     ...words[index % words.length],
@@ -153,6 +154,8 @@ describe('lyd-labyrint game', () => {
     for (const picture of view.container.querySelectorAll('.door-picture')) {
       expect(habitatEmojis).toContain(picture.textContent);
     }
+    // The runner is the forest mascot, not a single global fox.
+    expect(view.container.querySelector('.runner').textContent).toBe('🦊');
   });
 
   it('moves with arrow keys and bumps into walls without moving', () => {
@@ -274,5 +277,7 @@ it('opens a spelling lock on a closed door, wobbles wrong letters, and unlocks',
     fireEvent.click(screen.getByRole('button', { name: /Nytt labyrint/ }));
     expect(screen.getByText(/Havet/)).toBeInTheDocument();
     expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
+    // The ocean maze swaps the forest fox for a sea turtle.
+    expect(view.container.querySelector('.runner').textContent).toBe('🐢');
   });
 });

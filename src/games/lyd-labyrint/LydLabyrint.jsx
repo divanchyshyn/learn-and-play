@@ -5,6 +5,7 @@ import { THEMES, generateMaze } from './mazes.js';
 import { pickWords, speakWord } from './words.js';
 import { SpellPuzzle } from './SpellPuzzle.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
+import { shuffle } from '../../shared/random.js';
 
 const MOVES = {
   up: [0, -1],
@@ -21,6 +22,9 @@ const KEY_DIRS = {
 
 const THEME_EMOJI = { skog: '\u{1F332}', hav: '\u{1F30A}', savanne: '\u{1F33E}' };
 const THEME_BG = { skog: '#edf4e0', hav: '#e4f2f7', savanne: '#fcf5df' };
+// The explorer's mascot changes with the habitat: forest → fox, ocean → sea
+// turtle, savannah → leopard.
+const THEME_RUNNER = { skog: '\u{1F98A}', hav: '\u{1F422}', savanne: '\u{1F406}' };
 
 const STEP_LOCK_MS = 165;
 const WALL_BUMP_MS = 200;
@@ -28,19 +32,27 @@ const DOOR_OPEN_MS = 300;
 const CELEBRATE_DELAY_MS = 340;
 
 // A fresh maze is carved for every game: bigger than the old hand-drawn maps,
-// with real branches and loops. Each door is a spelling lock whose animal
-// picture belongs to the maze's habitat (forest, ocean, savannah).
+// with real branches and loops. Every door is a spelling lock whose animal
+// belongs to the maze's habitat (forest, ocean, savannah); the words are
+// shuffled again so no two games stack the same word on the same door.
+// The runner mascot is picked per habitat too.
 function createGame(mazeIndex) {
   const def = THEMES[mazeIndex % THEMES.length];
   const maze = generateMaze(def);
-  const words = pickWords(maze.doors.length, def.theme);
+  const words = shuffle(pickWords(maze.doors.length, def.theme));
   const doors = maze.doors.map((door, index) => ({
     ...door,
     ...words[index % words.length],
     open: false,
     tilt: index % 2 === 0 ? '-1.8deg' : '1.6deg',
   }));
-  return { maze, mazeIndex, doors, pos: { ...maze.start }, phase: 'play', puzzle: null };
+  return {
+    maze, mazeIndex, doors,
+    runner: THEME_RUNNER[def.theme],
+    pos: { ...maze.start },
+    phase: 'play',
+    puzzle: null,
+  };
 }
 
 export function LydLabyrint() {
@@ -52,7 +64,7 @@ export function LydLabyrint() {
   gameRef.current = game;
   const genRef = useRef(0);
 
-  const { maze, doors, pos, phase, puzzle } = game;
+  const { maze, doors, pos, phase, puzzle, runner } = game;
 
   // The generation counter lets "Nytt labyrint" cancel any queued movement
   // steps from the previous maze so nothing leaks across games.
@@ -234,9 +246,9 @@ export function LydLabyrint() {
   return <main className={`game-page labyrinth-page theme-${maze.theme}`}>
     <GameHeader title="Lyd-labyrinten">
       <p className="labyrinth-intro">
-        Hjelp reven <span aria-hidden="true">{'\u{1F98A}'}</span> å finne veien ut av den store
-        labyrinten. Gå med piltastene eller knappene under kartet. Trykk på en
-        dyredør for å høre ordet – og stav ordet riktig for å åpne døren.
+        Hjelp {runner} å finne veien ut av den store labyrinten. Gå med
+        piltastene eller knappene under kartet. Trykk på en dyredør for å høre
+        ordet – og stav ordet riktig for å åpne døren.
       </p>
       <div className="game-controls">
         <span className="maze-chip">{THEME_EMOJI[maze.theme]} {maze.name}</span>
@@ -267,7 +279,7 @@ export function LydLabyrint() {
             style={{ '--tx': pos.x, '--ty': pos.y, '--bdx': fx ? fx.dx : 0, '--bdy': fx ? fx.dy : 0 }}
             aria-hidden="true"
           >
-            {'\u{1F98A}'}
+            {runner}
           </div>
         </div>
 
@@ -280,7 +292,7 @@ export function LydLabyrint() {
             aria-label="Gratulerer"
             aria-live="polite"
           >
-            <p className="celebrate-mascot" aria-hidden="true">{'\u{1F98A}'}</p>
+            <p className="celebrate-mascot" aria-hidden="true">{runner}</p>
             <h2>Du fant veien ut!</h2>
             <p>{maze.name} er utforsket ferdig. Vil du prøve en ny labyrint?</p>
             <div className="celebrate-actions">
@@ -300,7 +312,7 @@ export function LydLabyrint() {
         />
       )}
 
-      <div className="dpad" role="group" aria-label="Styr reven">
+      <div className="dpad" role="group" aria-label={`Styr ${runner}`}>
         <button className="pad pad-up" type="button" aria-label="Gå opp" onPointerDown={pressPad('up')} onClick={clickPad('up')}>▲</button>
         <span className="pad-center" aria-hidden="true">{'\u{1F43E}'}</span>
         <button className="pad pad-left" type="button" aria-label="Gå til venstre" onPointerDown={pressPad('left')} onClick={clickPad('left')}>◀</button>

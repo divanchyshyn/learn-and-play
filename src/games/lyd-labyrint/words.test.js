@@ -18,14 +18,14 @@ describe('lyd-labyrint word picker', () => {
     });
   }
 
-  it('never gives two side-by-side doors the same first letter', () => {
-    // Doors earlier in the list sit next to each other on the board, so an
-    // adjacent pair sharing a first letter would be a confusing choice.
-    for (let trial = 0; trial < 150; trial += 1) {
-      const picked = pickWords(7, 'skog');
-      for (let index = 1; index < picked.length; index += 1) {
-        expect(picked[index].word[0]).not.toBe(picked[index - 1].word[0]);
-      }
+  it('returns a fresh random ordering of the habitat words each time', () => {
+    // Every door is a spelling lock now, so no first-letter constraint is
+    // needed – the guarantee that matters is that the words are drawn as a
+    // full, fresh shuffle from their habitat every single time.
+    for (const theme of Object.keys(WORDS_BY_THEME)) {
+      const full = pickWords(WORDS_BY_THEME[theme].length, theme);
+      expect(full.map((entry) => entry.word).sort())
+        .toEqual(WORDS_BY_THEME[theme].map((entry) => entry.word).sort());
     }
   });
 

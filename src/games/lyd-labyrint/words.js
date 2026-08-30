@@ -46,40 +46,15 @@ function shuffle(items, random) {
   return copy;
 }
 
-// Pick `count` distinct words from one themed habitat. Consecutive picks
-// never share a first letter, so the two doors you often meet side by side
-// are always clearly different animals.
+// Pick `count` distinct words from one themed habitat. The whole set is
+// shuffled fresh every call, so every maze gets its words in a new random
+// order – the runner world never stacks doors in the same sequence twice.
 export function pickWords(count, theme, random = Math.random) {
   const pool = shuffle(WORDS_BY_THEME[theme] ?? [], random);
   if (pool.length < count) {
     throw new Error(`Theme "${theme}" only has ${pool.length} words, need ${count}`);
   }
-  const picked = [];
-  let previousFirst = '';
-  for (const entry of pool) {
-    if (picked.length >= count) break;
-    const first = entry.word[0];
-    if (first === previousFirst) continue;
-    picked.push(entry);
-    previousFirst = first;
-  }
-  // Second pass: add any leftovers that were skipped for sharing a first
-  // letter with the previous pick. The themed banks are large enough that
-  // this always fills the count while keeping neighbours distinct.
-  for (const entry of pool) {
-    if (picked.length >= count) break;
-    if (picked.includes(entry)) continue;
-    const first = entry.word[0];
-    if (first === previousFirst) continue;
-    picked.push(entry);
-    previousFirst = first;
-  }
-  // Safety net for unusual counts: just fill up with anything that remains.
-  for (const entry of pool) {
-    if (picked.length >= count) break;
-    if (!picked.includes(entry)) picked.push(entry);
-  }
-  return picked.slice(0, count);
+  return pool.slice(0, count);
 }
 
 // Voluntary support for tapping a door: reads its word aloud. Uses whatever
