@@ -54,7 +54,7 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 - Cover each game's rules as pure-logic tests (board or maze integrity, word banks, option generators, dice and turn flow) plus at least one rendered happy path through the UI.
 - Export existing pure helpers from game components instead of duplicating their logic in tests (see Butikken's `expectedAnswer` or Slangen og stigers `makeWords`).
 - Keep tests deterministic: pin `Math.random` with `vi.spyOn`, use fake timers for movement/animation locks, and derive expectations from whatever random content a component actually rendered instead of assuming specific items or words.
-- Respect each game's design constraints inside its tests – for example, Lyd-labyrinten must have no failure states and a wrong door may only ever cost one bounce-back.
+- Respect each game's design constraints inside its tests – for example, Lyd-labyrinten must have no failure states, and a wrong letter in its spelling puzzles may only ever wobble back.
 
 ## CI
 
@@ -81,7 +81,7 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 - Reuse `src/styles/base.css` only for genuinely shared browser-wide styles; do not put game-specific styling there.
 - Prefer simple React state and small components over adding a state-management library.
 - Preserve existing games while adding new ones. Do not rename a game slug without also preserving or intentionally redirecting its published URL.
-- Hide an unfinished game by commenting out its tile in `src/home/main.jsx` and marking it "(hidden)" in `README.md`. Keep its entry point in the build so the direct URL keeps working (see Lyd-labyrinten, Kortkrig, Ordfiske and Tierhopp).
+- Hide an unfinished game by commenting out its tile in `src/home/main.jsx` and marking it "(hidden)" in `README.md`. Keep its entry point in the build so the direct URL keeps working (see Kortkrig, Ordfiske and Tierhopp).
 - Build (`npm.cmd run build`), lint (`npm.cmd run lint`), and test (`npm.cmd run test`) before handing off changes. For interactive changes, also verify the relevant game route locally.
 
 ## Useful commands

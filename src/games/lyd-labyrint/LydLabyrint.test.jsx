@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, within } from '@testing-library/react';
+import { THEMES, generateMaze } from './mazes.js';
+import { pickWords, WORDS_BY_THEME } from './words.js';
 import { LydLabyrint } from './LydLabyrint.jsx';
 
-// Math.random is pinned so the game always starts on the first maze
-// (Skogen, start cell 1,8) and shuffles become deterministic.
+const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+
+// The game carves a fresh maze with whatever Math.random says; pinning it to
+// 0 keeps every maze deterministic while also letting tests regenerate the
+// very same layout the component sees.
 beforeEach(() => {
   vi.spyOn(Math, 'random').mockReturnValue(0);
   vi.useFakeTimers();
@@ -25,73 +30,208 @@ function press(view, key) {
   });
 }
 
-// One ordinary step plus enough time for the movement lock to clear.
-function step(view, key) {
-  press(view, key);
+function advance(ms) {
   act(() => {
-    vi.advanceTimersByTime(200);
-  });
-}
-
-// Walking through a door: open animation, step into the doorway,
-// auto-continue past it, and the lock release.
-function throughDoor(view, key) {
-  press(view, key);
-  act(() => {
-    vi.advanceTimersByTime(800);
+    vi.advanceTimersByTime(ms);
   });
 }
 
 function runnerPosition(view) {
   const runner = view.container.querySelector('.runner');
   return {
-    x: runner.style.getPropertyValue('--tx'),
-    y: runner.style.getPropertyValue('--ty'),
+    x: Number(runner.style.getPropertyValue('--tx')),
+    y: Number(runner.style.getPropertyValue('--ty')),
   };
 }
 
+// Regenerate the exact starting game (Skogen with the pinned random) so the
+// tests know where the doors are and which animal word sits on each.
+function expectedGame() {
+  const maze = generateMaze({ ...THEMES[0], random: Math.random });
+  const words = pickWords(maze.doors.length, maze.theme, Math.random);
+  const doors = maze.doors.map((door, index) => ({
+    ...door,
+    ...words[index % words.length],
+  }));
+  return { maze, doors };
+}
+
+function routeBetween(maze, from, to) {
+  const prev = new Map();
+  const startKey = `${from.x},${from.y}`;
+  prev.set(startKey, null);
+  const queue = [{ ...from }];
+  while (queue.length > 0) {
+    const cell = queue.shift();
+    if (cell.x === to.x && cell.y === to.y) break;
+    for (const [dx, dy] of DIRS) {
+      const key = `${cell.x + dx},${cell.y + dy}`;
+      if (maze.floors.has(key) && !prev.has(key)) {
+        prev.set(key, cell);
+        queue.push({ x: cell.x + dx, y: cell.y + dy });
+      }
+    }
+  }
+  const route = [];
+  const endKey = `${to.x},${to.y}`;
+  let key = endKey;
+  while (key) {
+    const [x, y] = key.split(',').map(Number);
+    route.unshift({ x, y });
+    if (key === startKey) break;
+    const parent = prev.get(key);
+    key = parent ? `${parent.x},${parent.y}` : '';
+  }
+  return route;
+}
+
+function dirFor(from, to) {
+  if (to.x === from.x + 1) return 'ArrowRight';
+  if (to.x === from.x - 1) return 'ArrowLeft';
+  if (to.y === from.y + 1) return 'ArrowDown';
+  return 'ArrowUp';
+}
+
+function doorAt(expected, x, y) {
+  return expected.doors.find((door) => door.x === x && door.y === y);
+}
+
+// Tap the letter tiles in the correct order; the puzzle places each tapped
+// letter into the first empty slot and pops the rest away.
+function solveSpell(view, word) {
+  for (const letter of [...word]) {
+    const tile = screen.getAllByRole('button', { name: `Bokstaven ${letter}` })[0];
+    fireEvent.click(tile);
+  }
+}
+
+// Walk the fox along a route of floor cells, solving any door it meets, until
+// it stands on `until` (defaults to the route's last cell).
+function walkRoute(view, expected, route, { until } = {}) {
+  const end = until ?? route[route.length - 1];
+  let guard = 0;
+  while (guard < route.length * 4) {
+    const pos = runnerPosition(view);
+    if (pos.x === end.x && pos.y === end.y) return;
+    const index = route.findIndex((cell) => cell.x === pos.x && cell.y === pos.y);
+    if (index === -1 || index === route.length - 1) return;
+    const to = route[index + 1];
+    const door = doorAt(expected, to.x, to.y);
+    press(view, dirFor(pos, to));
+    if (door) {
+      const dialog = screen.getByRole('dialog');
+      expect(dialog.getAttribute('aria-label')).toBe(`Stav ordet ${door.word}`);
+      solveSpell(view, door.word);
+      advance(1000);
+    } else {
+      advance(200);
+    }
+    guard += 1;
+  }
+  throw new Error('walkRoute could not reach its target');
+}
+function arrowFor([dx, dy]) {
+  if (dx === 1) return 'ArrowRight';
+  if (dx === -1) return 'ArrowLeft';
+  if (dy === 1) return 'ArrowDown';
+  return 'ArrowUp';
+}
+
 describe('lyd-labyrint game', () => {
-  it('renders a board with word signs and the fox on the start cell', () => {
+  it('renders a fresh themed maze with tappable habitat animal doors', () => {
     const view = renderGame();
-    expect(runnerPosition(view)).toEqual({ x: '1', y: '8' });
+    const expected = expectedGame();
+    expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
     expect(screen.getByText(/Skogen/)).toBeInTheDocument();
-    // Skogen has four junctions with two doors each.
-    expect(screen.getAllByRole('button', { name: /Hør ordet/ })).toHaveLength(8);
+
+    const board = view.container.querySelector('.board');
+    expect(Number(board.style.getPropertyValue('--cw'))).toBe(expected.maze.width);
+    expect(Number(board.style.getPropertyValue('--ch'))).toBe(expected.maze.height);
+
+    expect(screen.getAllByRole('button', { name: /Hør ordet/ })).toHaveLength(expected.doors.length);
+    const habitatEmojis = WORDS_BY_THEME.skog.map((entry) => entry.emoji);
+    for (const picture of view.container.querySelectorAll('.door-picture')) {
+      expect(habitatEmojis).toContain(picture.textContent);
+    }
   });
 
   it('moves with arrow keys and bumps into walls without moving', () => {
     const view = renderGame();
-    step(view, 'ArrowRight');
-    expect(runnerPosition(view)).toEqual({ x: '2', y: '8' });
+    const maze = expectedGame().maze;
+    const openDir = DIRS.find(([dx, dy]) => maze.floors.has(`${1 + dx},${1 + dy}`));
+    press(view, arrowFor(openDir));
+    advance(200);
+    const moved = runnerPosition(view);
+    expect(moved).not.toEqual({ x: 1, y: 1 });
 
-    // Above column 2 row 8 is wall – the fox must stay put.
-    step(view, 'ArrowUp');
-    expect(runnerPosition(view)).toEqual({ x: '2', y: '8' });
+    const blockedDir = DIRS.find(([dx, dy]) => !maze.floors.has(`${moved.x + dx},${moved.y + dy}`));
+    expect(blockedDir).toBeTruthy();
+    press(view, arrowFor(blockedDir));
+    expect(runnerPosition(view)).toEqual(moved);
+    advance(250);
+    expect(runnerPosition(view)).toEqual(moved);
   });
-
-  it('gives a gentle bounce on a wrong door and never opens it', () => {
+it('opens a spelling lock on a closed door, wobbles wrong letters, and unlocks', () => {
     const view = renderGame();
-    for (let i = 0; i < 4; i += 1) step(view, 'ArrowRight');
-    expect(runnerPosition(view)).toEqual({ x: '5', y: '8' }); // junction
+    const expected = expectedGame();
+    const door = expected.doors[0];
+    const route = routeBetween(expected.maze, expected.maze.start, door);
+    const before = route[route.length - 2];
+    walkRoute(view, expected, route, { until: before });
 
-    // Door "a" north of the junction is the bounce-back door.
-    press(view, 'ArrowUp');
-    expect(runnerPosition(view)).toEqual({ x: '5', y: '8' });
-    expect(view.container.querySelector('.door-panel.shake')).toBeTruthy();
-    expect(view.container.querySelector('.door-panel.open')).toBeNull();
+    press(view, dirFor(before, door));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('aria-label')).toBe(`Stav ordet ${door.word}`);
+    expect(runnerPosition(view)).toEqual(before);
 
-    act(() => {
-      vi.advanceTimersByTime(450); // bounce finished, lock released
-    });
-    expect(view.container.querySelector('.door-panel.shake')).toBeNull();
-    expect(view.container.querySelector('.door-panel.open')).toBeNull();
+    // A wrong letter wobbles back: nothing is consumed, nothing is penalised.
+    const wrong = [...dialog.querySelectorAll('.spell-tile')]
+      .map((tile) => tile.textContent)
+      .find((letter) => letter && letter !== door.word[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: `Bokstaven ${wrong}` })[0]);
+    const slots = view.container.querySelectorAll('.spell-slot');
+    expect(slots[0].classList.contains('filled')).toBe(false);
+    expect(slots[0].classList.contains('next')).toBe(true);
+    advance(400);
+    expect(slots[0].classList.contains('reject')).toBe(false);
 
-    // The fox is free to try again or take the other door immediately.
-    throughDoor(view, 'ArrowRight');
+    // Spelling the word correctly opens the door and lets the fox through.
+    solveSpell(view, door.word);
+    advance(1000);
     expect(view.container.querySelector('.door-panel.open')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(runnerPosition(view)).not.toEqual(before);
   });
 
-  it('speaks a word when its sign is tapped', () => {
+  it('can close a lock without solving it, and no new door ever opens', () => {
+    const view = renderGame();
+    const expected = expectedGame();
+    const door = expected.doors[0];
+    const route = routeBetween(expected.maze, expected.maze.start, door);
+    const before = route[route.length - 2];
+    walkRoute(view, expected, route, { until: before });
+
+    // Walking here may have solved other doors; count what is open already.
+    const openCount = () => view.container.querySelectorAll('.door-panel.open').length;
+    const openedBefore = openCount();
+
+    press(view, dirFor(before, door));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Lukk/ }));
+    advance(50);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(openCount()).toBe(openedBefore);
+
+    // Reopening and pressing Escape also just steps away, door still locked.
+    press(view, dirFor(before, door));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    press(view, 'Escape');
+    advance(50);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(openCount()).toBe(openedBefore);
+  });
+
+  it('speaks a word when its door is tapped', () => {
     const spoken = [];
     vi.stubGlobal('SpeechSynthesisUtterance', class FakeUtterance {
       constructor(text) { this.text = text; }
@@ -102,50 +242,37 @@ describe('lyd-labyrint game', () => {
     });
 
     renderGame();
-    const sign = screen.getAllByRole('button', { name: /Hør ordet/ })[0];
-    fireEvent.click(sign);
+    const doorButton = screen.getAllByRole('button', { name: /Hør ordet/ })[0];
+    const word = doorButton.getAttribute('aria-label').replace('Hør ordet ', '');
+    fireEvent.click(doorButton);
 
-    expect(spoken).toEqual([sign.textContent]);
+    expect(spoken).toEqual([word]);
     vi.unstubAllGlobals();
   });
 
   it('plays through to the exit, celebrates, and starts a fresh maze', () => {
     const view = renderGame();
+    const expected = expectedGame();
+    const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
+    walkRoute(view, expected, route);
+    expect(runnerPosition(view)).toEqual({ x: expected.maze.exit.x, y: expected.maze.exit.y });
 
-    // Solution path for Skogen: east corridor → door A, north-east corridor
-    // → door B, north corridor → west door C, west corridor → north door D,
-    // then out through the exit.
-    for (let i = 0; i < 4; i += 1) step(view, 'ArrowRight');
-    throughDoor(view, 'ArrowRight');            // A – correct
-    for (let i = 0; i < 3; i += 1) step(view, 'ArrowRight');
-    throughDoor(view, 'ArrowUp');               // B – correct
-    step(view, 'ArrowUp');
-    step(view, 'ArrowUp');
-    throughDoor(view, 'ArrowLeft');             // C – correct
-    for (let i = 0; i < 3; i += 1) step(view, 'ArrowLeft');
-    throughDoor(view, 'ArrowUp');               // D – correct
-    step(view, 'ArrowUp');                      // onto the exit ✨
-
-    act(() => {
-      vi.advanceTimersByTime(600);
-    });
-
+    advance(600);
     expect(screen.getByText('Du fant veien ut!')).toBeInTheDocument();
 
-    // Two "Nytt labyrint" buttons exist while celebrating (header chip +
-    // card); use the one inside the celebration card.
     const card = screen.getByText('Du fant veien ut!').closest('.celebrate-card');
     fireEvent.click(within(card).getByRole('button', { name: /Ny labyrint/ }));
 
     expect(screen.queryByText('Du fant veien ut!')).not.toBeInTheDocument();
     expect(screen.getByText(/Havet/)).toBeInTheDocument();
-    expect(runnerPosition(view)).toEqual({ x: '1', y: '11' }); // Havet start
+    expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
+    expect(screen.getAllByRole('button', { name: /Hør ordet/ }).length).toBeGreaterThanOrEqual(5);
   });
 
   it('offers an always-available restart from the header', () => {
     const view = renderGame();
     fireEvent.click(screen.getByRole('button', { name: /Nytt labyrint/ }));
     expect(screen.getByText(/Havet/)).toBeInTheDocument();
-    expect(runnerPosition(view)).toEqual({ x: '1', y: '11' });
+    expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
   });
 });

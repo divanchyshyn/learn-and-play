@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { GameHeader } from '../../shared/GameHeader.jsx';
-import { MAZES } from './mazes.js';
+import { THEMES, generateMaze } from './mazes.js';
 import { pickWords, speakWord } from './words.js';
+import { SpellPuzzle } from './SpellPuzzle.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
 
 const MOVES = {
@@ -18,44 +19,42 @@ const KEY_DIRS = {
   W: 'up', S: 'down', A: 'left', D: 'right',
 };
 
-const THEME_EMOJI = { skog: '🌲', hav: '🌊', rom: '🚀' };
-const THEME_BG = { skog: '#edf4e0', hav: '#e4f2f7', rom: '#eee9fa' };
+const THEME_EMOJI = { skog: '\u{1F332}', hav: '\u{1F30A}', savanne: '\u{1F33E}' };
+const THEME_BG = { skog: '#edf4e0', hav: '#e4f2f7', savanne: '#fcf5df' };
 
 const STEP_LOCK_MS = 165;
 const WALL_BUMP_MS = 200;
-const BOUNCE_MS = 400;
-const DOOR_OPEN_MS = 280;
+const DOOR_OPEN_MS = 300;
 const CELEBRATE_DELAY_MS = 340;
 
+// A fresh maze is carved for every game: bigger than the old hand-drawn maps,
+// with real branches and loops. Each door is a spelling lock whose animal
+// picture belongs to the maze's habitat (forest, ocean, savannah).
 function createGame(mazeIndex) {
-  const maze = MAZES[mazeIndex % MAZES.length];
-  // Doors are labelled in reading order (top-to-bottom, left-to-right), and
-  // pickWords guarantees neighbours differ – so the two signs at every
-  // junction are always clearly distinct words.
-  const words = pickWords(maze.doors.length);
-  const orderedDoors = [...maze.doors].sort((a, b) => a.y - b.y || a.x - b.x);
-  const doors = orderedDoors.map((door, index) => ({
+  const def = THEMES[mazeIndex % THEMES.length];
+  const maze = generateMaze(def);
+  const words = pickWords(maze.doors.length, def.theme);
+  const doors = maze.doors.map((door, index) => ({
     ...door,
     ...words[index % words.length],
     open: false,
     tilt: index % 2 === 0 ? '-1.8deg' : '1.6deg',
   }));
-  return { mazeIndex, maze, doors, pos: { ...maze.start }, phase: 'play' };
+  return { maze, mazeIndex, doors, pos: { ...maze.start }, phase: 'play', puzzle: null };
 }
 
 export function LydLabyrint() {
-  const [game, setGame] = useState(() => createGame(Math.floor(Math.random() * MAZES.length)));
+  const [game, setGame] = useState(() => createGame(Math.floor(Math.random() * THEMES.length)));
   const [fx, setFx] = useState(null);
-  const [shakingDoor, setShakingDoor] = useState(null);
   const [soundOn, setSoundOn] = useState(!isMuted());
   const busyRef = useRef(false);
   const gameRef = useRef(game);
   gameRef.current = game;
   const genRef = useRef(0);
 
-  const { maze, doors, pos, phase } = game;
+  const { maze, doors, pos, phase, puzzle } = game;
 
-  // A generation counter lets "Nytt labyrint" cancel any queued movement
+  // The generation counter lets "Nytt labyrint" cancel any queued movement
   // steps from the previous maze so nothing leaks across games.
   const later = useCallback((gen, fn, ms) => {
     window.setTimeout(() => {
@@ -67,6 +66,18 @@ export function LydLabyrint() {
     document.body.style.background = THEME_BG[maze.theme] || '';
     return () => { document.body.style.background = ''; };
   }, [maze.theme]);
+
+  // Set the fox down on a floor cell; reaching the exit starts the celebration.
+  const arrive = useCallback((gen, x, y) => {
+    setGame((prev) => ({ ...prev, pos: { x, y } }));
+    sounds.step();
+    if (gameRef.current.maze.exit.x === x && gameRef.current.maze.exit.y === y) {
+      later(gen, () => {
+        sounds.fanfare();
+        setGame((prev) => ({ ...prev, phase: 'celebrate' }));
+      }, CELEBRATE_DELAY_MS);
+    }
+  }, [later]);
 
   const tryMove = useCallback((direction) => {
     const current = gameRef.current;
@@ -85,71 +96,75 @@ export function LydLabyrint() {
     }
 
     if (door && !door.open) {
-      if (door.ok) {
-        busyRef.current = true;
-        sounds.open();
-        speakWord(door.word);
-        setGame((prev) => ({
-          ...prev,
-          doors: prev.doors.map((d) => (d.x === nx && d.y === ny ? { ...d, open: true } : d)),
-        }));
-        later(gen, () => {
-          setGame((prev) => ({ ...prev, pos: { x: nx, y: ny } }));
-          sounds.step();
-          later(gen, () => {
-            const bx = nx + dx;
-            const by = ny + dy;
-            const beyondBlocked = current.doors.some((d) => d.x === bx && d.y === by && !d.open);
-            if (current.maze.floors.has(`${bx},${by}`) && !beyondBlocked) {
-              setGame((prev) => ({ ...prev, pos: { x: bx, y: by } }));
-            }
-            later(gen, () => { busyRef.current = false; }, STEP_LOCK_MS);
-          }, STEP_LOCK_MS);
-        }, DOOR_OPEN_MS);
-      } else {
-        busyRef.current = true;
-        sounds.thud();
-        setShakingDoor(key);
-        setFx({ kind: 'bounce', dx, dy });
-        later(gen, () => {
-          setFx(null);
-          setShakingDoor(null);
-          busyRef.current = false;
-        }, BOUNCE_MS);
-      }
+      // Walking into a closed door opens its spelling lock.
+      sounds.thud();
+      setGame((prev) => ({ ...prev, phase: 'puzzle', puzzle: { key, dx, dy } }));
       return;
     }
 
     busyRef.current = true;
-    sounds.step();
-    setGame((prev) => ({ ...prev, pos: { x: nx, y: ny } }));
+    arrive(gen, nx, ny);
     later(gen, () => { busyRef.current = false; }, STEP_LOCK_MS);
+  }, [arrive, later]);
 
-    if (current.maze.exit.x === nx && current.maze.exit.y === ny) {
+  // The spelling lock is solved: say the word, unlock the door, step through
+  // it and glide one cell further in the same direction.
+  const handleSolve = useCallback(() => {
+    const current = gameRef.current;
+    const target = current.puzzle;
+    if (!target) return;
+    const door = current.doors.find((d) => `${d.x},${d.y}` === target.key);
+    if (!door) return;
+    const gen = genRef.current;
+    busyRef.current = true;
+    sounds.open();
+    speakWord(door.word);
+    setGame((prev) => ({
+      ...prev,
+      doors: prev.doors.map((d) => (d.x === door.x && d.y === door.y ? { ...d, open: true } : d)),
+      phase: 'play',
+      puzzle: null,
+    }));
+    later(gen, () => {
+      arrive(gen, door.x, door.y);
       later(gen, () => {
-        sounds.fanfare();
-        setGame((prev) => ({ ...prev, phase: 'celebrate' }));
-      }, CELEBRATE_DELAY_MS);
-    }
-  }, [later]);
+        const bx = door.x + target.dx;
+        const by = door.y + target.dy;
+        const beyondBlocked = current.doors.some((d) => d.x === bx && d.y === by && !d.open);
+        if (current.maze.floors.has(`${bx},${by}`) && !beyondBlocked) {
+          arrive(gen, bx, by);
+        }
+        later(gen, () => { busyRef.current = false; }, STEP_LOCK_MS);
+      }, DOOR_OPEN_MS);
+    }, 140);
+  }, [arrive, later]);
+
+  // Step away from a spelling lock without solving it – explore elsewhere,
+  // the door stays closed and can be tried again any time.
+  const closePuzzle = useCallback(() => {
+    setGame((prev) => (prev.puzzle ? { ...prev, phase: 'play', puzzle: null } : prev));
+    sounds.select();
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event) => {
       const direction = KEY_DIRS[event.key];
-      if (!direction) return;
-      event.preventDefault();
-      tryMove(direction);
+      if (direction) {
+        event.preventDefault();
+        tryMove(direction);
+        return;
+      }
+      if (event.key === 'Escape' && gameRef.current.phase === 'puzzle') closePuzzle();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [tryMove]);
+  }, [tryMove, closePuzzle]);
 
   function newMaze() {
     genRef.current += 1;
     busyRef.current = false;
     setFx(null);
-    setShakingDoor(null);
-    const nextIndex = (gameRef.current.mazeIndex + 1) % MAZES.length;
+    const nextIndex = (gameRef.current.mazeIndex + 1) % THEMES.length;
     setGame(createGame(nextIndex));
     sounds.select();
   }
@@ -177,6 +192,10 @@ export function LydLabyrint() {
     tryMove(direction);
   };
 
+  const puzzleDoor = puzzle
+    ? doors.find((d) => `${d.x},${d.y}` === puzzle.key) || null
+    : null;
+
   const cells = [];
   for (let y = 0; y < maze.height; y += 1) {
     for (let x = 0; x < maze.width; x += 1) {
@@ -194,25 +213,19 @@ export function LydLabyrint() {
       }
       cells.push(
         <div className={className} key={key}>
-          {isExit && <span className="exit-mark" aria-hidden="true">✨</span>}
-          {doorHere && <>
+          {isExit && <span className="exit-mark" aria-hidden="true">{'\u2728'}</span>}
+          {doorHere && (
             <button
               type="button"
-              className="word-sign"
+              className={`door-panel${doorHere.open ? ' open' : ''}`}
               style={{ '--tilt': doorHere.tilt }}
               onClick={() => speakWord(doorHere.word)}
               aria-label={`Hør ordet ${doorHere.word}`}
             >
-              {doorHere.word}
-            </button>
-            <span
-              className={`door-panel${doorHere.open ? ' open' : ''}${shakingDoor === key ? ' shake' : ''}`}
-              aria-hidden="true"
-            >
               <span className="door-picture">{doorHere.emoji}</span>
-              <span className="door-knob" />
-            </span>
-          </>}
+              <span className="door-knob" aria-hidden="true" />
+            </button>
+          )}
         </div>,
       );
     }
@@ -221,13 +234,13 @@ export function LydLabyrint() {
   return <main className={`game-page labyrinth-page theme-${maze.theme}`}>
     <GameHeader title="Lyd-labyrinten">
       <p className="labyrinth-intro">
-        Hjelp reven <span aria-hidden="true">🦊</span> å finne veien ut av labyrinten.
-        Gå med piltastene eller knappene under kartet. Lurer du på hva et ord sier?
-        Trykk på skiltet over døren og hør det høyt.
+        Hjelp reven <span aria-hidden="true">{'\u{1F98A}'}</span> å finne veien ut av den store
+        labyrinten. Gå med piltastene eller knappene under kartet. Trykk på en
+        dyredør for å høre ordet – og stav ordet riktig for å åpne døren.
       </p>
       <div className="game-controls">
         <span className="maze-chip">{THEME_EMOJI[maze.theme]} {maze.name}</span>
-        <button className="chip" type="button" onClick={newMaze}>Nytt labyrint 🔄</button>
+        <button className="chip" type="button" onClick={newMaze}>Nytt labyrint {'\u{1F504}'}</button>
         <button
           className="chip toggle"
           type="button"
@@ -235,7 +248,7 @@ export function LydLabyrint() {
           aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'}
           onClick={toggleSound}
         >
-          {soundOn ? '🔊' : '🔇'}
+          {soundOn ? '\u{1F50A}' : '\u{1F507}'}
         </button>
       </div>
     </GameHeader>
@@ -254,27 +267,42 @@ export function LydLabyrint() {
             style={{ '--tx': pos.x, '--ty': pos.y, '--bdx': fx ? fx.dx : 0, '--bdy': fx ? fx.dy : 0 }}
             aria-hidden="true"
           >
-            🦊
+            {'\u{1F98A}'}
           </div>
         </div>
 
         {phase === 'celebrate' && <>
           <ConfettiLayer count={36} />
-          <div className="celebrate-card" aria-live="polite">
-            <p className="celebrate-mascot" aria-hidden="true">🦊</p>
+          <div
+            className="celebrate-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Gratulerer"
+            aria-live="polite"
+          >
+            <p className="celebrate-mascot" aria-hidden="true">{'\u{1F98A}'}</p>
             <h2>Du fant veien ut!</h2>
             <p>{maze.name} er utforsket ferdig. Vil du prøve en ny labyrint?</p>
             <div className="celebrate-actions">
-              <button className="roll-button" type="button" onClick={newMaze}>Ny labyrint 🔄</button>
+              <button className="roll-button" type="button" onClick={newMaze}>Ny labyrint {'\u{1F504}'}</button>
               <button className="outline-button" type="button" onClick={keepExploring}>Se deg rundt litt til</button>
             </div>
           </div>
         </>}
       </div>
 
+      {puzzleDoor && (
+        <SpellPuzzle
+          word={puzzleDoor.word}
+          emoji={puzzleDoor.emoji}
+          onSolve={handleSolve}
+          onClose={closePuzzle}
+        />
+      )}
+
       <div className="dpad" role="group" aria-label="Styr reven">
         <button className="pad pad-up" type="button" aria-label="Gå opp" onPointerDown={pressPad('up')} onClick={clickPad('up')}>▲</button>
-        <span className="pad-center" aria-hidden="true">🐾</span>
+        <span className="pad-center" aria-hidden="true">{'\u{1F43E}'}</span>
         <button className="pad pad-left" type="button" aria-label="Gå til venstre" onPointerDown={pressPad('left')} onClick={clickPad('left')}>◀</button>
         <button className="pad pad-right" type="button" aria-label="Gå til høyre" onPointerDown={pressPad('right')} onClick={clickPad('right')}>▶</button>
         <button className="pad pad-down" type="button" aria-label="Gå ned" onPointerDown={pressPad('down')} onClick={clickPad('down')}>▼</button>

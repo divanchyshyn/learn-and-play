@@ -6,8 +6,7 @@ import './style.css';
 // marked "(hidden)" in README.md) but keep building, so their direct URLs
 // under ./games/<slug>/ keep working.
 const GAMES = [
-  // Lyd-labyrinten er skjult fra biblioteket mens spillet videreutvikles – den bygges fortsatt og nås via ./games/lyd-labyrint/
-  // { title: 'Lyd-labyrinten', description: 'Gå gjennom labyrinten og velg døren med ord – hvilken vei går reven?', href: './games/lyd-labyrint/', badge: 'Lesespill', art: 'maze' },
+  { title: 'Lyd-labyrinten', description: 'Utforsk en stor labyrint, hør dyrene og stav ordene riktig for å åpne dørene.', href: './games/lyd-labyrint/', badge: 'Lesespill', art: 'maze' },
   { title: 'Slanger og stiger', description: 'Les norske ord, klatre opp stiger og pass på slangene.', href: './games/slangen-en-ladders/', badge: 'Ordspill', art: 'snake' },
   // Kortkrig er skjult fra biblioteket mens spillet videreutvikles – det bygges fortsatt og nås via ./games/kortkrig/
   // { title: 'Kortkrig', description: 'Kortduell mot Rex – snu kortene, sammenlign tall og se hvem som slår hardest.', href: './games/kortkrig/', badge: 'Regnespill', art: 'cards' },

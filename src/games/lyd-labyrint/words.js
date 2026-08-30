@@ -1,65 +1,59 @@
-// Simple Norwegian words at 1st-grade level: short, phonetically regular
-// where possible, and each with a picture so word–meaning can support reading.
-const WORD_BANK = [
-  { word: 'hus', emoji: '🏠' },
-  { word: 'bil', emoji: '🚗' },
-  { word: 'katt', emoji: '🐱' },
-  { word: 'hund', emoji: '🐶' },
-  { word: 'sol', emoji: '☀️' },
-  { word: 'måne', emoji: '🌙' },
-  { word: 'tre', emoji: '🌳' },
-  { word: 'bok', emoji: '📕' },
-  { word: 'ball', emoji: '⚽' },
-  { word: 'fisk', emoji: '🐟' },
-  { word: 'fugl', emoji: '🐦' },
-  { word: 'egg', emoji: '🥚' },
-  { word: 'is', emoji: '🍦' },
-  { word: 'ost', emoji: '🧀' },
-  { word: 'hest', emoji: '🐴' },
-  { word: 'ku', emoji: '🐄' },
-  { word: 'sau', emoji: '🐑' },
-  { word: 'gris', emoji: '🐷' },
-  { word: 'mus', emoji: '🐭' },
-  { word: 'buss', emoji: '🚌' },
-  { word: 'tog', emoji: '🚂' },
-  { word: 'båt', emoji: '🚤' },
-  { word: 'snø', emoji: '❄️' },
-  { word: 'regn', emoji: '🌧️' },
-  { word: 'sky', emoji: '☁️' },
-  { word: 'stein', emoji: '🪨' },
-  { word: 'eple', emoji: '🍎' },
-  { word: 'pære', emoji: '🍐' },
-  { word: 'banan', emoji: '🍌' },
-  { word: 'melk', emoji: '🥛' },
-  { word: 'brød', emoji: '🍞' },
-  { word: 'kake', emoji: '🍰' },
-  { word: 'stol', emoji: '🪑' },
-  { word: 'seng', emoji: '🛏️' },
-  { word: 'penn', emoji: '✏️' },
-  { word: 'sko', emoji: '👟' },
-  { word: 'frosk', emoji: '🐸' },
-  { word: 'and', emoji: '🦆' },
-  { word: 'rose', emoji: '🌹' },
-  { word: 'ulv', emoji: '🐺' },
-  { word: 'bjørn', emoji: '🐻' },
-  { word: 'svane', emoji: '🦢' },
-  { word: 'drake', emoji: '🪁' },
-];
+// Simple Norwegian animal words at 1st-grade level: short, phonetically
+// regular where possible, with a picture for word–meaning support. Words are
+// grouped by habitat so each themed maze only meets animals that belong
+// there – forest, ocean, savannah. Every word must also be short enough for
+// a comfortable spelling puzzle (letters in trays, see LydLabyrint.jsx).
 
-function shuffle(items) {
+export const WORDS_BY_THEME = {
+  skog: [
+    { word: 'rev', emoji: '🦊' },
+    { word: 'ulv', emoji: '🐺' },
+    { word: 'bjørn', emoji: '🐻' },
+    { word: 'ekorn', emoji: '🐿' },
+    { word: 'ugle', emoji: '🦉' },
+    { word: 'elg', emoji: '🫎' },
+    { word: 'hjort', emoji: '🦌' },
+    { word: 'pinnsvin', emoji: '🦔' },
+  ],
+  hav: [
+    { word: 'fisk', emoji: '🐟' },
+    { word: 'hai', emoji: '🦈' },
+    { word: 'krabbe', emoji: '🦀' },
+    { word: 'hval', emoji: '🐋' },
+    { word: 'sel', emoji: '🦭' },
+    { word: 'delfin', emoji: '🐬' },
+    { word: 'hummer', emoji: '🦞' },
+    { word: 'reke', emoji: '🦐' },
+  ],
+  savanne: [
+    { word: 'løve', emoji: '🦁' },
+    { word: 'sebra', emoji: '🦓' },
+    { word: 'elefant', emoji: '🐘' },
+    { word: 'sjiraff', emoji: '🦒' },
+    { word: 'neshorn', emoji: '🦏' },
+    { word: 'flodhest', emoji: '🦛' },
+    { word: 'bison', emoji: '🐃' },
+    { word: 'krokodille', emoji: '🐊' },
+  ],
+};
+
+function shuffle(items, random) {
   const copy = [...items];
   for (let index = copy.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(Math.random() * (index + 1));
+    const target = Math.floor(random() * (index + 1));
     [copy[index], copy[target]] = [copy[target], copy[index]];
   }
   return copy;
 }
 
-// Pick `count` distinct words. Consecutive picks never share a first letter,
-// so the two words shown at a junction are always clearly different – the
-// choice stays about reading, not spot-the-difference.
-export function pickWords(count) {
-  const pool = shuffle(WORD_BANK);
+// Pick `count` distinct words from one themed habitat. Consecutive picks
+// never share a first letter, so the two doors you often meet side by side
+// are always clearly different animals.
+export function pickWords(count, theme, random = Math.random) {
+  const pool = shuffle(WORDS_BY_THEME[theme] ?? [], random);
+  if (pool.length < count) {
+    throw new Error(`Theme "${theme}" only has ${pool.length} words, need ${count}`);
+  }
   const picked = [];
   let previousFirst = '';
   for (const entry of pool) {
@@ -69,6 +63,18 @@ export function pickWords(count) {
     picked.push(entry);
     previousFirst = first;
   }
+  // Second pass: add any leftovers that were skipped for sharing a first
+  // letter with the previous pick. The themed banks are large enough that
+  // this always fills the count while keeping neighbours distinct.
+  for (const entry of pool) {
+    if (picked.length >= count) break;
+    if (picked.includes(entry)) continue;
+    const first = entry.word[0];
+    if (first === previousFirst) continue;
+    picked.push(entry);
+    previousFirst = first;
+  }
+  // Safety net for unusual counts: just fill up with anything that remains.
   for (const entry of pool) {
     if (picked.length >= count) break;
     if (!picked.includes(entry)) picked.push(entry);
@@ -76,7 +82,7 @@ export function pickWords(count) {
   return picked.slice(0, count);
 }
 
-// Voluntary scaffold: tapping a sign reads the word aloud. Uses whatever
+// Voluntary support for tapping a door: reads its word aloud. Uses whatever
 // Norwegian voice the browser has; fails silently when none is available.
 export function speakWord(text) {
   try {

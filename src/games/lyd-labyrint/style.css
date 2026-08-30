@@ -15,7 +15,7 @@
 /* ---- Themes ----------------------------------------------------------- */
 .theme-skog { --wall: #5f8f49; --wall-dark: rgba(35, 66, 24, .22); --frame: #4a7239; }
 .theme-hav { --wall: #1f81a3; --wall-dark: rgba(9, 51, 68, .25); --frame: #14688a; }
-.theme-rom { --wall: #5d4da6; --wall-dark: rgba(32, 22, 74, .28); --frame: #4a3d8a; }
+.theme-savanne { --wall: #bd8a3b; --wall-dark: rgba(77, 52, 12, .24); --frame: #9a6f28; }
 
 /* ---- Board ------------------------------------------------------------ */
 .labyrinth-stage { display: grid; gap: 18px; justify-items: center; padding-bottom: 26px; }
@@ -40,35 +40,28 @@
 .exit-mark { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; font-size: calc(var(--cell) * .52); line-height: 1; animation: sparkle 1.6s ease-in-out infinite; pointer-events: none; }
 @keyframes sparkle { 0%, 100% { transform: scale(.88); opacity: .75; } 50% { transform: scale(1.08); opacity: 1; } }
 
-/* ---- Doors and word signs --------------------------------------------- */
+/* ---- Doors: tappable spelling locks ------------------------------- */
 .door-panel {
-  position: absolute; inset: 10% 13%; z-index: 2;
+  position: absolute; inset: 9%; z-index: 2;
   display: grid; place-items: center;
-  border: 3px solid #a83f22; border-radius: 8px 8px 5px 5px;
+  padding: 0;
+  border: 3px solid #a83f22; border-radius: 9px;
   background: linear-gradient(#ef8563, #dd6038);
   box-shadow: inset 0 -5px 0 rgba(114, 43, 30, .25);
   transition: transform .26s ease, opacity .26s ease, border-color .26s ease;
+  touch-action: manipulation;
 }
-.door-picture { font-size: calc(var(--cell) * .42); line-height: 1; opacity: .95; }
-.door-knob { position: absolute; right: 8%; top: 50%; width: 17%; aspect-ratio: 1; transform: translateY(-50%); border-radius: 50%; background: #fff3d6; box-shadow: 0 1px 0 rgba(114, 43, 30, .4); }
-.door-panel.open { transform: scaleY(.12) translateY(34%); opacity: .25; border-color: #63a375; box-shadow: none; }
-.door-panel.shake { animation: door-no .34s ease; }
-@keyframes door-no { 25% { translate: -7% 0; rotate: -2deg; } 60% { translate: 6% 0; rotate: 2deg; } }
+.door-panel:hover { transform: translateY(-2px); }
+.door-panel:active { transform: scale(.96); }
+.door-picture { font-size: calc(var(--cell) * .46); line-height: 1; opacity: .95; }
+.door-knob { position: absolute; right: 8%; top: 50%; width: 15%; aspect-ratio: 1; transform: translateY(-50%); border-radius: 50%; background: #fff3d6; box-shadow: 0 1px 0 rgba(114, 43, 30, .4); }
+.door-panel.open { transform: scaleY(.12) translateY(34%); opacity: .25; border-color: #63a375; box-shadow: none; pointer-events: auto; }
 
-.word-sign {
-  position: absolute; bottom: calc(100% - 7px); left: 50%; z-index: 6;
-  transform: translateX(-50%) rotate(var(--tilt, -2deg));
-  padding: .12em .5em;
-  border: 2px solid #b57b1e; border-radius: 7px;
-  background: linear-gradient(#ffe08a, #ffd95c);
-  color: #5d3a06;
-  font-weight: 900; font-size: max(12px, calc(var(--cell) * .4)); line-height: 1.3;
-  white-space: nowrap;
-  box-shadow: 0 3px 0 rgba(20, 63, 78, .18);
+.door-panel:focus-visible, .chip:focus-visible, .pad:focus-visible, .roll-button:focus-visible,
+.outline-button:focus-visible, .back-link:focus-visible, .spell-hear:focus-visible,
+.spell-tile:focus-visible, .spell-slot:focus-visible, .spell-close:focus-visible {
+  outline: 3px dashed #e46e4b; outline-offset: 3px;
 }
-.word-sign::before { content: ""; position: absolute; top: -3px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: #8a5a12; }
-.word-sign:hover { background: linear-gradient(#ffea9e, #ffe27a); }
-.word-sign:focus-visible, .chip:focus-visible, .pad:focus-visible, .roll-button:focus-visible, .outline-button:focus-visible, .back-link:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
 
 /* ---- The runner (fox) -------------------------------------------------- */
 .runner {
@@ -135,6 +128,93 @@
 .pad-right { grid-area: right; }
 .pad-center { grid-area: paw; display: grid; place-items: center; font-size: 1.25rem; opacity: .5; }
 
+/* ---- Spelling lock -------------------------------------------------- */
+.spell-backdrop {
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center;
+  padding: 16px;
+  background: rgba(20, 63, 78, .45);
+  animation: spell-fade .18s ease;
+}
+@keyframes spell-fade { from { opacity: 0; } to { opacity: 1; } }
+.spell-card {
+  position: relative;
+  width: min(94%, 420px);
+  display: grid; gap: 13px; justify-items: center; text-align: center;
+  padding: 22px 20px 18px;
+  border: 4px solid #e5ae45; border-radius: 16px;
+  background: #fffdf3;
+  box-shadow: 0 12px 0 rgba(20, 63, 78, .2);
+  animation: card-rise .22s ease;
+}
+.spell-picture { font-size: 3rem; line-height: 1; }
+.spell-title { margin: 0; color: #2f5d33; font-size: clamp(1.3rem, 6vw, 1.6rem); }
+.spell-hear {
+  min-height: 42px; padding: 5px 16px;
+  border: 2px solid #0c8fb6; border-radius: 999px;
+  background: #eef7fa; color: #0b7897; font-weight: 900;
+}
+.spell-tray {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  max-width: 100%; min-height: 60px; padding: 8px;
+  border: 3px dashed #c8b06a; border-radius: 12px;
+  background: #faf6e8;
+}
+.spell-tile {
+  width: 46px; height: 54px;
+  display: grid; place-items: center;
+  border: 2px solid #b57b1e; border-radius: 10px;
+  background: linear-gradient(#ffe08a, #ffd95c);
+  color: #5d3a06;
+  font-size: 1.55rem; font-weight: 900; line-height: 1; text-transform: lowercase;
+  box-shadow: 0 3px 0 rgba(20, 63, 78, .18);
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  transition: transform .1s ease, opacity .1s ease;
+}
+.spell-tile:hover { transform: translateY(-2px); }
+.spell-tile.dragging { opacity: .35; }
+.spell-ghost {
+  position: fixed; z-index: 50; pointer-events: none;
+  width: 46px; height: 54px;
+  display: grid; place-items: center;
+  transform: translate(-50%, -50%);
+  border: 2px solid #b57b1e; border-radius: 10px;
+  background: linear-gradient(#ffe08a, #ffd95c);
+  color: #5d3a06; font-size: 1.55rem; font-weight: 900; text-transform: lowercase;
+  box-shadow: 0 8px 0 rgba(20, 63, 78, .25);
+}
+.spell-slots {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  max-width: 100%;
+}
+.spell-slot {
+  width: 46px; height: 54px;
+  display: grid; place-items: center;
+  border: 3px dashed #9db7bd; border-radius: 10px;
+  background: #f4faf8; color: #143f4e;
+  font-size: 1.55rem; font-weight: 900; line-height: 1; text-transform: lowercase;
+}
+.spell-slot.next { border-color: #0c8fb6; border-style: solid; background: #eaf6f9; }
+.spell-slot.filled { border-style: solid; border-color: #63a375; background: #eef6e6; color: #2f5d33; }
+.spell-slot.reject { animation: letter-no .28s ease; }
+@keyframes letter-no {
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+.spell-help { margin: 0; max-width: 34ch; color: #285362; font-size: .95rem; line-height: 1.4; }
+.spell-close {
+  position: absolute; top: 8px; right: 10px;
+  border: none; border-radius: 8px; background: transparent;
+  color: #285362; font-weight: 900;
+}
+
+@media (max-width: 640px) {
+  .game-controls { position: static; justify-content: flex-start; }
+  .labyrinth-intro { font-size: .97rem; }
+  .spell-tile, .spell-slot, .spell-ghost { width: 42px; height: 50px; font-size: 1.4rem; }
+}
 @media (max-width: 640px) {
   .game-controls { position: static; justify-content: flex-start; }
   .labyrinth-intro { font-size: .97rem; }
