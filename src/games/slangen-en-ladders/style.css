@@ -1,7 +1,5 @@
 .game-page { width: min(100% - 28px, 1240px); margin: 0 auto; padding: 18px 0 38px; }
 
-.title-strip { padding: 13px 20px; background: #0c9fc4; box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .08); }
-.title-strip h1 { margin: 0; color: white; font-size: clamp(1.85rem, 5vw, 3.55rem); line-height: 1.05; text-align: center; text-shadow: 0 3px 0 rgba(9, 79, 98, .28); }
 .game-header > p { max-width: 64ch; margin: 0; color: #285362; font-size: 1.03rem; line-height: 1.4; }
 .game-controls { position: absolute; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .game-controls label { display: flex; gap: 7px; align-items: center; color: #285362; font-weight: 900; }

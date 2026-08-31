@@ -1,2 +1,9 @@
 .game-header { position: relative; display: grid; gap: 10px; margin-bottom: 20px; }
-.back-link { width: max-content; color: #0b7897; font-weight: 800; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.back-link { color: #0b7897; font-weight: 800; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+/* Compact top bar: "Spillbibliotek → <game title pill>". The title sits next to
+   the back link instead of a full-width banner; games override only the colour. */
+.header-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+.header-sep { color: #9db7bd; font-weight: 900; line-height: 1; user-select: none; }
+.title-strip { display: inline-block; padding: 4px 13px; border-radius: 999px; background: #0c9fc4; box-shadow: inset 0 -3px 0 rgba(9, 51, 68, .22); }
+.title-strip h1 { margin: 0; color: #fff; font-size: 1.16rem; font-weight: 900; line-height: 1.5; text-shadow: 0 2px 0 rgba(9, 51, 68, .25); }
