@@ -244,26 +244,7 @@ export function LydLabyrint() {
   }
 
   return <main className={`game-page labyrinth-page theme-${maze.theme}`}>
-    <GameHeader title="Lyd-labyrinten">
-      <p className="labyrinth-intro">
-        Hjelp {runner} å finne veien ut av den store labyrinten. Gå med
-        piltastene eller knappene under kartet. Trykk på en dyredør for å høre
-        ordet – og stav ordet riktig for å åpne døren.
-      </p>
-      <div className="game-controls">
-        <span className="maze-chip">{THEME_EMOJI[maze.theme]} {maze.name}</span>
-        <button className="chip" type="button" onClick={newMaze}>Nytt labyrint {'\u{1F504}'}</button>
-        <button
-          className="chip toggle"
-          type="button"
-          aria-pressed={!soundOn}
-          aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'}
-          onClick={toggleSound}
-        >
-          {soundOn ? '\u{1F50A}' : '\u{1F507}'}
-        </button>
-      </div>
-    </GameHeader>
+    <GameHeader title="Lyd-labyrinten" />
 
     <section className="labyrinth-stage">
       <div className="board-frame">
@@ -311,6 +292,20 @@ export function LydLabyrint() {
           onClose={closePuzzle}
         />
       )}
+
+      <div className="game-controls">
+        <span className="maze-chip">{THEME_EMOJI[maze.theme]} {maze.name}</span>
+        <button className="chip" type="button" onClick={newMaze}>Nytt labyrint {'\u{1F504}'}</button>
+        <button
+          className="chip toggle"
+          type="button"
+          aria-pressed={!soundOn}
+          aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'}
+          onClick={toggleSound}
+        >
+          {soundOn ? '\u{1F50A}' : '\u{1F507}'}
+        </button>
+      </div>
 
       <div className="dpad" role="group" aria-label={`Styr ${runner}`}>
         <button className="pad pad-up" type="button" aria-label="Gå opp" onPointerDown={pressPad('up')} onClick={clickPad('up')}>▲</button>
