@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { THEMES, generateMaze } from './mazes.js';
+import { THEMES, generateMaze, uniquePath } from './mazes.js';
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 const RANDOM = () => 0;
@@ -98,6 +98,29 @@ describe('lyd-labyrint maze collection', () => {
         expect(dist.get(`${maze.exit.x},${maze.exit.y}`)).toBe(max);
         // The exit must genuinely take some exploring.
         expect(max).toBeGreaterThanOrEqual(12);
+      });
+
+      it('is a perfect maze: one route to the exit and real dead ends', () => {
+        const cells = ((def.width - 1) / 2) * ((def.height - 1) / 2);
+        // A spanning tree has every cell floor plus one passage per connection
+        // (cells - 1) and nothing else. Trees never close a loop, so there is
+        // exactly one way from the start to the exit.
+        expect(maze.floors.size).toBe(2 * cells - 1);
+        let deadEnds = 0;
+        for (const key of maze.floors) {
+          const [x, y] = key.split(',').map(Number);
+          const n = DIRS.filter(([dx, dy]) => maze.floors.has(`${x + dx},${y + dy}`)).length;
+          if (n === 1) deadEnds += 1;
+        }
+        expect(deadEnds).toBeGreaterThanOrEqual(6);
+      });
+
+      it('keeps every door on the one way to the exit, never in a dead end', () => {
+        const routeKeys = new Set(uniquePath(maze.floors, maze.start, maze.exit).map((c) => `${c.x},${c.y}`));
+        expect(maze.doors.length).toBeGreaterThan(0);
+        for (const door of maze.doors) {
+          expect(routeKeys.has(`${door.x},${door.y}`)).toBe(true);
+        }
       });
     });
   }

@@ -32,9 +32,10 @@ const DOOR_OPEN_MS = 300;
 const CELEBRATE_DELAY_MS = 340;
 
 // A fresh maze is carved for every game: bigger than the old hand-drawn maps,
-// with real branches and loops. Every door is a spelling lock whose animal
-// belongs to the maze's habitat (forest, ocean, savannah); the words are
-// shuffled again so no two games stack the same word on the same door.
+// with real branches and dead ends to explore - but exactly one way out.
+// Every door is a spelling lock whose animal belongs to the maze's habitat
+// (forest, ocean, savannah); the words are shuffled again so no two games
+// stack the same word on the same door.
 // The runner mascot is picked per habitat too.
 function createGame(mazeIndex) {
   const def = THEMES[mazeIndex % THEMES.length];

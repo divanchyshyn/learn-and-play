@@ -1,9 +1,13 @@
-// Lyd-labyrinten's mazes are carved fresh for every new game: a classic
-// recursive-backtracker maze (single-width corridors, junctions, dead ends)
-// that is then "braided" – a handful of walls are knocked out so there are
-// loops and shortcuts to explore too. Bigger and branchier than the old
-// hand-built chains, and never a dead end in the *frustrating* sense,
-// because every door is an openable spelling lock rather than a "wrong" choice.
+// Lyd-labyrinten's mazes are carved fresh for every new game with randomized
+// Kruskal's algorithm. The result is a "perfect" maze - a spanning tree on the
+// cell grid - so there is exactly one route from the start to the exit and
+// every corridor that is not the way out ends in a real dead end. No loops,
+// no shortcuts, so choosing the wrong branch costs a little exploring and the
+// exit keeps a single, satisfying way in.
+//
+// Doors are spelling locks (see LydLabyrint.jsx). They sit on the one way to
+// the exit, never inside a dead end, so a child is never asked to open a lock
+// that leads to a wall.
 //
 // A maze is generated with an injectable `random` (defaults to Math.random),
 // so tests can pin it and stay deterministic, while every fresh maze still
@@ -12,7 +16,7 @@
 // Map legend (what the generator carves):
 //   #  wall          .  floor
 //   S  start (1,1)   X  exit (farthest floor cell from the start)
-//   D  a door cell – every door is a spelling puzzle, see LydLabyrint.jsx
+//   D  a door cell - every door is a spelling puzzle, see LydLabyrint.jsx
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 
@@ -60,47 +64,102 @@ function distances(floors, from) {
   return dist;
 }
 
+// The single path between two floor cells. The maze is a tree, so BFS finds
+// exactly one path; used to choose the exit and to place the doors on the way.
+// Exported so the maze tests can verify doors ride this same route.
+export function uniquePath(floors, from, to) {
+  const prev = new Map([[`${from.x},${from.y}`, null]]);
+  const queue = [{ ...from }];
+  while (queue.length > 0) {
+    const cell = queue.shift();
+    if (cell.x === to.x && cell.y === to.y) break;
+    for (const [dx, dy] of DIRS) {
+      const nx = cell.x + dx;
+      const ny = cell.y + dy;
+      const key = `${nx},${ny}`;
+      if (!floors.has(key) || prev.has(key)) continue;
+      prev.set(key, cell);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  const route = [];
+  const endKey = `${to.x},${to.y}`;
+  const startKey = `${from.x},${from.y}`;
+  let key = endKey;
+  while (key) {
+    const [x, y] = key.split(',').map(Number);
+    route.unshift({ x, y });
+    if (key === startKey) break;
+    const parent = prev.get(key);
+    key = parent ? `${parent.x},${parent.y}` : '';
+  }
+  return route;
+}
 export function generateMaze({ name, theme, width = 17, height = 13, random = Math.random }) {
-  // ---- Carve a perfect maze with the recursive backtracker -----------------
-  const floors = new Set();
+  // Cells live on the odd grid points; the passage between two neighbouring
+  // cells sits on the even point in between. Carving a maze means deciding
+  // which passages stay open until every cell is connected.
+  const colCount = (width - 1) / 2;  // cells per row, e.g. 8 for a 17-wide board
+  const rowCount = (height - 1) / 2; // cells per column, e.g. 6 for a 13-tall board
   const start = { x: 1, y: 1 };
-  floors.add('1,1');
-  const stack = [{ ...start }];
-  while (stack.length > 0) {
-    const current = stack[stack.length - 1];
-    const options = shuffled(DIRS, random).filter(([dx, dy]) => {
-      const nx = current.x + dx * 2;
-      const ny = current.y + dy * 2;
-      return nx > 0 && nx < width - 1 && ny > 0 && ny < height - 1 && !floors.has(`${nx},${ny}`);
-    });
-    if (options.length === 0) {
-      stack.pop();
-      continue;
+  const cellIndex = (i, j) => j * colCount + i;
+
+  // Union-find for Kruskal: which cells are already connected?
+  const parent = [];
+  const rank = [];
+  for (let index = 0; index < colCount * rowCount; index += 1) {
+    parent[index] = index;
+    rank[index] = 0;
+  }
+  function find(cell) {
+    let a = cell;
+    while (parent[a] !== a) {
+      parent[a] = parent[parent[a]];
+      a = parent[a];
     }
-    const [dx, dy] = options[0];
-    const mid = { x: current.x + dx, y: current.y + dy };
-    const far = { x: current.x + dx * 2, y: current.y + dy * 2 };
-    floors.add(`${mid.x},${mid.y}`);
-    floors.add(`${far.x},${far.y}`);
-    stack.push(far);
+    return a;
+  }
+  function join(a, b) {
+    let rootA = find(a);
+    let rootB = find(b);
+    if (rootA === rootB) return false;
+    if (rank[rootA] < rank[rootB]) [rootA, rootB] = [rootB, rootA];
+    if (rank[rootA] === rank[rootB]) rank[rootA] += 1;
+    parent[rootB] = rootA;
+    return true;
   }
 
-  // ---- Braid: remove a handful of walls to create loops --------------------
-  // Only wall cells that separate two floors count, so every removal opens a
-  // genuine shortcut instead of a pocked blob.
-  const wallCandidates = [];
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      if (floors.has(`${x},${y}`)) continue;
-      if (floorNeighbourCount(floors, x, y) >= 2) wallCandidates.push({ x, y });
+  // Every cell is floor; every passage between cells starts as a wall.
+  const floors = new Set();
+  for (let i = 0; i < colCount; i += 1) {
+    for (let j = 0; j < rowCount; j += 1) {
+      floors.add(`${2 * i + 1},${2 * j + 1}`);
     }
   }
-  const braidCount = Math.max(4, Math.floor(wallCandidates.length * 0.12));
-  for (const wall of shuffled(wallCandidates, random).slice(0, braidCount)) {
-    floors.add(`${wall.x},${wall.y}`);
+
+  // ---- randomized Kruskal: open passages in random order ---------------------
+  // A passage is opened only when it would join two unconnected parts, never
+  // when it would close a loop, so the result is a spanning tree: a "perfect"
+  // maze with exactly one path between any two cells. In maze terms: one way
+  // to the exit, and every wrong turn ends at a wall - a real dead end.
+  const passages = [];
+  for (let j = 0; j < rowCount; j += 1) {
+    for (let i = 0; i < colCount; i += 1) {
+      if (i + 1 < colCount) {
+        // Passage to the cell on the right.
+        passages.push({ x: 2 * i + 2, y: 2 * j + 1, from: cellIndex(i, j), to: cellIndex(i + 1, j) });
+      }
+      if (j + 1 < rowCount) {
+        // Passage to the cell below.
+        passages.push({ x: 2 * i + 1, y: 2 * j + 2, from: cellIndex(i, j), to: cellIndex(i, j + 1) });
+      }
+    }
+  }
+  for (const passage of shuffled(passages, random)) {
+    if (join(passage.from, passage.to)) floors.add(`${passage.x},${passage.y}`);
   }
 
-  // ---- Exit: the floor cell farthest from the start ------------------------
+  // ---- Exit: the cell farthest from the start -------------------------------
   const dist = distances(floors, start);
   let exit = { ...start };
   let best = -1;
@@ -112,28 +171,43 @@ export function generateMaze({ name, theme, width = 17, height = 13, random = Ma
     }
   });
 
-  // ---- Doors: spelling locks scattered along the corridors -----------------
-  // Doors sit on ordinary floor cells with floor on at least two sides, never
-  // on the start or exit, never right next to either, and never adjacent to
-  // each other (solving door after door with no walking between would be
-  // gruelling). Target ~7 for the current grid sizes.
+  // ---- Doors: spelling locks along the one way out --------------------------
+  // Doors sit on the single start-to-exit route (away from the first steps and
+  // the exit itself), so solving a lock always moves the game forward. They
+  // never sit inside a dead end - a child is never asked to open a lock that
+  // leads to a wall. The route is normally long enough for all doors; if it is
+  // unusually short, the rest fall back to through-corridors elsewhere.
   const targetDoors = Math.max(5, Math.round((width + height) / 4) - 1); // 17+13 -> 7
-  const pool = [];
+  const nearStart = (cell) => manhattan(cell, start) < 3;
+  const nearExit = (cell) => manhattan(cell, exit) < 2;
+
+  const route = uniquePath(floors, start, exit);
+  const routePool = route.filter((cell) => !nearStart(cell) && !nearExit(cell));
+
+  const routeKeys = new Set(routePool.map((cell) => `${cell.x},${cell.y}`));
+  const generalPool = [];
   for (let y = 1; y < height - 1; y += 1) {
     for (let x = 1; x < width - 1; x += 1) {
       const key = `${x},${y}`;
-      if (!floors.has(key)) continue;
-      if (manhattan({ x, y }, start) < 3) continue; // keep the first steps free
-      if (manhattan({ x, y }, exit) < 2) continue;  // a clear run-in to the exit
+      if (!floors.has(key) || routeKeys.has(key)) continue;
+      if (nearStart({ x, y }) || nearExit({ x, y })) continue;
       if (floorNeighbourCount(floors, x, y) < 2) continue;
-      pool.push({ x, y });
+      generalPool.push({ x, y });
     }
   }
+
   const doors = [];
-  for (const candidate of shuffled(pool, random)) {
-    if (doors.length >= targetDoors) break;
-    if (!doors.some((door) => manhattan(door, candidate) === 1)) doors.push({ x: candidate.x, y: candidate.y });
+  function placeDoors(pool) {
+    for (const candidate of shuffled(pool, random)) {
+      if (doors.length >= targetDoors) break;
+      // Never two doors next to each other: solving door after door with no
+      // walking in between would be gruelling.
+      if (doors.some((door) => manhattan(door, candidate) === 1)) continue;
+      doors.push({ x: candidate.x, y: candidate.y });
+    }
   }
+  placeDoors(routePool);
+  if (doors.length < targetDoors) placeDoors(generalPool);
 
   return { name, theme, width, height, floors, doors, start, exit };
 }
