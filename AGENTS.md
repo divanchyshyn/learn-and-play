@@ -54,7 +54,7 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 - Cover each game's rules as pure-logic tests (board or maze integrity, word banks, option generators, dice and turn flow) plus at least one rendered happy path through the UI.
 - Export existing pure helpers from game components instead of duplicating their logic in tests (see Butikken's `expectedAnswer` or Slangen og stigers `makeWords`).
 - Keep tests deterministic: pin `Math.random` with `vi.spyOn`, use fake timers for movement/animation locks, and derive expectations from whatever random content a component actually rendered instead of assuming specific items or words.
-- Respect each game's design constraints inside its tests – for example, Lyd-labyrinten must have no failure states, and a wrong letter in its spelling puzzles may only ever wobble back.
+- Respect each game's design constraints inside its tests – for example, Lyd-labyrinten keeps no failure states: letters stay freely placeable and reorderable, and a wrong spelling may only shake red and be read back, never punished.
 
 ## CI
 

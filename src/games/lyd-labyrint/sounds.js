@@ -26,6 +26,12 @@ export const sounds = {
     tone({ freq: 540, duration: 0.08, type: 'triangle', volume: 0.16 });
     tone({ freq: 880, delay: 0.06, duration: 0.1, type: 'triangle', volume: 0.12 });
   },
+  // Descending buzz for a wrong spelling – audibly "that was not it".
+  wrong() {
+    tone({ freq: 233, duration: 0.1, type: 'sawtooth', volume: 0.1 });
+    tone({ freq: 175, delay: 0.1, duration: 0.12, type: 'sawtooth', volume: 0.1 });
+    tone({ freq: 117, delay: 0.2, duration: 0.2, type: 'sawtooth', volume: 0.1 });
+  },
   fanfare() {
     [523, 659, 784, 1047, 1319].forEach((freq, index) => tone({ freq, delay: index * 0.1, duration: 0.22, type: 'triangle', volume: 0.14 }));
   },

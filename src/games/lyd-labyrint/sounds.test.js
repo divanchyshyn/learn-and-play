@@ -28,6 +28,7 @@ describe('lyd-labyrint sound settings', () => {
       sounds.open();
       sounds.select();
       sounds.pop();
+      sounds.wrong();
       sounds.fanfare();
     }).not.toThrow();
 

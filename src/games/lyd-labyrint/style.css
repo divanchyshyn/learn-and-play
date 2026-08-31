@@ -160,8 +160,12 @@
   border: 4px solid #e5ae45; border-radius: 16px;
   background: #fffdf3;
   box-shadow: 0 12px 0 rgba(20, 63, 78, .2);
-  animation: card-rise .22s ease;
+  animation: spell-rise .22s ease;
 }
+/* The spell card is already centred by the backdrop's grid (place-items:
+   center), so its entry animation must not carry the translate(-50%, -50%)
+   offsets that the celebrate-card keyframes use for its left/top centering. */
+@keyframes spell-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .spell-picture { font-size: 3rem; line-height: 1; }
 .spell-title { margin: 0; color: #2f5d33; font-size: clamp(1.3rem, 6vw, 1.6rem); }
 .spell-hear {
@@ -208,16 +212,34 @@
   border: 3px dashed #9db7bd; border-radius: 10px;
   background: #f4faf8; color: #143f4e;
   font-size: 1.55rem; font-weight: 900; line-height: 1; text-transform: lowercase;
+  touch-action: none; user-select: none; -webkit-user-select: none;
 }
 .spell-slot.next { border-color: #0c8fb6; border-style: solid; background: #eaf6f9; }
 .spell-slot.filled { border-style: solid; border-color: #63a375; background: #eef6e6; color: #2f5d33; }
-.spell-slot.reject { animation: letter-no .28s ease; }
-@keyframes letter-no {
-  20% { transform: translateX(-6px); }
-  40% { transform: translateX(6px); }
-  60% { transform: translateX(-3px); }
-  80% { transform: translateX(2px); }
+.spell-card.wrong { border-color: #d94f3b; box-shadow: 0 12px 0 rgba(94, 32, 18, .25); }
+.spell-slots.wrong { animation: word-shake .55s ease; }
+.spell-slots.wrong .spell-slot.filled {
+  border-color: #d94f3b;
+  background: #fde9e4;
+  color: #a13324;
 }
+@keyframes word-shake {
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(9px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(3px); }
+}
+.spell-check {
+  min-height: 46px; padding: 7px 24px;
+  border: 3px solid #278541; border-radius: 999px;
+  background: linear-gradient(#8fcc7a, #63a375);
+  color: #fff; font-size: 1.05rem; font-weight: 900;
+  box-shadow: 0 4px 0 rgba(20, 63, 78, .35);
+  transition: transform .12s ease, background .12s ease;
+}
+.spell-check:hover { transform: translateY(-2px); }
+.spell-check:active { transform: scale(.97); }
+.spell-feedback { margin: 0; color: #a13324; font-weight: 900; font-size: .95rem; line-height: 1.3; }
 .spell-help { margin: 0; max-width: 34ch; color: #285362; font-size: .95rem; line-height: 1.4; }
 .spell-close {
   position: absolute; top: 8px; right: 10px;

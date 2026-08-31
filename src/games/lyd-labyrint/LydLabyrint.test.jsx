@@ -3,6 +3,7 @@ import { render, fireEvent, act, screen, within } from '@testing-library/react';
 import { THEMES, generateMaze } from './mazes.js';
 import { pickWords, WORDS_BY_THEME } from './words.js';
 import { shuffle } from '../../shared/random.js';
+import { applyDrop, scrambleLetters } from './SpellPuzzle.jsx';
 import { LydLabyrint } from './LydLabyrint.jsx';
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
@@ -97,13 +98,14 @@ function doorAt(expected, x, y) {
   return expected.doors.find((door) => door.x === x && door.y === y);
 }
 
-// Tap the letter tiles in the correct order; the puzzle places each tapped
-// letter into the first empty slot and pops the rest away.
+// Tap the letter tiles (each tap fills the next slot) and then submit the
+// built word with the «Sjekk svaret» check button.
 function solveSpell(view, word) {
   for (const letter of [...word]) {
     const tile = screen.getAllByRole('button', { name: `Bokstaven ${letter}` })[0];
     fireEvent.click(tile);
   }
+  fireEvent.click(screen.getByRole('button', { name: /Sjekk/ }));
 }
 
 // Walk the fox along a route of floor cells, solving any door it meets, until
@@ -137,6 +139,66 @@ function arrowFor([dx, dy]) {
   if (dy === 1) return 'ArrowDown';
   return 'ArrowUp';
 }
+
+describe('lyd-labyrint spelling puzzle helpers', () => {
+  it('scrambleLetters returns a full permutation of the word', () => {
+    for (const word of ['rev', 'bever', 'hval']) {
+      const letters = scrambleLetters(word, () => 0);
+      expect([...letters].sort().join('')).toBe([...word].sort().join(''));
+      expect(letters).toHaveLength(word.length);
+    }
+  });
+
+  it('applyDrop places a tray tile on any empty slot', () => {
+    const result = applyDrop({
+      slots: [null, null, null],
+      tray: ['e', 'v', 'r'],
+      active: { letter: 'e', area: 'tray', index: 0 },
+      slot: 1,
+    });
+    expect(result.changed).toBe(true);
+    expect(result.slots).toEqual([null, 'e', null]);
+    expect(result.tray).toEqual(['v', 'r']);
+  });
+
+  it('applyDrop swaps a tray tile onto an occupied slot', () => {
+    const result = applyDrop({
+      slots: ['r', null, null],
+      tray: ['e', 'v', 'r'],
+      active: { letter: 'e', area: 'tray', index: 0 },
+      slot: 0,
+    });
+    expect(result.changed).toBe(true);
+    expect(result.slots).toEqual(['e', null, null]);
+    expect(result.tray).toEqual(['v', 'r', 'r']);
+  });
+
+  it('applyDrop swaps letters between slots', () => {
+    const result = applyDrop({
+      slots: ['r', 'e', 'v'],
+      tray: [],
+      active: { letter: 'e', area: 'slot', index: 1 },
+      slot: 2,
+    });
+    expect(result.changed).toBe(true);
+    expect(result.slots).toEqual(['r', 'v', 'e']);
+    expect(result.tray).toEqual([]);
+  });
+
+  it('applyDrop leaves an out-of-range drop untouched', () => {
+    const slots = [null, null, null];
+    const tray = ['e', 'v', 'r'];
+    const result = applyDrop({
+      slots,
+      tray,
+      active: { letter: 'e', area: 'tray', index: 0 },
+      slot: 99,
+    });
+    expect(result.changed).toBe(false);
+    expect(result.slots).toBe(slots);
+    expect(result.tray).toBe(tray);
+  });
+});
 
 describe('lyd-labyrint game', () => {
   it('renders a fresh themed maze with tappable habitat animal doors', () => {
@@ -174,7 +236,7 @@ describe('lyd-labyrint game', () => {
     advance(250);
     expect(runnerPosition(view)).toEqual(moved);
   });
-it('opens a spelling lock on a closed door, wobbles wrong letters, and unlocks', () => {
+it('places letters freely, shakes red on a wrong spelling, and unlocks on check', () => {
     const view = renderGame();
     const expected = expectedGame();
     const door = expected.doors[0];
@@ -187,21 +249,27 @@ it('opens a spelling lock on a closed door, wobbles wrong letters, and unlocks',
     expect(dialog.getAttribute('aria-label')).toBe(`Stav ordet ${door.word}`);
     expect(runnerPosition(view)).toEqual(before);
 
-    // A wrong letter wobbles back: nothing is consumed, nothing is penalised.
-    const wrong = [...dialog.querySelectorAll('.spell-tile')]
-      .map((tile) => tile.textContent)
-      .find((letter) => letter && letter !== door.word[0]);
-    fireEvent.click(screen.getAllByRole('button', { name: `Bokstaven ${wrong}` })[0]);
-    const slots = view.container.querySelectorAll('.spell-slot');
-    expect(slots[0].classList.contains('filled')).toBe(false);
-    expect(slots[0].classList.contains('next')).toBe(true);
-    advance(400);
-    expect(slots[0].classList.contains('reject')).toBe(false);
+    // Letters may sit in any slot – a wrong order fills the row anyway.
+    const reversed = [...door.word].reverse();
+    for (const letter of reversed) {
+      fireEvent.click(screen.getAllByRole('button', { name: `Bokstaven ${letter}` })[0]);
+    }
+    const spelled = [...dialog.querySelectorAll('.spell-slot')].map((slot) => slot.textContent);
+    expect(spelled.join('')).toBe(reversed.join(''));
 
-    // Spelling the word correctly opens the door and lets the fox through.
+    // Checking the wrong order shakes the card red and keeps the door shut.
+    const openBefore = view.container.querySelectorAll('.door-panel.open').length;
+    fireEvent.click(screen.getByRole('button', { name: /Sjekk/ }));
+    expect(dialog.classList.contains('wrong')).toBe(true);
+    expect(screen.getByText(/Ikke riktig/)).toBeInTheDocument();
+    advance(800);
+    expect(view.container.querySelectorAll('.door-panel.open').length).toBe(openBefore);
+
+    // Reorder: return every placed letter, spell it right, check again.
+    for (const slot of [...dialog.querySelectorAll('.spell-slot.filled')]) fireEvent.click(slot);
     solveSpell(view, door.word);
     advance(1000);
-    expect(view.container.querySelector('.door-panel.open')).toBeTruthy();
+    expect(view.container.querySelectorAll('.door-panel.open').length).toBeGreaterThan(openBefore);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(runnerPosition(view)).not.toEqual(before);
   });
