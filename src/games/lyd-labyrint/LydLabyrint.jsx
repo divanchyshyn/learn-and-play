@@ -28,7 +28,6 @@ const THEME_RUNNER = { skog: '\u{1F98A}', hav: '\u{1F422}', savanne: '\u{1F406}'
 
 const STEP_LOCK_MS = 165;
 const WALL_BUMP_MS = 200;
-const DOOR_OPEN_MS = 300;
 const CELEBRATE_DELAY_MS = 340;
 
 // A fresh maze is carved for every game: bigger than the old hand-drawn maps,
@@ -120,8 +119,8 @@ export function LydLabyrint() {
     later(gen, () => { busyRef.current = false; }, STEP_LOCK_MS);
   }, [arrive, later]);
 
-  // The spelling lock is solved: say the word, unlock the door, step through
-  // it and glide one cell further in the same direction.
+  // The spelling lock is solved: say the word, unlock the door and step onto
+  // the door tile itself – the runner stops there instead of leaping past it.
   const handleSolve = useCallback(() => {
     const current = gameRef.current;
     const target = current.puzzle;
@@ -140,15 +139,7 @@ export function LydLabyrint() {
     }));
     later(gen, () => {
       arrive(gen, door.x, door.y);
-      later(gen, () => {
-        const bx = door.x + target.dx;
-        const by = door.y + target.dy;
-        const beyondBlocked = current.doors.some((d) => d.x === bx && d.y === by && !d.open);
-        if (current.maze.floors.has(`${bx},${by}`) && !beyondBlocked) {
-          arrive(gen, bx, by);
-        }
-        later(gen, () => { busyRef.current = false; }, STEP_LOCK_MS);
-      }, DOOR_OPEN_MS);
+      later(gen, () => { busyRef.current = false; }, STEP_LOCK_MS);
     }, 140);
   }, [arrive, later]);
 

@@ -315,7 +315,8 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     advance(1000);
     expect(view.container.querySelectorAll('.door-panel.open').length).toBeGreaterThan(openBefore);
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(runnerPosition(view)).not.toEqual(before);
+    // The runner steps onto the solved door tile, not past it.
+    expect(runnerPosition(view)).toEqual({ x: door.x, y: door.y });
   });
 
   it('can close a lock without solving it, and no new door ever opens', () => {

@@ -18,8 +18,12 @@
 /* ---- Board ------------------------------------------------------------ */
 .labyrinth-stage { display: grid; gap: 18px; justify-items: center; padding-bottom: 26px; }
 .board-frame { position: relative; }
+/* Cell size = min(width budget, height budget, cap). The -250px height budget
+   covers the compact header pill, control chips, d-pad and page padding now
+   that the tall title banner is gone, so the maze grows into the freed space
+   while still fitting a tablet screen. */
 .board {
-  --cell: max(21px, min(54px, calc((100vw - 46px) / var(--cw)), calc((100vh - 320px) / var(--ch))));
+  --cell: max(21px, min(66px, calc((100vw - 46px) / var(--cw)), calc((100vh - 250px) / var(--ch))));
   position: relative;
   display: grid;
   grid-template-columns: repeat(var(--cw), var(--cell));
@@ -139,7 +143,7 @@
   .board-frame { grid-area: board; }
   .dpad { grid-area: pad; }
   .board {
-    --cell: max(21px, min(54px, calc((min(100vw - 28px, 900px) - 170px) / var(--cw)), calc((100vh - 320px) / var(--ch))));
+    --cell: max(21px, min(66px, calc((min(100vw - 28px, 900px) - 170px) / var(--cw)), calc((100vh - 250px) / var(--ch))));
   }
 }
 
