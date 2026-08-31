@@ -192,6 +192,11 @@
 }
 .spell-tile:hover { transform: translateY(-2px); }
 .spell-tile.dragging { opacity: .35; }
+.spell-slot.dragging { opacity: .3; }
+.spell-tray-empty {
+  width: 46px; height: 54px;
+  border: 3px dashed #d9c98a; border-radius: 10px;
+}
 .spell-ghost {
   position: fixed; z-index: 50; pointer-events: none;
   width: 46px; height: 54px;
@@ -248,7 +253,7 @@
 }
 
 @media (max-width: 640px) {
-  .spell-tile, .spell-slot, .spell-ghost { width: 42px; height: 50px; font-size: 1.4rem; }
+  .spell-tile, .spell-slot, .spell-tray-empty, .spell-ghost { width: 42px; height: 50px; font-size: 1.4rem; }
 }
 @media (max-width: 480px) {
   .pad { width: 58px; height: 58px; }

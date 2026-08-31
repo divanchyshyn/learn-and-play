@@ -149,7 +149,7 @@ describe('lyd-labyrint spelling puzzle helpers', () => {
     }
   });
 
-  it('applyDrop places a tray tile on any empty slot', () => {
+  it('applyDrop places a tray tile on any empty slot and leaves it empty on top', () => {
     const result = applyDrop({
       slots: [null, null, null],
       tray: ['e', 'v', 'r'],
@@ -158,10 +158,11 @@ describe('lyd-labyrint spelling puzzle helpers', () => {
     });
     expect(result.changed).toBe(true);
     expect(result.slots).toEqual([null, 'e', null]);
-    expect(result.tray).toEqual(['v', 'r']);
+    // The top row keeps every position; the moved letter's spot stays empty.
+    expect(result.tray).toEqual([null, 'v', 'r']);
   });
 
-  it('applyDrop swaps a tray tile onto an occupied slot', () => {
+  it('applyDrop swaps a tray tile onto an occupied slot and keeps the top row whole', () => {
     const result = applyDrop({
       slots: ['r', null, null],
       tray: ['e', 'v', 'r'],
@@ -170,7 +171,8 @@ describe('lyd-labyrint spelling puzzle helpers', () => {
     });
     expect(result.changed).toBe(true);
     expect(result.slots).toEqual(['e', null, null]);
-    expect(result.tray).toEqual(['v', 'r', 'r']);
+    // The displaced letter returns to the first free top slot (the freed one).
+    expect(result.tray).toEqual(['r', 'v', 'r']);
   });
 
   it('applyDrop swaps letters between slots', () => {
@@ -197,6 +199,42 @@ describe('lyd-labyrint spelling puzzle helpers', () => {
     expect(result.changed).toBe(false);
     expect(result.slots).toBe(slots);
     expect(result.tray).toBe(tray);
+  });
+
+  it('applyDrop drags a slot letter back to an empty top spot', () => {
+    const result = applyDrop({
+      slots: ['r', 'e', 'v'],
+      tray: [null, null, null],
+      active: { letter: 'v', area: 'slot', index: 2 },
+      traySpot: 0,
+    });
+    expect(result.changed).toBe(true);
+    expect(result.slots).toEqual(['r', 'e', null]);
+    expect(result.tray).toEqual(['v', null, null]);
+  });
+
+  it('applyDrop swaps a slot letter with an occupied top spot', () => {
+    const result = applyDrop({
+      slots: ['r', null, 'e'],
+      tray: ['v', null, null],
+      active: { letter: 'e', area: 'slot', index: 2 },
+      traySpot: 0,
+    });
+    expect(result.changed).toBe(true);
+    expect(result.slots).toEqual(['r', null, 'v']);
+    expect(result.tray).toEqual(['e', null, null]);
+  });
+
+  it('applyDrop reorders letters within the top row', () => {
+    const result = applyDrop({
+      slots: [null, null, null],
+      tray: ['e', 'v', 'r'],
+      active: { letter: 'e', area: 'tray', index: 0 },
+      traySpot: 2,
+    });
+    expect(result.changed).toBe(true);
+    expect(result.slots).toEqual([null, null, null]);
+    expect(result.tray).toEqual(['r', 'v', 'e']);
   });
 });
 
@@ -256,6 +294,12 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     }
     const spelled = [...dialog.querySelectorAll('.spell-slot')].map((slot) => slot.textContent);
     expect(spelled.join('')).toBe(reversed.join(''));
+
+    // The top row keeps every position: moved letters leave empty slots behind.
+    // After placing every letter, the tray shows one empty slot per letter.
+    expect(dialog.querySelectorAll('.spell-tile, .spell-tray-empty').length).toBe(door.word.length);
+    expect(dialog.querySelectorAll('.spell-tray-empty').length).toBe(door.word.length);
+    expect(dialog.querySelectorAll('.spell-tile').length).toBe(0);
 
     // Checking the wrong order shakes the card red and keeps the door shut.
     const openBefore = view.container.querySelectorAll('.door-panel.open').length;

@@ -13,31 +13,55 @@ export function scrambleLetters(word, random = Math.random) {
   return letters;
 }
 
-// Pure placement rule for dropping `active` (a tile grabbed from the tray or
-// from another slot) onto `slot`:
-// - tray tile onto an empty slot → the letter lands there;
-// - tray tile onto a filled slot → the two letters swap places;
-// - slot letter onto an empty slot → the letter moves;
-// - slot letter onto a filled slot → the two letters swap places.
+// The tray and the word slots are both fixed word-length rows, so the board
+// never re-shuffles as letters are moved around. Dropping `active` (a tile
+// grabbed from the tray or from another slot):
+// - onto a word slot (`slot`) – a tray tile lands there (its old top spot
+//   stays empty; a displaced slot letter returns to the first free top slot);
+// - onto the top row (`traySpot`) – a slot letter is dragged back up (if the
+//   spot is taken the two letters swap), or a tray tile is reordered/swapped
+//   within the top row.
 // Exported so the tests can pin every rule without flying the pointer.
-export function applyDrop({ slots, tray, active, slot }) {
-  if (slot < 0 || slot >= slots.length) return { slots, tray, changed: false };
-
+export function applyDrop({ slots, tray, active, slot = -1, traySpot = -1 }) {
   if (active.area === 'tray') {
     if (tray[active.index] !== active.letter) return { slots, tray, changed: false };
+
+    if (traySpot >= 0) {
+      if (traySpot >= tray.length || traySpot === active.index) return { slots, tray, changed: false };
+      const nextTray = [...tray];
+      nextTray[active.index] = tray[traySpot];
+      nextTray[traySpot] = active.letter;
+      return { slots, tray: nextTray, changed: true };
+    }
+
+    if (slot < 0 || slot >= slots.length) return { slots, tray, changed: false };
     const nextSlots = [...slots];
     const occupant = nextSlots[slot];
     nextSlots[slot] = active.letter;
     const nextTray = [...tray];
-    nextTray.splice(active.index, 1);
-    if (occupant !== null) nextTray.push(occupant);
+    nextTray[active.index] = null;
+    if (occupant !== null) {
+      const freeTop = nextTray.indexOf(null);
+      if (freeTop >= 0) nextTray[freeTop] = occupant;
+    }
     return { slots: nextSlots, tray: nextTray, changed: true };
   }
 
   if (active.area === 'slot') {
     const source = active.index;
     const letter = slots[source];
-    if (letter === null || source === slot) return { slots, tray, changed: false };
+    if (letter === null) return { slots, tray, changed: false };
+
+    if (traySpot >= 0) {
+      if (traySpot >= tray.length) return { slots, tray, changed: false };
+      const nextSlots = [...slots];
+      const nextTray = [...tray];
+      nextSlots[source] = nextTray[traySpot];
+      nextTray[traySpot] = letter;
+      return { slots: nextSlots, tray: nextTray, changed: true };
+    }
+
+    if (slot < 0 || slot >= slots.length || source === slot) return { slots, tray, changed: false };
     const nextSlots = [...slots];
     nextSlots[slot] = letter;
     nextSlots[source] = slots[slot];
@@ -84,8 +108,10 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
   const firstEmpty = slots.indexOf(null);
 
   // Commit a drop/tap via the pure applyDrop helper and keep the tray in sync.
-  const commitDrop = useCallback((active, slot) => {
-    const result = applyDrop({ slots: slotsRef.current, tray: trayRef.current, active, slot });
+  // `drop` selects the target: `{ slot }` for the word row or `{ traySpot }`
+  // for the top row (dragging a placed letter back up, or reordering up top).
+  const commitDrop = useCallback((active, drop) => {
+    const result = applyDrop({ slots: slotsRef.current, tray: trayRef.current, active, ...drop });
     if (!result.changed) return false;
     setSlots(result.slots);
     setTray(result.tray);
@@ -95,7 +121,7 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
 
   // Tap a tray tile: it lands in the first empty slot.
   const placeNext = useCallback((letter, index) => {
-    commitDrop({ letter, area: 'tray', index }, slotsRef.current.indexOf(null));
+    commitDrop({ letter, area: 'tray', index }, { slot: slotsRef.current.indexOf(null) });
   }, [commitDrop]);
 
   const recall = useCallback((slot) => {
@@ -104,8 +130,11 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
     if (!letter) return;
     const next = [...currentSlots];
     next[slot] = null;
+    const nextTray = [...trayRef.current];
+    const freeTop = nextTray.indexOf(null);
+    if (freeTop >= 0) nextTray[freeTop] = letter;
     setSlots(next);
-    setTray([...trayRef.current, letter]);
+    setTray(nextTray);
     sounds.select();
   }, []);
 
@@ -131,14 +160,28 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
       if (active) {
         let acted = false;
         if (active.moved) {
-          const slot = dropSlotAt(event.clientX, event.clientY);
-          if (slot >= 0) acted = commitDrop(active, slot);
+          const target = dropTargetAt(event.clientX, event.clientY);
+          if (target) {
+            if (target.area === 'slots') {
+              acted = commitDrop(active, { slot: target.index });
+            } else if (target.index >= 0) {
+              acted = commitDrop(active, { traySpot: target.index });
+            } else {
+              // Dropped somewhere on the tray background: send the letter to
+              // the first free top spot (or re-home a slot letter up there).
+              const traySpot = trayRef.current.indexOf(null);
+              if (traySpot >= 0) acted = commitDrop(active, { traySpot });
+            }
+          }
         } else if (active.area === 'tray') {
           // Tapping a tray tile places it. A tap on a filled slot is left for
           // that button's own onClick to recall, so only tray taps act here.
-          acted = commitDrop(active, slotsRef.current.indexOf(null));
+          acted = commitDrop(active, { slot: slotsRef.current.indexOf(null) });
         }
-        if (acted) pointerHandledRef.current = true;
+        // Guard the click that follows a tap on the same button. A real drag
+        // settles on a shared ancestor instead, so its stale flag must not be
+        // left behind to swallow the child's next tap.
+        if (acted && !active.moved) pointerHandledRef.current = true;
       }
       setDrag(null);
       setGhost(null);
@@ -186,6 +229,7 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
     let className = 'spell-slot';
     if (slots[index]) className += ' filled';
     else if (index === firstEmpty) className += ' next';
+    if (drag && drag.area === 'slot' && drag.index === index) className += ' dragging';
     return className;
   };
 
@@ -211,22 +255,26 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
 
         <div className="spell-tray" aria-label="Bokstavklosser">
           {tray.map((letter, index) => (
-            <button
-              type="button"
-              className={`spell-tile${drag && drag.area === 'tray' && drag.index === index ? ' dragging' : ''}`}
-              key={`${index}-${letter}`}
-              onClick={() => {
-                if (pointerHandledRef.current) {
-                  pointerHandledRef.current = false;
-                  return;
-                }
-                placeNext(letter, index);
-              }}
-              onPointerDown={(event) => startDrag(letter, index, 'tray', event)}
-              aria-label={`Bokstaven ${letter}`}
-            >
-              {letter}
-            </button>
+            letter ? (
+              <button
+                type="button"
+                className={`spell-tile${drag && drag.area === 'tray' && drag.index === index ? ' dragging' : ''}`}
+                key={index}
+                onClick={() => {
+                  if (pointerHandledRef.current) {
+                    pointerHandledRef.current = false;
+                    return;
+                  }
+                  placeNext(letter, index);
+                }}
+                onPointerDown={(event) => startDrag(letter, index, 'tray', event)}
+                aria-label={`Bokstaven ${letter}`}
+              >
+                {letter}
+              </button>
+            ) : (
+              <span className="spell-tray-empty" key={index} aria-hidden="true" />
+            )
           ))}
         </div>
 
@@ -273,7 +321,7 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
         )}
 
         <p className="spell-help">
-          Trykk eller dra en bokstav ned på en plass. Du kan bytte om på bokstavene når du vil – «Sjekk svaret» avgjør om ordet er riktig.
+          Trykk eller dra en bokstav til en plass nede. Dra eller trykk den tilbake til toppen når du vil bytte om – «Sjekk svaret» avgjør om ordet er riktig.
         </p>
         <button type="button" className="spell-close" onClick={onClose}>Lukk ✕</button>
       </div>
@@ -281,13 +329,24 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
   );
 }
 
-// Which slot is under the pointer, if any.
-function dropSlotAt(x, y) {
+// Which drop target is under the pointer, if any: a word slot, a specific top
+// position, or the tray background (`{ area: 'tray', index: -1 }` for "any
+// free spot up top").
+function dropTargetAt(x, y) {
   const slots = document.querySelectorAll('.spell-slot');
-  let hit = -1;
-  slots.forEach((element, index) => {
-    const rect = element.getBoundingClientRect();
-    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) hit = index;
-  });
-  return hit;
+  for (let index = 0; index < slots.length; index += 1) {
+    const rect = slots[index].getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return { area: 'slots', index };
+  }
+  const traySpots = document.querySelectorAll('.spell-tray .spell-tile, .spell-tray .spell-tray-empty');
+  for (let index = 0; index < traySpots.length; index += 1) {
+    const rect = traySpots[index].getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return { area: 'tray', index };
+  }
+  const tray = document.querySelector('.spell-tray');
+  if (tray) {
+    const rect = tray.getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return { area: 'tray', index: -1 };
+  }
+  return null;
 }
