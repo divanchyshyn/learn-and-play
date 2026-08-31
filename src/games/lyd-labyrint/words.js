@@ -3,6 +3,9 @@
 // grouped by habitat so each themed maze only meets animals that belong
 // there – forest, ocean, savannah. Every word must be at most 5 letters so
 // the spelling tray stays comfortable on small screens (see LydLabyrint.jsx).
+// Each habitat holds at least 14 words: half the spelling locks ride the way
+// out and half sit in the dead ends (see mazes.js), so a fresh maze draws a
+// full, distinct set every game.
 
 export const WORDS_BY_THEME = {
   skog: [
@@ -30,6 +33,12 @@ export const WORDS_BY_THEME = {
     { word: 'akkar', emoji: '🦑' },
     { word: 'måke', emoji: '🕊️' },
     { word: 'kreps', emoji: '🦞' },
+    { word: 'oter', emoji: '🦦' },
+    { word: 'nise', emoji: '🐬' },
+    { word: 'sild', emoji: '🐟' },
+    { word: 'skate', emoji: '🐟' },
+    { word: 'torsk', emoji: '🐟' },
+    { word: 'sei', emoji: '🐟' },
   ],
   savanne: [
     { word: 'løve', emoji: '🦁' },
@@ -40,6 +49,12 @@ export const WORDS_BY_THEME = {
     { word: 'øgle', emoji: '🦎' },
     { word: 'ørn', emoji: '🦅' },
     { word: 'geit', emoji: '🐐' },
+    { word: 'gnu', emoji: '🦬' },
+    { word: 'kudu', emoji: '🦌' },
+    { word: 'kobra', emoji: '🐍' },
+    { word: 'mamba', emoji: '🐍' },
+    { word: 'gribb', emoji: '🦅' },
+    { word: 'hyene', emoji: '🐺' },
   ],
 };
 

@@ -5,9 +5,10 @@
 // no shortcuts, so choosing the wrong branch costs a little exploring and the
 // exit keeps a single, satisfying way in.
 //
-// Doors are spelling locks (see LydLabyrint.jsx). They sit on the one way to
-// the exit, never inside a dead end, so a child is never asked to open a lock
-// that leads to a wall.
+// Doors are spelling locks (see LydLabyrint.jsx). They ride two kinds of
+// corridors: the one way to the exit, and the maze's dead ends. Keeping the
+// route's locks and giving the wings the same number means the doors no longer
+// outline the right path - every dead end can hide a spelling puzzle too.
 //
 // A maze is generated with an injectable `random` (defaults to Math.random),
 // so tests can pin it and stay deterministic, while every fresh maze still
@@ -16,7 +17,7 @@
 // Map legend (what the generator carves):
 //   #  wall          .  floor
 //   S  start (1,1)   X  exit (farthest floor cell from the start)
-//   D  a door cell - every door is a spelling puzzle, see LydLabyrint.jsx
+//   D  a door cell - spelling locks ride the way out and the dead ends alike
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 
@@ -171,43 +172,57 @@ export function generateMaze({ name, theme, width = 17, height = 13, random = Ma
     }
   });
 
-  // ---- Doors: spelling locks along the one way out --------------------------
-  // Doors sit on the single start-to-exit route (away from the first steps and
-  // the exit itself), so solving a lock always moves the game forward. They
-  // never sit inside a dead end - a child is never asked to open a lock that
-  // leads to a wall. The route is normally long enough for all doors; if it is
-  // unusually short, the rest fall back to through-corridors elsewhere.
+  // ---- Doors: spelling locks across the whole maze --------------------------
+  // The way out keeps its locks: the ones on the single start-to-exit route
+  // (away from the first steps and the exit itself) move the game forward.
+  // The maze's dead ends get the same amount on top, so the doors no longer
+  // outline the right path - a locked wing of the maze is just as worth
+  // exploring as the corridor that leads out.
   const targetDoors = Math.max(5, Math.round((width + height) / 4) - 1); // 17+13 -> 7
   const nearStart = (cell) => manhattan(cell, start) < 3;
   const nearExit = (cell) => manhattan(cell, exit) < 2;
 
   const route = uniquePath(floors, start, exit);
   const routePool = route.filter((cell) => !nearStart(cell) && !nearExit(cell));
-
   const routeKeys = new Set(routePool.map((cell) => `${cell.x},${cell.y}`));
-  const generalPool = [];
+
+  // Dead-end pools: first the true culs-de-sac - the floor cells with exactly
+  // one neighbour, the tips a child reaches by following a wrong branch. A
+  // second pool of deeper off-route corners is a safety net for mazes with
+  // unusually few tips, so the dead ends can always hold their locks.
+  const deadEndPool = [];
+  const branchPool = [];
   for (let y = 1; y < height - 1; y += 1) {
     for (let x = 1; x < width - 1; x += 1) {
       const key = `${x},${y}`;
       if (!floors.has(key) || routeKeys.has(key)) continue;
       if (nearStart({ x, y }) || nearExit({ x, y })) continue;
-      if (floorNeighbourCount(floors, x, y) < 2) continue;
-      generalPool.push({ x, y });
+      const neighbours = floorNeighbourCount(floors, x, y);
+      if (neighbours === 1) {
+        deadEndPool.push({ x, y });
+      } else if (neighbours >= 2 && x % 2 === 1 && y % 2 === 1) {
+        branchPool.push({ x, y });
+      }
     }
   }
 
   const doors = [];
-  function placeDoors(pool) {
+  function placeDoors(pool, max) {
     for (const candidate of shuffled(pool, random)) {
-      if (doors.length >= targetDoors) break;
+      if (doors.length >= max) break;
       // Never two doors next to each other: solving door after door with no
       // walking in between would be gruelling.
       if (doors.some((door) => manhattan(door, candidate) === 1)) continue;
       doors.push({ x: candidate.x, y: candidate.y });
     }
   }
-  placeDoors(routePool);
-  if (doors.length < targetDoors) placeDoors(generalPool);
+
+  // The right path keeps its current amount of locks...
+  placeDoors(routePool, targetDoors);
+  const routeDoors = doors.length;
+  // ...and the dead ends get the same amount on top.
+  placeDoors(deadEndPool, routeDoors * 2);
+  placeDoors(branchPool, routeDoors * 2);
 
   return { name, theme, width, height, floors, doors, start, exit };
 }

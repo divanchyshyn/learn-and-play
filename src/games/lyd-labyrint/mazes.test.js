@@ -67,8 +67,10 @@ describe('lyd-labyrint maze collection', () => {
           if (n >= 3) junctions += 1;
         }
         expect(junctions).toBeGreaterThanOrEqual(3);
-        expect(maze.doors.length).toBeGreaterThanOrEqual(5);
-        expect(maze.doors.length).toBeLessThanOrEqual(8);
+        // Half the locks ride the way out, half the dead ends - so a maze
+        // carries up to twice the old amount of doors.
+        expect(maze.doors.length).toBeGreaterThanOrEqual(10);
+        expect(maze.doors.length).toBeLessThanOrEqual(16);
       });
 
       it('reaches every floor cell and the exit from the start', () => {
@@ -77,13 +79,11 @@ describe('lyd-labyrint maze collection', () => {
         expect(seen.has(`${maze.exit.x},${maze.exit.y}`)).toBe(true);
       });
 
-      it('spreads the doors as corridor locks, never traps', () => {
+      it('spreads the doors across the maze floor on real floor cells', () => {
         for (const door of maze.doors) {
           expect(maze.floors.has(`${door.x},${door.y}`)).toBe(true);
           expect(manhattan(door, maze.start)).toBeGreaterThanOrEqual(3);
           expect(manhattan(door, maze.exit)).toBeGreaterThanOrEqual(2);
-          const n = DIRS.filter(([dx, dy]) => maze.floors.has(`${door.x + dx},${door.y + dy}`)).length;
-          expect(n).toBeGreaterThanOrEqual(2);
         }
         for (let i = 0; i < maze.doors.length; i += 1) {
           for (let j = i + 1; j < maze.doors.length; j += 1) {
@@ -115,11 +115,37 @@ describe('lyd-labyrint maze collection', () => {
         expect(deadEnds).toBeGreaterThanOrEqual(6);
       });
 
-      it('keeps every door on the one way to the exit, never in a dead end', () => {
+      it('splits the locks equally between the way out and the dead ends', () => {
         const routeKeys = new Set(uniquePath(maze.floors, maze.start, maze.exit).map((c) => `${c.x},${c.y}`));
-        expect(maze.doors.length).toBeGreaterThan(0);
-        for (const door of maze.doors) {
-          expect(routeKeys.has(`${door.x},${door.y}`)).toBe(true);
+        const routeDoors = maze.doors.filter((door) => routeKeys.has(`${door.x},${door.y}`));
+        const deadEndDoors = maze.doors.filter((door) => !routeKeys.has(`${door.x},${door.y}`));
+        expect(routeDoors.length).toBeGreaterThan(0);
+        // The dead ends host exactly as many locks as the way out, so the
+        // doors never outline the correct route.
+        expect(deadEndDoors.length).toBe(routeDoors.length);
+        // A dead-end lock always sits inside a branch that truly runs out:
+        // stepping from the door without using the way out leads to a
+        // cul-de-sac (a floor cell with a single neighbour).
+        for (const door of deadEndDoors) {
+          const seen = new Set([`${door.x},${door.y}`]);
+          const queue = [{ x: door.x, y: door.y }];
+          let culDeSac = false;
+          while (queue.length > 0 && !culDeSac) {
+            const cell = queue.pop();
+            const neighbours = DIRS.filter(([dx, dy]) => maze.floors.has(`${cell.x + dx},${cell.y + dy}`));
+            if (neighbours.length === 1) {
+              culDeSac = true;
+              break;
+            }
+            for (const [dx, dy] of DIRS) {
+              const key = `${cell.x + dx},${cell.y + dy}`;
+              if (maze.floors.has(key) && !routeKeys.has(key) && !seen.has(key)) {
+                seen.add(key);
+                queue.push({ x: cell.x + dx, y: cell.y + dy });
+              }
+            }
+          }
+          expect(culDeSac, `door at ${door.x},${door.y}`).toBe(true);
         }
       });
     });
