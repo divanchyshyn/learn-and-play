@@ -151,6 +151,30 @@ describe('lyd-labyrint maze collection', () => {
     });
   }
 
+  it('caps the way out at five locks and lets dead ends hide locks mid-corridor', () => {
+    let deadEndLocks = 0;
+    let midCorridorLocks = 0;
+    for (const seed of [0.13, 0.29, 0.47, 0.61, 0.83]) {
+      for (const def of THEMES) {
+        const maze = generateMaze({ ...def, random: () => seed });
+        const routeKeys = new Set(uniquePath(maze.floors, maze.start, maze.exit).map((c) => `${c.x},${c.y}`));
+        const routeDoors = maze.doors.filter((door) => routeKeys.has(`${door.x},${door.y}`));
+        const deadEndDoors = maze.doors.filter((door) => !routeKeys.has(`${door.x},${door.y}`));
+        expect(routeDoors.length).toBeLessThanOrEqual(5);
+        expect(deadEndDoors.length).toBe(routeDoors.length);
+        for (const door of deadEndDoors) {
+          const neighbours = DIRS.filter(([dx, dy]) => maze.floors.has(`${door.x + dx},${door.y + dy}`)).length;
+          deadEndLocks += 1;
+          if (neighbours > 1) midCorridorLocks += 1;
+        }
+      }
+    }
+    expect(deadEndLocks).toBeGreaterThan(0);
+    // A dead-end lock must sometimes rest in the middle of its corridor, not
+    // every single one pinned against the branch's far wall.
+    expect(midCorridorLocks).toBeGreaterThan(0);
+  });
+
   it('is deterministic under a fixed random source', () => {
     const a = generateMaze({ ...THEMES[2], random: () => 0.5 });
     const b = generateMaze({ ...THEMES[2], random: () => 0.5 });

@@ -6,9 +6,11 @@
 // exit keeps a single, satisfying way in.
 //
 // Doors are spelling locks (see LydLabyrint.jsx). They ride two kinds of
-// corridors: the one way to the exit, and the maze's dead ends. Keeping the
-// route's locks and giving the wings the same number means the doors no longer
-// outline the right path - every dead end can hide a spelling puzzle too.
+// corridors: the one way to the exit, and the maze's dead ends. The way out
+// carries at most five locks; the dead-end branches wear the same number on
+// top - spread along their corridors, not pinned to the far wall - so the
+// doors never outline the correct route: every dead end can hide a spelling
+// puzzle too.
 //
 // A maze is generated with an injectable `random` (defaults to Math.random),
 // so tests can pin it and stay deterministic, while every fresh maze still
@@ -38,10 +40,6 @@ function shuffled(items, random) {
 
 function manhattan(a, b) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-}
-
-function floorNeighbourCount(floors, x, y) {
-  return DIRS.filter(([dx, dy]) => floors.has(`${x + dx},${y + dy}`)).length;
 }
 
 // Breadth-first distances from `from` across all floor cells. Doors are open
@@ -173,56 +171,145 @@ export function generateMaze({ name, theme, width = 17, height = 13, random = Ma
   });
 
   // ---- Doors: spelling locks across the whole maze --------------------------
-  // The way out keeps its locks: the ones on the single start-to-exit route
-  // (away from the first steps and the exit itself) move the game forward.
-  // The maze's dead ends get the same amount on top, so the doors no longer
-  // outline the right path - a locked wing of the maze is just as worth
-  // exploring as the corridor that leads out.
-  const targetDoors = Math.max(5, Math.round((width + height) / 4) - 1); // 17+13 -> 7
+  // The way out keeps at most five locks - spelling every door on a long route
+  // would drag, and fewer locks make the pathway harder to trace. The maze's
+  // dead-end branches get the same count on top, spread along their corridors
+  // (resting mid-corridor, not just pinned against the far wall), so the doors
+  // never outline the correct route: a locked wing is just as worth exploring
+  // as the corridor that leads out.
+  const routeDoorMax = 5;
   const nearStart = (cell) => manhattan(cell, start) < 3;
   const nearExit = (cell) => manhattan(cell, exit) < 2;
 
   const route = uniquePath(floors, start, exit);
   const routePool = route.filter((cell) => !nearStart(cell) && !nearExit(cell));
-  const routeKeys = new Set(routePool.map((cell) => `${cell.x},${cell.y}`));
+  // The full route is the spine the dead-end branches hang off of.
+  const routeKeys = new Set(route.map((cell) => `${cell.x},${cell.y}`));
 
-  // Dead-end pools: first the true culs-de-sac - the floor cells with exactly
-  // one neighbour, the tips a child reaches by following a wrong branch. A
-  // second pool of deeper off-route corners is a safety net for mazes with
-  // unusually few tips, so the dead ends can always hold their locks.
-  const deadEndPool = [];
-  const branchPool = [];
+  // Collect every off-route floor cell that may hold a lock, then group them
+  // into branches: each connected shape hangs off the route at exactly one
+  // point and runs out into a cul-de-sac. Branch length varies, so a branch
+  // with room to explore can hide its lock anywhere along its corridor.
+  const offRouteKeys = new Set();
+  const offRouteCells = [];
   for (let y = 1; y < height - 1; y += 1) {
     for (let x = 1; x < width - 1; x += 1) {
       const key = `${x},${y}`;
       if (!floors.has(key) || routeKeys.has(key)) continue;
       if (nearStart({ x, y }) || nearExit({ x, y })) continue;
-      const neighbours = floorNeighbourCount(floors, x, y);
-      if (neighbours === 1) {
-        deadEndPool.push({ x, y });
-      } else if (neighbours >= 2 && x % 2 === 1 && y % 2 === 1) {
-        branchPool.push({ x, y });
-      }
+      offRouteKeys.add(key);
+      offRouteCells.push({ x, y });
     }
   }
 
+  function branchComponents() {
+    const components = [];
+    const seen = new Set();
+    for (const cell of offRouteCells) {
+      const key = `${cell.x},${cell.y}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const component = [cell];
+      const queue = [{ ...cell }];
+      while (queue.length > 0) {
+        const current = queue.pop();
+        for (const [dx, dy] of DIRS) {
+          const nextKey = `${current.x + dx},${current.y + dy}`;
+          if (!offRouteKeys.has(nextKey) || seen.has(nextKey)) continue;
+          seen.add(nextKey);
+          const next = { x: current.x + dx, y: current.y + dy };
+          component.push(next);
+          queue.push(next);
+        }
+      }
+      components.push(component);
+    }
+    return components;
+  }
+
+  // The corridor depth of every cell in one branch, measured from the cell
+  // that touches the route. Depth 0 is the junction with the way out; the
+  // deepest cells are the cul-de-sac tips against the outer wall. Returned as
+  // a list of depth layers so a lock can be spread along the whole branch.
+  function branchDepthLayers(component) {
+    const entry = component.find((cell) =>
+      DIRS.some(([dx, dy]) => routeKeys.has(`${cell.x + dx},${cell.y + dy}`)));
+
+    if (!entry) return [];
+    const layers = [[entry]];
+    const depth = new Map([[`${entry.x},${entry.y}`, 0]]);
+    const queue = [{ ...entry }];
+    while (queue.length > 0) {
+      const cell = queue.shift();
+      const cellDepth = depth.get(`${cell.x},${cell.y}`);
+      for (const [dx, dy] of DIRS) {
+        const key = `${cell.x + dx},${cell.y + dy}`;
+        if (!offRouteKeys.has(key) || depth.has(key)) continue;
+        depth.set(key, cellDepth + 1);
+        if (!layers[cellDepth + 1]) layers[cellDepth + 1] = [];
+        layers[cellDepth + 1].push({ x: cell.x + dx, y: cell.y + dy });
+        queue.push({ x: cell.x + dx, y: cell.y + dy });
+      }
+    }
+    return layers;
+  }
+
+  // Pick a lock position inside one branch: skip the junction cell itself (a
+  // door right on the way out would read as part of it) and choose a random
+  // depth, so locks rest in the middle of a corridor just as often as at a
+  // branch's far end - never only against the wall.
+  function pickBranchSpot(component) {
+    const layers = branchDepthLayers(component);
+    const maxDepth = layers.length - 1;
+    if (maxDepth < 1) return null;
+    const depth = 1 + Math.floor(random() * maxDepth);
+    const cellsAtDepth = layers[depth];
+    return cellsAtDepth[Math.floor(random() * cellsAtDepth.length)];
+  }
+
   const doors = [];
+  function canPlace(candidate) {
+    // Never two doors next to each other: solving door after door with no
+    // walking in between would be gruelling.
+    return !doors.some((door) => manhattan(door, candidate) === 1);
+  }
+
   function placeDoors(pool, max) {
     for (const candidate of shuffled(pool, random)) {
       if (doors.length >= max) break;
-      // Never two doors next to each other: solving door after door with no
-      // walking in between would be gruelling.
-      if (doors.some((door) => manhattan(door, candidate) === 1)) continue;
+      if (!canPlace(candidate)) continue;
       doors.push({ x: candidate.x, y: candidate.y });
     }
   }
 
-  // The right path keeps its current amount of locks...
-  placeDoors(routePool, targetDoors);
+  // The right path keeps at most routeDoorMax locks, one per playable stretch...
+  placeDoors(routePool, routeDoorMax);
   const routeDoors = doors.length;
-  // ...and the dead ends get the same amount on top.
-  placeDoors(deadEndPool, routeDoors * 2);
-  placeDoors(branchPool, routeDoors * 2);
+  const targetTotal = routeDoors * 2;
+
+  // ...and the dead-end branches get the same count on top, one lock spread
+  // along each branch's corridor. If a maze sprouts fewer branches than locks,
+  // leftover corridor cells fill the gap.
+  for (const component of shuffled(branchComponents(), random)) {
+    if (doors.length >= targetTotal) break;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const spot = pickBranchSpot(component);
+      if (!spot) break;
+      if (canPlace(spot)) {
+        doors.push({ x: spot.x, y: spot.y });
+        break;
+      }
+    }
+  }
+  if (doors.length < targetTotal) {
+    const leftovers = offRouteCells
+      .filter((cell) => !doors.some((door) => door.x === cell.x && door.y === cell.y));
+    for (const candidate of shuffled(leftovers, random)) {
+      if (doors.length >= targetTotal) break;
+      if (!canPlace(candidate)) continue;
+      doors.push({ x: candidate.x, y: candidate.y });
+    }
+  }
 
   return { name, theme, width, height, floors, doors, start, exit };
 }
