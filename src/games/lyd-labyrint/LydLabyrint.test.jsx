@@ -379,7 +379,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(screen.getByText('Du fant veien ut!')).toBeInTheDocument();
     // The earned puzzle piece pops up on the celebrate card before fades away.
     expect(screen.getByText('Du fant en puslespillbrikke!')).toBeInTheDocument();
-    advance(2200);
+    advance(3800);
     expect(screen.queryByText('Du fant en puslespillbrikke!')).not.toBeInTheDocument();
 
     const card = screen.getByText('Du fant veien ut!').closest('.celebrate-card');
@@ -389,7 +389,8 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(screen.getByText(/Havet/)).toBeInTheDocument();
     expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
     expect(screen.getAllByRole('button', { name: /Hør ordet/ }).length).toBeGreaterThanOrEqual(5);
-  });
+    // A full maze walk takes a while on slow machines under parallel load.
+  }, 15000);
 
   it('offers an always-available restart from the header', () => {
     const view = renderGame();
@@ -412,7 +413,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
       advance(600);
       // Every solved maze pops its piece onto the celebrate card...
       expect(screen.getByText('Du fant en puslespillbrikke!')).toBeInTheDocument();
-      advance(2200);
+      advance(3800);
       if (mazeIndex < 3) {
         // ...the piece fades, the button starts glowing, and a new maze follows.
         expect(screen.queryByText('Du fant en puslespillbrikke!')).not.toBeInTheDocument();
@@ -445,7 +446,8 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(chip()).toHaveTextContent('0/4');
     expect(screen.getByText(/Havet/)).toBeInTheDocument();
     expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
-  });
+    // Four full maze walks in one test take a while; give it room on slow CI.
+  }, 20000);
 
   it('awards only one piece per solved maze', () => {
     const view = renderGame();
@@ -453,7 +455,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
     walkRoute(view, expected, route);
     advance(600);
-    advance(2200);
+    advance(3800);
 
     // Explore back into the maze and return to the exit after the reward.
     fireEvent.click(screen.getByRole('button', { name: /Se deg rundt/ }));
@@ -473,7 +475,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     advance(600);
     expect(screen.queryByText('Du fant veien ut!')).not.toBeInTheDocument();
     expect(view.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
-  });
+  }, 15000);
 
   it('opens the puzzle screen from the header chip with earned pieces in their slots', () => {
     const view = renderGame();
@@ -481,7 +483,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
     walkRoute(view, expected, route);
     advance(600);
-    advance(2200);
+    advance(3800);
     fireEvent.click(screen.getByRole('button', { name: /Ny labyrint/ }));
     advance(50);
 
@@ -507,5 +509,5 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     press(view, arrowFor(openDir));
     advance(200);
     expect(runnerPosition(view)).not.toEqual(pos);
-  });
+  }, 15000);
 });

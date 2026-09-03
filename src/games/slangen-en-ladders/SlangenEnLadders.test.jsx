@@ -191,6 +191,7 @@ describe('slangen-en-ladders game', () => {
     settle();
     expect(screen.getByText('Kast terningen for å starte spillet.')).toBeInTheDocument();
     expect(screen.getAllByText('Rute 1')).toHaveLength(2);
-  });
+    // Hundreds of simulated turns are slow when every test file runs at once.
+  }, 20000);
 });
 

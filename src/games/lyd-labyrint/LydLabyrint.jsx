@@ -42,9 +42,10 @@ const THEME_RUNNER = { skog: '\u{1F98A}', hav: '\u{1F422}', savanne: '\u{1F406}'
 const STEP_LOCK_MS = 165;
 const WALL_BUMP_MS = 200;
 const CELEBRATE_DELAY_MS = 340;
-// How long the earned puzzle piece stays on the celebrate card before it
-// "disappears" and the card's normal actions (and the button highlight) take over.
-const PIECE_REVEAL_MS = 1800;
+// How long the earned puzzle piece stays on the celebrate card: a moment to
+// take it in, then it fades away and the card's normal actions (and the button
+// highlight) take over. The reveal's CSS animation runs exactly this long.
+const PIECE_REVEAL_MS = 3200;
 
 // The picture rotates between five prepared puzzle images (one per full run).
 // The images are square crops of the originals the feature shipped with; the
@@ -217,8 +218,8 @@ export function LydLabyrint() {
     sounds.select();
   }, []);
 
-  const handlePlacePiece = useCallback((piece) => {
-    const next = placePiece(pieceSessionRef.current, piece);
+  const handlePlacePiece = useCallback((piece, cell) => {
+    const next = placePiece(pieceSessionRef.current, piece, cell);
     if (next !== pieceSessionRef.current) {
       setPieceSession(next);
       sounds.piecePlaced();
@@ -391,7 +392,10 @@ export function LydLabyrint() {
                 <p>Du fant en puslespillbrikke!</p>
                 <div
                   className="piece-reveal"
-                  style={{ '--puzzle-image': `url(${PUZZLE_IMAGES[pieceSession.imageIndex]})` }}
+                  style={{
+                    '--puzzle-image': `url(${PUZZLE_IMAGES[pieceSession.imageIndex]})`,
+                    '--reveal-ms': `${PIECE_REVEAL_MS}ms`,
+                  }}
                   aria-hidden="true"
                 >
                   <span className={`puzzle-piece piece-${pieceJustEarned}`} />

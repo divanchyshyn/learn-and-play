@@ -297,19 +297,22 @@
   100% { transform: scale(1.3); opacity: 0; }
 }
 
-/* The earned piece on the celebrate card pops in before it fades away. */
+/* The earned piece on the celebrate card pops in, lingers a couple of seconds,
+   and fades away – exactly as long as the reveal stage (--reveal-ms). */
 .piece-reveal {
   width: min(46vw, 128px);
   aspect-ratio: 1;
   overflow: hidden;
   border: 3px solid #e5ae45; border-radius: 16px;
   box-shadow: 0 6px 0 rgba(20, 63, 78, .2);
-  animation: piece-drop .6s cubic-bezier(.2, 1.5, .4, 1);
+  animation: piece-lifetime var(--reveal-ms, 3200ms) ease forwards;
 }
-@keyframes piece-drop {
+@keyframes piece-lifetime {
   0% { transform: scale(0) rotate(-12deg); opacity: 0; }
-  60% { transform: scale(1.18) rotate(4deg); opacity: 1; }
-  100% { transform: scale(1) rotate(0); }
+  16% { transform: scale(1.18) rotate(4deg); opacity: 1; }
+  30% { transform: scale(1) rotate(0deg); opacity: 1; }
+  85% { transform: scale(1) rotate(0deg); opacity: 1; }
+  100% { transform: scale(.55) rotate(4deg); opacity: 0; }
 }
 .piece-reveal-hint { margin: 0; color: #285362; font-size: .92rem; }
 
@@ -372,11 +375,31 @@
   transition: gap .3s ease, padding .3s ease, border-color .3s ease;
 }
 .puzzle-cell {
+  position: relative;
   display: grid;
   border: 3px dashed #c8d4d8; border-radius: 9px;
   background: #eef7f5;
 }
 .puzzle-cell.filled { border-color: #63a375; }
+/* A finished board with the wrong arrangement: shake it red, exactly like a
+   misspelled word, and leave the tint on until the child frees a piece. */
+.puzzle-board.wrong {
+  border-color: #d94f3b;
+  animation: puzzle-shake .5s ease;
+}
+.puzzle-board.wrong .puzzle-cell.filled::after {
+  content: "";
+  position: absolute; inset: 0; z-index: 1;
+  border-radius: inherit;
+  background: rgba(217, 79, 59, .3);
+  pointer-events: none;
+}
+@keyframes puzzle-shake {
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(9px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(3px); }
+}
 /* The last placement makes every cell flow together into one framed picture. */
 .puzzle-board.done {
   gap: 0; padding: 0;
@@ -427,6 +450,7 @@
   color: #285362; font-weight: 900;
 }
 .puzzle-close:hover { background: rgba(20, 63, 78, .08); }
+.puzzle-feedback { margin: 0; min-height: 1.3em; color: #a13324; font-weight: 900; font-size: .95rem; line-height: 1.3; }
 
 .puzzle-victory {
   position: absolute; inset: 0; z-index: 5;

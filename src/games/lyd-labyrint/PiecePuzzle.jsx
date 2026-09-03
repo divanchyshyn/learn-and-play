@@ -5,90 +5,128 @@ import { sounds } from './sounds.js';
 export const PUZZLE_PIECE_COUNT = 4;
 
 // A puzzle session is one whole picture run: which picture is being collected
-// (rotated between sessions) and which of the four pieces have been earned /
-// already placed on the board. Pure and injectable, so tests can pin
-// Math.random and stay deterministic.
+// (rotated between sessions), the order the pieces were found, and which
+// pieces already sit on the board (indexed by cell). Pure and injectable, so
+// tests can pin Math.random and stay deterministic.
 export function createPuzzleSession(imageCount, random = Math.random) {
   return {
     imageIndex: Math.floor(random() * imageCount),
     earned: [],
-    placed: [false, false, false, false],
+    cells: [null, null, null, null], // cell -> piece index, or null when empty
   };
 }
 
-// Earning the piece for one solved maze. Pieces are rewarded in a fixed order
-// (front row left-to-right, then back row left-to-right), so every piece
-// simply snaps to "its own" cell – easy on purpose, this is a child's game.
+// Earning the piece for one solved maze, in a fixed reward order.
 export function earnPiece(session) {
   if (session.earned.length >= PUZZLE_PIECE_COUNT) return session;
   return { ...session, earned: [...session.earned, session.earned.length] };
 }
 
-// A piece can only be placed once it has been earned; every other call is a
-// safe no-op that returns the very same session object (so React bails out).
-export function placePiece(session, piece) {
-  if (!session.earned.includes(piece) || session.placed[piece]) return session;
-  const placed = [...session.placed];
-  placed[piece] = true;
-  return { ...session, placed };
+// Which cell is this piece sitting in, or -1 when it is still up in a slot.
+export function cellForPiece(session, piece) {
+  return session.cells.findIndex((cell) => cell === piece);
 }
 
-// Taking a piece back from the board returns it to the slot row.
+// The child may place any found piece into any cell – the picture only works
+// when the right quadrant lands in the right place. Dropping onto a cell that
+// already holds a piece sends that piece back to the slot row (the spelling
+// board swaps letters rather than losing any, and so does the puzzle).
+// Moving a placed piece to another cell moves it there, freeing its old cell.
+export function placePiece(session, piece, cell) {
+  if (!session.earned.includes(piece)) return session;
+  if (cell < 0 || cell >= PUZZLE_PIECE_COUNT) return session;
+  const cells = [...session.cells];
+  const current = cells.indexOf(piece);
+  if (current === cell) return session;
+  if (current !== -1) cells[current] = null;
+  cells[cell] = piece;
+  return { ...session, cells };
+}
+
+// Taking a piece off the board returns it to the slot row.
 export function recallPiece(session, piece) {
-  if (!session.placed[piece]) return session;
-  const placed = [...session.placed];
-  placed[piece] = false;
-  return { ...session, placed };
+  const cell = cellForPiece(session, piece);
+  if (cell === -1) return session;
+  const cells = [...session.cells];
+  cells[cell] = null;
+  return { ...session, cells };
 }
 
-// The picture is complete once all four pieces sit on the board.
-export function isPuzzleComplete(session) {
-  return (
-    session.earned.length === PUZZLE_PIECE_COUNT
-    && session.placed.every(Boolean)
-  );
+// The board is full once every cell holds a piece...
+export function isBoardFull(session) {
+  return session.cells.every((cell) => cell !== null);
 }
 
-// Panel for assembling the collected picture. Earned pieces wait in the slot
-// row on top; dragging one anywhere inside the square board below (or tapping
-// it) drops it onto its own cell. The board is a 2x2 grid and the piece's
-// quadrant simply covers one quarter of the source image via CSS background
-// positioning – no extra slicing needed on the image itself. When the picture
-// is complete the cells snap together, the board zooms, confetti falls, and a
-// little victory card offers closing the popup or starting over.
+// ...and correct when the quadrants line up: piece n belongs in cell n.
+export function isPuzzleCorrect(session) {
+  return session.cells.every((piece, cell) => piece === cell);
+}
+
+// Assembler panel for the collected picture. Found pieces wait in the slot row
+// on top; every piece can be dragged into any of the four cells (or tapped
+// into the first free one). A full board is judged exactly like a written
+// word: when the picture reads correctly it snaps together, zooms, and bursts
+// confetti; a jumbled picture shakes red and the child drags the pieces back
+// to the top and tries again.
 export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRestart }) {
-  const { imageIndex, earned, placed } = session;
+  const { imageIndex, earned, cells } = session;
   const image = images[imageIndex] ?? images[0];
-  const done = isPuzzleComplete(session);
-  const [drag, setDrag] = useState(null); // { piece, startX, startY, moved }
+  const solved = isBoardFull(session) && isPuzzleCorrect(session);
+  const [drag, setDrag] = useState(null); // { piece, from, startX, startY, moved }
   const [ghost, setGhost] = useState(null); // { x, y } while dragging
   const [showComplete, setShowComplete] = useState(false);
-  const completedRef = useRef(false);
+  const [wrong, setWrong] = useState(false);
+  const [shakeKey, setShakeKey] = useState(0); // bumped to restart the red shake
+  const [feedback, setFeedback] = useState(null);
+  const solvedRef = useRef(false);
+  const verdictRef = useRef('open'); // 'open' | 'full-wrong' | 'full-correct'
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const dragRef = useRef(drag);
+  dragRef.current = drag;
 
-  // The first piece to place is the next slot that is earned but not yet used.
-  const nextSlot = earned.find((piece) => !placed[piece]) ?? -1;
+  // The first piece to place is the next slot that is earned but not used yet.
+  const nextSlot = earned.find((piece) => cellForPiece(session, piece) === -1) ?? -1;
 
+  // Judge every finished face like a checked word. A wrong arrangement keeps
+  // the board filled and marked red until the child frees a piece; only a
+  // correct picture seals the win and celebrates.
   useEffect(() => {
-    if (done && !completedRef.current) {
-      completedRef.current = true;
+    if (solvedRef.current) return undefined;
+    const full = isBoardFull(session);
+    const correct = isPuzzleCorrect(session);
+    const verdict = full ? (correct ? 'full-correct' : 'full-wrong') : 'open';
+    if (verdictRef.current === verdict) return undefined;
+    verdictRef.current = verdict;
+
+    if (verdict === 'full-correct') {
+      solvedRef.current = true;
+      setWrong(false);
+      setFeedback(null);
       sounds.puzzleDone();
       const timer = window.setTimeout(() => setShowComplete(true), 1000);
       return () => window.clearTimeout(timer);
     }
+    if (verdict === 'full-wrong') {
+      setWrong(true);
+      setFeedback('Ikke riktig – prøv igjen!');
+      sounds.wrong();
+      setShakeKey((key) => key + 1);
+    } else {
+      setWrong(false);
+      setFeedback(null);
+    }
     return undefined;
-  }, [done]);
+  }, [session]);
 
-  const startDrag = useCallback((piece, event) => {
-    setDrag({ piece, startX: event.clientX, startY: event.clientY, moved: false });
+  const startDrag = useCallback((piece, from, event) => {
+    setDrag({ piece, from, startX: event.clientX, startY: event.clientY, moved: false });
     setGhost({ x: event.clientX, y: event.clientY });
   }, []);
 
-  const dragRef = useRef(drag);
-  dragRef.current = drag;
-
-  // Follow the pointer while dragging. Committing on release: the piece lands
-  // on the board when dropped over it, and a plain tap on a slot places the
-  // piece too (pointerup without a move), mirroring the spelling puzzle.
+  // Follow the pointer while dragging. On release: over a board cell the piece
+  // lands there, over the top slot row it goes back to a slot, and a plain tap
+  // places a top piece (into the first free cell) or recalls a placed one.
   useEffect(() => {
     if (drag === null) return undefined;
     const onMove = (event) => {
@@ -100,8 +138,17 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
     const onUp = (event) => {
       const active = dragRef.current;
       if (active) {
-        const overBoard = pieceBoardAt(event.clientX, event.clientY);
-        if (overBoard || !active.moved) onPlace(active.piece);
+        const target = active.moved ? pieceDropTarget(event.clientX, event.clientY) : null;
+        if (target?.area === 'board') {
+          onPlace(active.piece, target.cell);
+        } else if (active.moved && target?.area === 'slots') {
+          onRecall(active.piece);
+        } else if (!active.moved && active.from === 'slot') {
+          const free = sessionRef.current.cells.indexOf(null);
+          if (free >= 0) onPlace(active.piece, free);
+        } else if (!active.moved && active.from === 'board') {
+          onRecall(active.piece);
+        }
       }
       setDrag(null);
       setGhost(null);
@@ -112,17 +159,18 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [drag, onPlace]);
-const slotClass = (piece) => {
+  }, [drag, onPlace, onRecall]);
+
+  const slotClass = (piece) => {
     let className = 'puzzle-slot';
     if (earned.includes(piece)) className += ' earned';
-    if (placed[piece]) className += ' placed';
+    if (cellForPiece(session, piece) !== -1) className += ' placed';
     return className;
   };
 
   return (
     <div className="puzzle-backdrop">
-      {done && (
+      {solved && (
         <div className="confetti-lift" aria-hidden="true">
           <ConfettiLayer count={44} />
         </div>
@@ -136,33 +184,39 @@ const slotClass = (piece) => {
         style={{ '--puzzle-image': `url(${image})` }}
       >
         <h2 className="puzzle-title">{'\u{1F9E9}'} Puslespill</h2>
-        {done
+        {solved
           ? <p className="puzzle-hint">Bildet er ferdig! Fantastisk jobbet.</p>
           : (
             <p className="puzzle-hint">
               {earned.length < PUZZLE_PIECE_COUNT
                 ? `Løs labyrinter for å finne brikker. ${earned.length} av 4 funnet.`
-                : 'Alle brikkene er funnet! Dra dem ned til plassene sine for å bygge bildet.'}
+                : 'Alle brikkene er funnet! Dra dem ned i rutene – hvis bildet blir rødt, prøv å bytte om.'}
             </p>
           )}
 
         <div className="puzzle-slots" aria-label="Puslespillbrikker">
           {[0, 1, 2, 3].map((piece) => {
             const has = earned.includes(piece);
-            const used = placed[piece];
+            const placed = cellForPiece(session, piece) !== -1;
             return (
               <button
                 type="button"
                 key={piece}
                 className={slotClass(piece)}
-                disabled={!has || used}
+                disabled={!has || placed || solved}
                 autoFocus={piece === nextSlot}
-                onPointerDown={(event) => { if (has && !used) startDrag(piece, event); }}
-                onClick={() => { if (has && !used) onPlace(piece); }}
+                onPointerDown={(event) => { if (has && !placed && !solved) startDrag(piece, 'slot', event); }}
+                onClick={() => {
+                  // A pointerup tap already places the piece; the session check
+                  // keeps the click that follows from dropping it a second time.
+                  if (sessionRef.current.cells.includes(piece)) return;
+                  const free = sessionRef.current.cells.indexOf(null);
+                  if (free >= 0) onPlace(piece, free);
+                }}
                 aria-label={!has
                   ? `Tom plass ${piece + 1} – løs en labyrint for å vinne den`
-                  : (used
-                      ? `Brikke ${piece + 1} er lagt i bildet`
+                  : (placed
+                      ? `Brikke ${piece + 1} ligger i bildet`
                       : `Brikke ${piece + 1} – dra den til bildet eller trykk`)}
               >
                 {has
@@ -175,19 +229,27 @@ const slotClass = (piece) => {
 
         <p className="puzzle-prompt">Sett brikkene sammen:</p>
 
+        {/* The board remounts on each wrong check so the red shake restarts. */}
         <div
-          className={`puzzle-board${done ? ' done' : ''}`}
+          key={wrong ? `wrong-${shakeKey}` : 'board'}
+          className={`puzzle-board${solved ? ' done' : ''}${wrong ? ' wrong' : ''}`}
           role="application"
-          aria-label="Tomt kvadrat til brikkene"
+          aria-label="Løs firkant til brikkene"
         >
-          {[0, 1, 2, 3].map((piece) => (
-            <div className={`puzzle-cell${placed[piece] ? ' filled' : ''}`} key={piece}>
-              {placed[piece] && (
+          {cells.map((piece, cell) => (
+            <div className={`puzzle-cell${piece !== null ? ' filled' : ''}`} key={cell}>
+              {piece !== null && (
                 <button
                   type="button"
                   className={`puzzle-piece piece-${piece}`}
-                  onClick={() => onRecall(piece)}
-                  aria-label={`Brikke ${piece + 1} – trykk for å ta den tilbake til toppen`}
+                  disabled={solved}
+                  onPointerDown={solved ? undefined : (event) => startDrag(piece, 'board', event)}
+                  onClick={solved ? undefined : () => {
+                    // Same guard as the slots: a pointerup tap already recalled.
+                    if (sessionRef.current.cells[cell] !== piece) return;
+                    onRecall(piece);
+                  }}
+                  aria-label={`Brikke ${piece + 1} ligger i rute ${cell + 1} – dra eller trykk for å ta den tilbake`}
                 />
               )}
             </div>
@@ -202,6 +264,10 @@ const slotClass = (piece) => {
           >
             <span className={`puzzle-piece piece-${drag.piece}`} />
           </span>
+        )}
+
+        {feedback && (
+          <p className="puzzle-feedback" role="status" aria-live="polite">{feedback}</p>
         )}
 
         {showComplete && (
@@ -222,11 +288,18 @@ const slotClass = (piece) => {
   );
 }
 
-// The board is one drop target: dropping a piece anywhere inside the square
-// auto-snaps it to its own cell. Returns true when the point is over it.
-function pieceBoardAt(x, y) {
-  const board = document.querySelector('.puzzle-board');
-  if (!board) return false;
-  const rect = board.getBoundingClientRect();
-  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+// Where is the pointer relative to the panel? Every board cell is an individual
+// drop target; the whole slot row acts as the "back to the top" area.
+function pieceDropTarget(x, y) {
+  const cells = document.querySelectorAll('.puzzle-cell');
+  for (let index = 0; index < cells.length; index += 1) {
+    const rect = cells[index].getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return { area: 'board', cell: index };
+  }
+  const row = document.querySelector('.puzzle-slots');
+  if (row) {
+    const rect = row.getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return { area: 'slots', index: -1 };
+  }
+  return null;
 }
