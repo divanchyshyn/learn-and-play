@@ -74,7 +74,6 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
   const solved = isBoardFull(session) && isPuzzleCorrect(session);
   const [drag, setDrag] = useState(null); // { piece, from, startX, startY, moved }
   const [ghost, setGhost] = useState(null); // { x, y } while dragging
-  const [showComplete, setShowComplete] = useState(false);
   const [wrong, setWrong] = useState(false);
   const [shakeKey, setShakeKey] = useState(0); // bumped to restart the red shake
   const [feedback, setFeedback] = useState(null);
@@ -89,8 +88,8 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
   const nextSlot = earned.find((piece) => cellForPiece(session, piece) === -1) ?? -1;
 
   // Judge every finished face like a checked word. A wrong arrangement keeps
-  // the board filled and marked red until the child frees a piece; only a
-  // correct picture seals the win and celebrates.
+  // the board filled and marked red until the child frees a piece; a correct
+  // picture stays assembled on screen and is dismissed only by a click on it.
   useEffect(() => {
     if (solvedRef.current) return undefined;
     const full = isBoardFull(session);
@@ -104,10 +103,7 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
       setWrong(false);
       setFeedback(null);
       sounds.puzzleDone();
-      const timer = window.setTimeout(() => setShowComplete(true), 1000);
-      return () => window.clearTimeout(timer);
-    }
-    if (verdict === 'full-wrong') {
+    } else if (verdict === 'full-wrong') {
       setWrong(true);
       setFeedback('Ikke riktig – prøv igjen!');
       sounds.wrong();
@@ -185,7 +181,7 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
       >
         <h2 className="puzzle-title">{'\u{1F9E9}'} Puslespill</h2>
         {solved
-          ? <p className="puzzle-hint">Bildet er ferdig! Fantastisk jobbet.</p>
+          ? <p className="puzzle-hint">Bildet er ferdig – trykk på bildet for å lukke. {'\u{1F389}'}</p>
           : (
             <p className="puzzle-hint">
               {earned.length < PUZZLE_PIECE_COUNT
@@ -227,14 +223,17 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
           })}
         </div>
 
-        <p className="puzzle-prompt">Sett brikkene sammen:</p>
+        {!solved && <p className="puzzle-prompt">Sett brikkene sammen:</p>}
 
-        {/* The board remounts on each wrong check so the red shake restarts. */}
+        {/* The board remounts on each wrong check so the red shake restarts. When the
+            picture is complete it stays on screen and a click anywhere on it
+            closes the panel – the only way to hide the finished picture. */}
         <div
           key={wrong ? `wrong-${shakeKey}` : 'board'}
           className={`puzzle-board${solved ? ' done' : ''}${wrong ? ' wrong' : ''}`}
           role="application"
-          aria-label="Løs firkant til brikkene"
+          aria-label={solved ? 'Ferdig bilde – trykk for å lukke' : 'Løs firkant til brikkene'}
+          onClick={solved ? onClose : undefined}
         >
           {cells.map((piece, cell) => (
             <div className={`puzzle-cell${piece !== null ? ' filled' : ''}`} key={cell}>
@@ -270,19 +269,15 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
           <p className="puzzle-feedback" role="status" aria-live="polite">{feedback}</p>
         )}
 
-        {showComplete && (
-          <div className="puzzle-victory">
-            <p className="puzzle-victory-emoji" aria-hidden="true">{'\u{1F389}'}</p>
-            <h3>Bildet er ferdig!</h3>
-            <p>Du samlet hele bildet ved å løse alle fire labyrintene. Nå er spillet fullført!</p>
-            <div className="puzzle-victory-actions">
-              <button className="roll-button" type="button" onClick={onClose}>Lukk bildet</button>
-              <button className="outline-button" type="button" onClick={onRestart}>Spill igjen</button>
-            </div>
+        {solved && (
+          <div className="puzzle-solved-actions">
+            <button className="outline-button" type="button" onClick={onRestart}>Spill igjen</button>
           </div>
         )}
 
-        <button type="button" className="puzzle-close" onClick={onClose}>Lukk {'\u2715'}</button>
+        {!solved && (
+          <button type="button" className="puzzle-close" onClick={onClose}>Lukk {'\u2715'}</button>
+        )}
       </div>
     </div>
   );

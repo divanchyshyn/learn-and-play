@@ -452,18 +452,10 @@
 .puzzle-close:hover { background: rgba(20, 63, 78, .08); }
 .puzzle-feedback { margin: 0; min-height: 1.3em; color: #a13324; font-weight: 900; font-size: .95rem; line-height: 1.3; }
 
-.puzzle-victory {
-  position: absolute; inset: 0; z-index: 5;
-  display: grid; gap: 8px; place-content: center; justify-items: center; text-align: center;
-  padding: 20px;
-  border-radius: 14px;
-  background: rgba(255, 253, 243, .96);
-  animation: spell-fade .25s ease;
-}
-.puzzle-victory-emoji { margin: 0; font-size: 2.6rem; line-height: 1; animation: hop .7s ease infinite alternate; }
-.puzzle-victory h3 { margin: 0; color: #2e8b57; font-size: clamp(1.3rem, 6vw, 1.6rem); }
-.puzzle-victory p { margin: 0; color: #285362; line-height: 1.4; }
-.puzzle-victory-actions { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; margin-top: 4px; }
+/* The finished picture stays on screen and is the thing you click to close. */
+.puzzle-board.done { cursor: pointer; }
+.puzzle-board.done .puzzle-piece { pointer-events: none; }
+.puzzle-solved-actions { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; }
 
 @media (max-width: 640px) {
   .spell-tile, .spell-slot, .spell-tray-empty, .spell-ghost { width: 42px; height: 50px; font-size: 1.4rem; }

@@ -21,17 +21,23 @@ function earnedAll(imageCount = 3) {
 }
 
 // Controlled harness so tests can place/recall pieces and watch the parent
-// state move, exactly like the real game wires the panel.
+// state move, exactly like the real game wires the panel. Closing or
+// restarting actually hides the panel, letting the tests verify the gestures.
 function PuzzleHarness({ images, initial }) {
   const [session, setSession] = useState(initial);
+  const [open, setOpen] = useState(true);
+  if (!open) return null;
   return (
     <PiecePuzzle
       images={images}
       session={session}
-      onClose={() => {}}
+      onClose={() => setOpen(false)}
       onPlace={(piece, cell) => setSession((prev) => placePiece(prev, piece, cell))}
       onRecall={(piece) => setSession((prev) => recallPiece(prev, piece))}
-      onRestart={() => {}}
+      onRestart={() => {
+        setSession(createPuzzleSession(images.length, () => 0));
+        setOpen(false);
+      }}
     />
   );
 }
@@ -133,7 +139,7 @@ describe('piece puzzle screen', () => {
     expect(screen.queryAllByRole('button', { name: /Brikke \d – dra den/ })).toHaveLength(0);
   });
 
-  it('celebrates when the pieces finish in the right cells', () => {
+  it('keeps the finished picture on screen and hides it only when clicked', () => {
     render(<PuzzleHarness images={['a', 'b', 'c']} initial={earnedAll()} />);
     const dialog = screen.getByRole('dialog', { name: 'Puslespill' });
     expect(within(dialog).getAllByRole('button', { name: /Brikke \d – dra den til bildet eller trykk/ })).toHaveLength(4);
@@ -146,16 +152,33 @@ describe('piece puzzle screen', () => {
 
     expect(dialog.querySelectorAll('.puzzle-cell.filled')).toHaveLength(4);
     expect(dialog.querySelector('.puzzle-board').classList.contains('wrong')).toBe(false);
-
-    act(() => {
-      vi.advanceTimersByTime(1100);
-    });
     expect(dialog.querySelector('.puzzle-board').classList.contains('done')).toBe(true);
     // Confetti rides in its own lifted layer outside the card (above the popup).
     expect(document.querySelectorAll('.confetti-piece').length).toBeGreaterThan(0);
-    expect(screen.getByText('Bildet er ferdig!')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Lukk bildet/ })).toBeInTheDocument();
+    expect(screen.getByText(/Bildet er ferdig/)).toBeInTheDocument();
+    // Restart stays available, but the picture itself is never auto-hidden.
     expect(screen.getByRole('button', { name: /Spill igjen/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Lukk/ })).toBeNull();
+
+    // The finished picture persists on screen – time alone does not dismiss it.
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(screen.getByRole('dialog', { name: 'Puslespill' })).toBeInTheDocument();
+
+    // A click anywhere on the picture closes the panel.
+    fireEvent.click(dialog.querySelector('.puzzle-board.done'));
+    expect(screen.queryByRole('dialog', { name: 'Puslespill' })).toBeNull();
+  });
+
+  it('Spill igjen restarts a fresh picture and hides the panel', () => {
+    let session = earnedAll();
+    session = [0, 1, 2, 3].reduce((acc, piece) => placePiece(acc, piece, piece), session);
+    render(<PuzzleHarness images={['a', 'b', 'c']} initial={session} />);
+    expect(screen.getByRole('dialog', { name: 'Puslespill' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Spill igjen/ }));
+    expect(screen.queryByRole('dialog', { name: 'Puslespill' })).toBeNull();
   });
 
   it('shakes the picture red for a jumbled order and lets the child try again', () => {
@@ -170,7 +193,7 @@ describe('piece puzzle screen', () => {
     expect(dialog.querySelector('.puzzle-board').classList.contains('wrong')).toBe(true);
     expect(dialog.querySelector('.puzzle-board').classList.contains('done')).toBe(false);
     expect(screen.getByText('Ikke riktig – prøv igjen!')).toBeInTheDocument();
-    expect(screen.queryByText('Bildet er ferdig!')).toBeNull();
+    expect(screen.queryByText(/Bildet er ferdig/)).toBeNull();
 
     // Drag/tap each placed piece back to the top row and start over. The board
     // cell labels are the only ones that include "i rute", so they cannot be
@@ -186,10 +209,7 @@ describe('piece puzzle screen', () => {
     for (const name of ['Brikke 1', 'Brikke 2', 'Brikke 3', 'Brikke 4']) {
       fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(`^${name}`) }));
     }
-    act(() => {
-      vi.advanceTimersByTime(1100);
-    });
-    expect(screen.getByText('Bildet er ferdig!')).toBeInTheDocument();
+    expect(screen.getByText(/Bildet er ferdig/)).toBeInTheDocument();
     expect(document.querySelectorAll('.confetti-piece').length).toBeGreaterThan(0);
   });
 

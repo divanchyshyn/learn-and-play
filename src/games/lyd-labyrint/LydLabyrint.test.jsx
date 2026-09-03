@@ -433,14 +433,22 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
       fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(`^${name}`) }));
     }
     expect(view.container.querySelectorAll('.puzzle-cell.filled')).toHaveLength(4);
-
-    // Assembling triggers the zoom + confetti + victory card.
-    advance(1200);
-    expect(screen.getByText('Bildet er ferdig!')).toBeInTheDocument();
+    // The finished picture stays on screen with confetti – no timer hides it.
+    expect(screen.getByText(/Bildet er ferdig/)).toBeInTheDocument();
     expect(view.container.querySelectorAll('.confetti-piece').length).toBeGreaterThan(0);
 
-    // "Spill igjen" resets the collection and starts a brand-new maze.
-    fireEvent.click(screen.getByRole('button', { name: /Spill igjen/ }));
+    // The only way to hide the picture is a click on it.
+    fireEvent.click(view.container.querySelector('.puzzle-board.done'));
+    expect(screen.queryByRole('dialog', { name: 'Puslespill' })).toBeNull();
+    expect(within(screen.getByRole('dialog', { name: 'Gratulerer' })).getByRole('button', { name: /Se deg rundt/ })).toBeInTheDocument();
+
+    // Reopen the completed picture and restart the collection from there.
+    fireEvent.click(screen.getByRole('button', { name: /Se deg rundt/ }));
+    advance(50);
+    fireEvent.click(screen.getByRole('button', { name: /Puslespill – 4 av 4 brikker funnet/ }));
+    const reopened = screen.getByRole('dialog', { name: 'Puslespill' });
+    expect(reopened.querySelectorAll('.puzzle-cell.filled')).toHaveLength(4);
+    fireEvent.click(within(reopened).getByRole('button', { name: /Spill igjen/ }));
     advance(50);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(chip()).toHaveTextContent('0/4');
