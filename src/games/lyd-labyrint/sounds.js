@@ -35,6 +35,21 @@ export const sounds = {
   fanfare() {
     [523, 659, 784, 1047, 1319].forEach((freq, index) => tone({ freq, delay: index * 0.1, duration: 0.22, type: 'triangle', volume: 0.14 }));
   },
+  // A bright little arpeggio for the moment a maze gives up its puzzle piece.
+  pieceEarned() {
+    tone({ freq: 523, duration: 0.1, type: 'triangle', volume: 0.14 });
+    tone({ freq: 659, delay: 0.09, duration: 0.12, type: 'triangle', volume: 0.14 });
+    tone({ freq: 784, delay: 0.18, duration: 0.2, type: 'triangle', volume: 0.15 });
+  },
+  // A soft pop when a piece clicks into place on the picture board.
+  piecePlaced() {
+    tone({ freq: 587, duration: 0.08, type: 'sine', volume: 0.14 });
+    tone({ freq: 880, delay: 0.05, duration: 0.12, type: 'sine', volume: 0.12 });
+  },
+  // The longest fanfare of the game: the full picture just came together.
+  puzzleDone() {
+    [523, 659, 784, 1047, 1319, 1568].forEach((freq, index) => tone({ freq, delay: index * 0.11, duration: 0.25, type: 'triangle', volume: 0.15 }));
+  },
 };
 
 export { isMuted };

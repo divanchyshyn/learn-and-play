@@ -4,8 +4,21 @@ import { GameHeader } from '../../shared/GameHeader.jsx';
 import { THEMES, generateMaze } from './mazes.js';
 import { pickWords, speakWord } from './words.js';
 import { SpellPuzzle } from './SpellPuzzle.jsx';
+import {
+  PiecePuzzle,
+  PUZZLE_PIECE_COUNT,
+  createPuzzleSession,
+  earnPiece,
+  placePiece,
+  recallPiece,
+} from './PiecePuzzle.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
 import { shuffle } from '../../shared/random.js';
+import puzzleCarrier from './puzzle-assets/carrier.webp';
+import puzzleSubmarine from './puzzle-assets/submarine-yard.webp';
+import puzzleChinook from './puzzle-assets/chinook.webp';
+import puzzleSr71 from './puzzle-assets/sr71.webp';
+import puzzleTomcat from './puzzle-assets/tomcat.webp';
 
 const MOVES = {
   up: [0, -1],
@@ -29,6 +42,14 @@ const THEME_RUNNER = { skog: '\u{1F98A}', hav: '\u{1F422}', savanne: '\u{1F406}'
 const STEP_LOCK_MS = 165;
 const WALL_BUMP_MS = 200;
 const CELEBRATE_DELAY_MS = 340;
+// How long the earned puzzle piece stays on the celebrate card before it
+// "disappears" and the card's normal actions (and the button highlight) take over.
+const PIECE_REVEAL_MS = 1800;
+
+// The picture rotates between five prepared puzzle images (one per full run).
+// The images are square crops of the originals the feature shipped with; the
+// four pieces are just the four quadrants, sliced in CSS at render time.
+const PUZZLE_IMAGES = [puzzleCarrier, puzzleSubmarine, puzzleChinook, puzzleSr71, puzzleTomcat];
 
 // A fresh maze is carved for every game: bigger than the old hand-drawn maps,
 // with real branches and dead ends to explore - but exactly one way out.
@@ -52,6 +73,8 @@ function createGame(mazeIndex) {
     pos: { ...maze.start },
     phase: 'play',
     puzzle: null,
+    celebrated: false,
+    pieceJustEarned: -1,
   };
 }
 
@@ -59,12 +82,17 @@ export function LydLabyrint() {
   const [game, setGame] = useState(() => createGame(Math.floor(Math.random() * THEMES.length)));
   const [fx, setFx] = useState(null);
   const [soundOn, setSoundOn] = useState(!isMuted());
+  const [pieceSession, setPieceSession] = useState(() => createPuzzleSession(PUZZLE_IMAGES.length));
+  const [puzzleOpen, setPuzzleOpen] = useState(false);
+  const [pieceReveal, setPieceReveal] = useState(false);
   const busyRef = useRef(false);
   const gameRef = useRef(game);
   gameRef.current = game;
+  const pieceSessionRef = useRef(pieceSession);
+  pieceSessionRef.current = pieceSession;
   const genRef = useRef(0);
 
-  const { maze, doors, pos, phase, puzzle, runner } = game;
+  const { maze, doors, pos, phase, puzzle, runner, pieceJustEarned } = game;
 
   // The generation counter lets "Nytt labyrint" cancel any queued movement
   // steps from the previous maze so nothing leaks across games.
@@ -79,21 +107,48 @@ export function LydLabyrint() {
     return () => { document.body.style.background = ''; };
   }, [maze.theme]);
 
+  // Reaching the exit earns one puzzle piece and opens the celebrate card. The
+  // piece pops up on the card for a moment, then "disappears" while the
+  // Puslespill button starts to glow; earning the fourth piece auto-opens the
+  // assembler right after the reveal so the child can build their picture.
+  const celebrateMaze = useCallback((gen) => {
+    sounds.fanfare();
+    const session = pieceSessionRef.current;
+    const next = earnPiece(session);
+    const earnedNew = next.earned.length > session.earned.length;
+    // Pieces are rewarded in a fixed order, so the newest one is the last earned.
+    const pieceIndex = earnedNew ? next.earned[next.earned.length - 1] : -1;
+    setPieceSession(next);
+    setGame((prev) => ({ ...prev, phase: 'celebrate', celebrated: true, pieceJustEarned: pieceIndex }));
+    if (pieceIndex >= 0) {
+      sounds.pieceEarned();
+      setPieceReveal(true);
+      // The fourth earned piece hands over the full set, so the assembler
+      // opens by itself once the reveal has faded.
+      const allEarned = next.earned.length === PUZZLE_PIECE_COUNT;
+      later(gen, () => {
+        setPieceReveal(false);
+        if (allEarned) setPuzzleOpen(true);
+      }, PIECE_REVEAL_MS);
+    }
+  }, [later]);
+
   // Set the fox down on a floor cell; reaching the exit starts the celebration.
   const arrive = useCallback((gen, x, y) => {
     setGame((prev) => ({ ...prev, pos: { x, y } }));
     sounds.step();
-    if (gameRef.current.maze.exit.x === x && gameRef.current.maze.exit.y === y) {
-      later(gen, () => {
-        sounds.fanfare();
-        setGame((prev) => ({ ...prev, phase: 'celebrate' }));
-      }, CELEBRATE_DELAY_MS);
+    if (gameRef.current.maze.exit.x === x
+      && gameRef.current.maze.exit.y === y
+      && !gameRef.current.celebrated) {
+      later(gen, () => celebrateMaze(gen), CELEBRATE_DELAY_MS);
     }
-  }, [later]);
+  }, [later, celebrateMaze]);
 
   const tryMove = useCallback((direction) => {
     const current = gameRef.current;
-    if (current.phase !== 'play' || busyRef.current) return;
+    // The puzzle popup is open, so the maze is paused: keys must not move the
+    // runner invisibly behind the panel.
+    if (current.phase !== 'play' || busyRef.current || puzzleOpen) return;
     const gen = genRef.current;
     const [dx, dy] = MOVES[direction];
     const nx = current.pos.x + dx;
@@ -117,7 +172,7 @@ export function LydLabyrint() {
     busyRef.current = true;
     arrive(gen, nx, ny);
     later(gen, () => { busyRef.current = false; }, STEP_LOCK_MS);
-  }, [arrive, later]);
+  }, [arrive, later, puzzleOpen]);
 
   // The spelling lock is solved: say the word, unlock the door and step onto
   // the door tile itself – the runner stops there instead of leaping past it.
@@ -150,10 +205,45 @@ export function LydLabyrint() {
     sounds.select();
   }, []);
 
+  // ---- Puzzle-piece collection panel -------------------------------
+  const openPuzzleScreen = useCallback(() => {
+    if (gameRef.current.phase !== 'play') return;
+    sounds.select();
+    setPuzzleOpen(true);
+  }, []);
+
+  const closePuzzleScreen = useCallback(() => {
+    setPuzzleOpen(false);
+    sounds.select();
+  }, []);
+
+  const handlePlacePiece = useCallback((piece) => {
+    const next = placePiece(pieceSessionRef.current, piece);
+    if (next !== pieceSessionRef.current) {
+      setPieceSession(next);
+      sounds.piecePlaced();
+    }
+  }, []);
+
+  const handleRecallPiece = useCallback((piece) => {
+    const next = recallPiece(pieceSessionRef.current, piece);
+    if (next !== pieceSessionRef.current) {
+      setPieceSession(next);
+      sounds.select();
+    }
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (event) => {
+      // Escape closes whichever panel is on top: the puzzle popup first, then
+      // a spelling lock.
+      if (event.key === 'Escape' && puzzleOpen) {
+        closePuzzleScreen();
+        return;
+      }
       const direction = KEY_DIRS[event.key];
       if (direction) {
+        if (puzzleOpen) return;
         event.preventDefault();
         tryMove(direction);
         return;
@@ -162,14 +252,21 @@ export function LydLabyrint() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [tryMove, closePuzzle]);
+  }, [tryMove, closePuzzle, puzzleOpen, closePuzzleScreen]);
 
-  function newMaze() {
+  // Every fresh maze keeps the collected pieces: the child solves one maze,
+  // earns its piece, and picks the next labyrinth to start hunting the next.
+  function startFreshMaze() {
     genRef.current += 1;
     busyRef.current = false;
     setFx(null);
     const nextIndex = (gameRef.current.mazeIndex + 1) % THEMES.length;
     setGame(createGame(nextIndex));
+  }
+
+  function newMaze() {
+    setPieceReveal(false);
+    startFreshMaze();
     sounds.select();
   }
 
@@ -177,6 +274,16 @@ export function LydLabyrint() {
     setGame((prev) => ({ ...prev, phase: 'play' }));
     sounds.select();
   }
+
+  // "Spill igjen" on the finished picture: collect a brand-new picture (the
+  // next rotating image) from a fresh maze.
+  const handleRestart = () => {
+    setPieceSession(createPuzzleSession(PUZZLE_IMAGES.length));
+    setPieceReveal(false);
+    setPuzzleOpen(false);
+    startFreshMaze();
+    sounds.select();
+  };
 
   function toggleSound() {
     const next = !soundOn;
@@ -236,7 +343,19 @@ export function LydLabyrint() {
   }
 
   return <main className={`game-page labyrinth-page theme-${maze.theme}`}>
-    <GameHeader title="Lyd-labyrinten" />
+    <GameHeader title="Lyd-labyrinten">
+      <button
+        type="button"
+        key={`${pieceSession.earned.length}-${pieceSession.imageIndex}`}
+        className={`chip puzzle-chip${pieceSession.earned.length > 0 ? ' has-pieces' : ''}${puzzleOpen ? ' active' : ''}`}
+        onClick={openPuzzleScreen}
+        disabled={phase !== 'play' || puzzleOpen}
+        aria-label={`Puslespill – ${pieceSession.earned.length} av 4 brikker funnet`}
+      >
+        {'\u{1F9E9}'} Puslespill
+        <span className="puzzle-count" aria-hidden="true">{pieceSession.earned.length}/4</span>
+      </button>
+    </GameHeader>
 
     <section className="labyrinth-stage">
       <div className="board-frame">
@@ -267,11 +386,29 @@ export function LydLabyrint() {
           >
             <p className="celebrate-mascot" aria-hidden="true">{runner}</p>
             <h2>Du fant veien ut!</h2>
-            <p>{maze.name} er utforsket ferdig. Vil du prøve en ny labyrint?</p>
-            <div className="celebrate-actions">
-              <button className="roll-button" type="button" onClick={newMaze}>Ny labyrint {'\u{1F504}'}</button>
-              <button className="outline-button" type="button" onClick={keepExploring}>Se deg rundt litt til</button>
-            </div>
+            {pieceReveal && pieceJustEarned >= 0 ? (
+              <>
+                <p>Du fant en puslespillbrikke!</p>
+                <div
+                  className="piece-reveal"
+                  style={{ '--puzzle-image': `url(${PUZZLE_IMAGES[pieceSession.imageIndex]})` }}
+                  aria-hidden="true"
+                >
+                  <span className={`puzzle-piece piece-${pieceJustEarned}`} />
+                </div>
+                <p className="piece-reveal-hint">Trykk på Puslespill-knappen for å se brikkene dine.</p>
+              </>
+            ) : (
+              <>
+                {pieceJustEarned === -1
+                  ? <p>Du har funnet alle brikkene – åpne Puslespill for å bygge bildet!</p>
+                  : <p>{maze.name} er utforsket ferdig. Vil du prøve en ny labyrint?</p>}
+                <div className="celebrate-actions">
+                  <button className="roll-button" type="button" onClick={newMaze}>Ny labyrint {'\u{1F504}'}</button>
+                  <button className="outline-button" type="button" onClick={keepExploring}>Se deg rundt litt til</button>
+                </div>
+              </>
+            )}
           </div>
         </>}
       </div>
@@ -282,6 +419,17 @@ export function LydLabyrint() {
           emoji={puzzleDoor.emoji}
           onSolve={handleSolve}
           onClose={closePuzzle}
+        />
+      )}
+
+      {puzzleOpen && (
+        <PiecePuzzle
+          images={PUZZLE_IMAGES}
+          session={pieceSession}
+          onClose={closePuzzleScreen}
+          onPlace={handlePlacePiece}
+          onRecall={handleRecallPiece}
+          onRestart={handleRestart}
         />
       )}
 

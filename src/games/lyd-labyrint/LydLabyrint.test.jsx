@@ -46,10 +46,12 @@ function runnerPosition(view) {
   };
 }
 
-// Regenerate the exact starting game (Skogen with the pinned random) so the
-// tests know where the doors are and which animal word sits on each.
-function expectedGame() {
-  const maze = generateMaze({ ...THEMES[0], random: Math.random });
+// Regenerate the exact starting game (maze index 0 = Skogen with the pinned
+// random) so the tests know where the doors are and which animal word sits on
+// each. A mazeIndex lets the flow tests re-derive each maze the component
+// creates after a "Ny labyrint" click.
+function expectedGame(mazeIndex = 0) {
+  const maze = generateMaze({ ...THEMES[mazeIndex % THEMES.length], random: Math.random });
   const words = shuffle(pickWords(maze.doors.length, maze.theme, Math.random));
   const doors = maze.doors.map((door, index) => ({
     ...door,
@@ -375,6 +377,10 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
 
     advance(600);
     expect(screen.getByText('Du fant veien ut!')).toBeInTheDocument();
+    // The earned puzzle piece pops up on the celebrate card before fades away.
+    expect(screen.getByText('Du fant en puslespillbrikke!')).toBeInTheDocument();
+    advance(2200);
+    expect(screen.queryByText('Du fant en puslespillbrikke!')).not.toBeInTheDocument();
 
     const card = screen.getByText('Du fant veien ut!').closest('.celebrate-card');
     fireEvent.click(within(card).getByRole('button', { name: /Ny labyrint/ }));
@@ -392,5 +398,114 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
     // The ocean maze swaps the forest fox for a sea turtle.
     expect(view.container.querySelector('.runner').textContent).toBe('🐢');
+  });
+
+  it('collects one piece per solved maze and celebrates the full picture after four', () => {
+    const view = renderGame();
+    const chip = () => view.container.querySelector('.puzzle-chip');
+    expect(chip()).toHaveTextContent('0/4');
+
+    for (let mazeIndex = 0; mazeIndex < 4; mazeIndex += 1) {
+      const expected = expectedGame(mazeIndex);
+      const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
+      walkRoute(view, expected, route);
+      advance(600);
+      // Every solved maze pops its piece onto the celebrate card...
+      expect(screen.getByText('Du fant en puslespillbrikke!')).toBeInTheDocument();
+      advance(2200);
+      if (mazeIndex < 3) {
+        // ...the piece fades, the button starts glowing, and a new maze follows.
+        expect(screen.queryByText('Du fant en puslespillbrikke!')).not.toBeInTheDocument();
+        expect(chip()).toHaveClass('has-pieces');
+        fireEvent.click(screen.getByRole('button', { name: /Ny labyrint/ }));
+        advance(50);
+        expect(screen.queryByText('Du fant veien ut!')).not.toBeInTheDocument();
+      } else {
+        // The fourth piece opens the assembler automatically.
+        expect(screen.getByRole('dialog', { name: 'Puslespill' })).toBeInTheDocument();
+      }
+    }
+
+    // All four earned pieces wait in their slots – assemble the picture by tap.
+    const dialog = screen.getByRole('dialog', { name: 'Puslespill' });
+    for (const name of ['Brikke 1', 'Brikke 2', 'Brikke 3', 'Brikke 4']) {
+      fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(`^${name}`) }));
+    }
+    expect(view.container.querySelectorAll('.puzzle-cell.filled')).toHaveLength(4);
+
+    // Assembling triggers the zoom + confetti + victory card.
+    advance(1200);
+    expect(screen.getByText('Bildet er ferdig!')).toBeInTheDocument();
+    expect(view.container.querySelectorAll('.confetti-piece').length).toBeGreaterThan(0);
+
+    // "Spill igjen" resets the collection and starts a brand-new maze.
+    fireEvent.click(screen.getByRole('button', { name: /Spill igjen/ }));
+    advance(50);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(chip()).toHaveTextContent('0/4');
+    expect(screen.getByText(/Havet/)).toBeInTheDocument();
+    expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
+  });
+
+  it('awards only one piece per solved maze', () => {
+    const view = renderGame();
+    const expected = expectedGame();
+    const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
+    walkRoute(view, expected, route);
+    advance(600);
+    advance(2200);
+
+    // Explore back into the maze and return to the exit after the reward.
+    fireEvent.click(screen.getByRole('button', { name: /Se deg rundt/ }));
+    advance(50);
+    const exit = expected.maze.exit;
+    const away = DIRS.find(([dx, dy]) => expected.maze.floors.has(`${exit.x + dx},${exit.y + dy}`));
+    expect(away).toBeTruthy();
+    press(view, arrowFor(away));
+    advance(200);
+    expect(runnerPosition(view)).not.toEqual(exit);
+
+    press(view, arrowFor([-away[0], -away[1]]));
+    advance(200);
+    expect(runnerPosition(view)).toEqual(exit);
+
+    // Walking the exit a second time does not celebrate or hand out another piece.
+    advance(600);
+    expect(screen.queryByText('Du fant veien ut!')).not.toBeInTheDocument();
+    expect(view.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
+  });
+
+  it('opens the puzzle screen from the header chip with earned pieces in their slots', () => {
+    const view = renderGame();
+    const expected = expectedGame();
+    const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
+    walkRoute(view, expected, route);
+    advance(600);
+    advance(2200);
+    fireEvent.click(screen.getByRole('button', { name: /Ny labyrint/ }));
+    advance(50);
+
+    fireEvent.click(screen.getByRole('button', { name: /Puslespill – 1 av 4 brikker funnet/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Puslespill' });
+    // The first slot holds the earned piece; the others are still locked.
+    expect(within(dialog).getByRole('button', { name: /Brikke 1 – dra den til bildet eller trykk/ })).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('button', { name: /Tom plass/ })).toHaveLength(3);
+
+    // The maze is paused while the panel is open: arrows do not move the runner.
+    const pos = runnerPosition(view);
+    const nextMaze = expectedGame(1);
+    const openDir = DIRS.find(([dx, dy]) => nextMaze.maze.floors.has(`${pos.x + dx},${pos.y + dy}`));
+    press(view, arrowFor(openDir));
+    advance(200);
+    expect(runnerPosition(view)).toEqual(pos);
+    expect(screen.getByRole('dialog', { name: 'Puslespill' })).toBeInTheDocument();
+
+    // Escape closes the popup and the maze can be played again.
+    press(view, 'Escape');
+    advance(50);
+    expect(screen.queryByRole('dialog', { name: 'Puslespill' })).toBeNull();
+    press(view, arrowFor(openDir));
+    advance(200);
+    expect(runnerPosition(view)).not.toEqual(pos);
   });
 });
