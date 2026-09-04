@@ -42,10 +42,6 @@ const THEME_RUNNER = { skog: '\u{1F98A}', hav: '\u{1F422}', savanne: '\u{1F406}'
 const STEP_LOCK_MS = 165;
 const WALL_BUMP_MS = 200;
 const CELEBRATE_DELAY_MS = 340;
-// How long the earned puzzle piece stays on the celebrate card: a moment to
-// take it in, then it fades away and the card's normal actions (and the button
-// highlight) take over. The reveal's CSS animation runs exactly this long.
-const PIECE_REVEAL_MS = 3200;
 
 // The picture rotates between five prepared puzzle images (one per full run).
 // The images are square crops of the originals the feature shipped with; the
@@ -109,10 +105,10 @@ export function LydLabyrint() {
   }, [maze.theme]);
 
   // Reaching the exit earns one puzzle piece and opens the celebrate card. The
-  // piece pops up on the card for a moment, then "disappears" while the
-  // Puslespill button starts to glow; earning the fourth piece auto-opens the
-  // assembler right after the reveal so the child can build their picture.
-  const celebrateMaze = useCallback((gen) => {
+  // piece pops up on the card and stays until the child clicks it away, then
+  // the Puslespill button starts to glow. Earning the fourth piece hands over
+  // the full set, so the child's click hands straight to the assembler.
+  const celebrateMaze = useCallback(() => {
     sounds.fanfare();
     const session = pieceSessionRef.current;
     const next = earnPiece(session);
@@ -124,15 +120,17 @@ export function LydLabyrint() {
     if (pieceIndex >= 0) {
       sounds.pieceEarned();
       setPieceReveal(true);
-      // The fourth earned piece hands over the full set, so the assembler
-      // opens by itself once the reveal has faded.
-      const allEarned = next.earned.length === PUZZLE_PIECE_COUNT;
-      later(gen, () => {
-        setPieceReveal(false);
-        if (allEarned) setPuzzleOpen(true);
-      }, PIECE_REVEAL_MS);
     }
-  }, [later]);
+  }, []);
+
+  // The earned piece stays on the celebrate card until the child clicks it away.
+  // For the fourth earned piece that click hands straight over to the puzzle
+  // assembler, so the completed picture can be built without an extra step.
+  const dismissReveal = useCallback(() => {
+    setPieceReveal(false);
+    if (pieceSessionRef.current.earned.length >= PUZZLE_PIECE_COUNT) setPuzzleOpen(true);
+    sounds.select();
+  }, []);
 
   // Set the fox down on a floor cell; reaching the exit starts the celebration.
   const arrive = useCallback((gen, x, y) => {
@@ -141,7 +139,7 @@ export function LydLabyrint() {
     if (gameRef.current.maze.exit.x === x
       && gameRef.current.maze.exit.y === y
       && !gameRef.current.celebrated) {
-      later(gen, () => celebrateMaze(gen), CELEBRATE_DELAY_MS);
+      later(gen, () => celebrateMaze(), CELEBRATE_DELAY_MS);
     }
   }, [later, celebrateMaze]);
 
@@ -390,17 +388,24 @@ export function LydLabyrint() {
             {pieceReveal && pieceJustEarned >= 0 ? (
               <>
                 <p>Du fant en puslespillbrikke!</p>
-                <div
+                <button
+                  type="button"
                   className="piece-reveal"
-                  style={{
-                    '--puzzle-image': `url(${PUZZLE_IMAGES[pieceSession.imageIndex]})`,
-                    '--reveal-ms': `${PIECE_REVEAL_MS}ms`,
-                  }}
-                  aria-hidden="true"
+                  style={{ '--puzzle-image': `url(${PUZZLE_IMAGES[pieceSession.imageIndex]})` }}
+                  onClick={dismissReveal}
+                  aria-label={
+                    pieceSession.earned.length >= PUZZLE_PIECE_COUNT
+                      ? 'Trykk på brikken for å bygge bildet'
+                      : 'Trykk på brikken for å lukke den'
+                  }
                 >
-                  <span className={`puzzle-piece piece-${pieceJustEarned}`} />
-                </div>
-                <p className="piece-reveal-hint">Trykk på Puslespill-knappen for å se brikkene dine.</p>
+                  <span className={`puzzle-piece piece-${pieceJustEarned}`} aria-hidden="true" />
+                </button>
+                <p className="piece-reveal-hint">
+                  {pieceSession.earned.length >= PUZZLE_PIECE_COUNT
+                    ? 'Trykk på brikken for å bygge bildet!'
+                    : 'Trykk på brikken for å lukke den.'}
+                </p>
               </>
             ) : (
               <>

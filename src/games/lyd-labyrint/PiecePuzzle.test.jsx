@@ -153,8 +153,8 @@ describe('piece puzzle screen', () => {
     expect(dialog.querySelectorAll('.puzzle-cell.filled')).toHaveLength(4);
     expect(dialog.querySelector('.puzzle-board').classList.contains('wrong')).toBe(false);
     expect(dialog.querySelector('.puzzle-board').classList.contains('done')).toBe(true);
-    // Confetti rides in its own lifted layer outside the card (above the popup).
-    expect(document.querySelectorAll('.confetti-piece').length).toBeGreaterThan(0);
+    // The finished picture is shown bare – no confetti or any other cover over it.
+    expect(document.querySelector('.confetti-lift')).toBeNull();
     expect(screen.getByText(/Bildet er ferdig/)).toBeInTheDocument();
     // Restart stays available, but the picture itself is never auto-hidden.
     expect(screen.getByRole('button', { name: /Spill igjen/ })).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe('piece puzzle screen', () => {
       fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(`^${name}`) }));
     }
     expect(screen.getByText(/Bildet er ferdig/)).toBeInTheDocument();
-    expect(document.querySelectorAll('.confetti-piece').length).toBeGreaterThan(0);
+    expect(document.querySelector('.confetti-lift')).toBeNull();
   });
 
   it('a placed piece can be taken back to its slot by tapping the board cell', () => {

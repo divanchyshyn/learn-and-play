@@ -377,12 +377,13 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
 
     advance(600);
     expect(screen.getByText('Du fant veien ut!')).toBeInTheDocument();
-    // The earned puzzle piece pops up on the celebrate card before fades away.
+    // The earned puzzle piece pops up on the celebrate card and stays until clicked.
     expect(screen.getByText('Du fant en puslespillbrikke!')).toBeInTheDocument();
-    advance(3800);
-    expect(screen.queryByText('Du fant en puslespillbrikke!')).not.toBeInTheDocument();
 
     const card = screen.getByText('Du fant veien ut!').closest('.celebrate-card');
+    // The piece stays put until the child taps it away; only then the actions appear.
+    fireEvent.click(within(card).getByRole('button', { name: /Trykk på brikken/ }));
+    expect(screen.queryByText('Du fant en puslespillbrikke!')).not.toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: /Ny labyrint/ }));
 
     expect(screen.queryByText('Du fant veien ut!')).not.toBeInTheDocument();
@@ -411,18 +412,19 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
       const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
       walkRoute(view, expected, route);
       advance(600);
-      // Every solved maze pops its piece onto the celebrate card...
+      // Every solved maze pops its piece onto the celebrate card and keeps it there.
       expect(screen.getByText('Du fant en puslespillbrikke!')).toBeInTheDocument();
-      advance(3800);
       if (mazeIndex < 3) {
-        // ...the piece fades, the button starts glowing, and a new maze follows.
+        // Clicking the piece closes it; the button glows, and a new maze follows.
+        fireEvent.click(screen.getByRole('button', { name: /Trykk på brikken/ }));
         expect(screen.queryByText('Du fant en puslespillbrikke!')).not.toBeInTheDocument();
         expect(chip()).toHaveClass('has-pieces');
         fireEvent.click(screen.getByRole('button', { name: /Ny labyrint/ }));
         advance(50);
         expect(screen.queryByText('Du fant veien ut!')).not.toBeInTheDocument();
       } else {
-        // The fourth piece opens the assembler automatically.
+        // The fourth piece: tapping it hands straight over to the assembler.
+        fireEvent.click(within(screen.getByRole('dialog', { name: 'Gratulerer' })).getByRole('button', { name: /Trykk på brikken/ }));
         expect(screen.getByRole('dialog', { name: 'Puslespill' })).toBeInTheDocument();
       }
     }
@@ -433,9 +435,9 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
       fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(`^${name}`) }));
     }
     expect(view.container.querySelectorAll('.puzzle-cell.filled')).toHaveLength(4);
-    // The finished picture stays on screen with confetti – no timer hides it.
+    // The finished picture stays on screen, shown clearly with no covering effect.
     expect(screen.getByText(/Bildet er ferdig/)).toBeInTheDocument();
-    expect(view.container.querySelectorAll('.confetti-piece').length).toBeGreaterThan(0);
+    expect(document.querySelector('.confetti-lift')).toBeNull();
 
     // The only way to hide the picture is a click on it.
     fireEvent.click(view.container.querySelector('.puzzle-board.done'));
@@ -463,7 +465,9 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
     walkRoute(view, expected, route);
     advance(600);
-    advance(3800);
+    // The piece stays on the card until the child clicks it away.
+    fireEvent.click(screen.getByRole('button', { name: /Trykk på brikken/ }));
+    advance(50);
 
     // Explore back into the maze and return to the exit after the reward.
     fireEvent.click(screen.getByRole('button', { name: /Se deg rundt/ }));
@@ -491,7 +495,9 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
     walkRoute(view, expected, route);
     advance(600);
-    advance(3800);
+    // The piece stays until it is clicked away before the controls reappear.
+    fireEvent.click(screen.getByRole('button', { name: /Trykk på brikken/ }));
+    advance(50);
     fireEvent.click(screen.getByRole('button', { name: /Ny labyrint/ }));
     advance(50);
 

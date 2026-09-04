@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { sounds } from './sounds.js';
 
 export const PUZZLE_PIECE_COUNT = 4;
@@ -166,12 +165,6 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
 
   return (
     <div className="puzzle-backdrop">
-      {solved && (
-        <div className="confetti-lift" aria-hidden="true">
-          <ConfettiLayer count={44} />
-        </div>
-      )}
-
       <div
         className="puzzle-card"
         role="dialog"
