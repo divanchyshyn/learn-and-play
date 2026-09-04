@@ -460,6 +460,10 @@
 /* The finished picture stays on screen and is the thing you click to close. */
 .puzzle-board.done { cursor: pointer; }
 .puzzle-board.done .puzzle-piece { pointer-events: none; }
+/* base.css dims every disabled button to .55 opacity. A solved picture is made
+   of four *disabled* piece buttons, which would render the final image washed
+   out over the pale card as a white layer – the finished picture stays vivid. */
+.puzzle-board.done .puzzle-piece:disabled { opacity: 1; }
 .puzzle-solved-actions { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; }
 
 @media (max-width: 640px) {
