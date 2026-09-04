@@ -48,13 +48,16 @@ export function setMuted(value, storageKey) {
   }
 }
 
-// Restore a persisted mute choice at startup. Returns the restored state.
-export function loadMuted(storageKey) {
+// Restore a persisted mute choice at startup. `fallback` decides the state
+// when nothing has been stored yet (or storage is unavailable), so a game can
+// choose to open silent. Returns the restored state.
+export function loadMuted(storageKey, fallback = false) {
   if (!storageKey || typeof window === 'undefined') return muted;
   try {
-    muted = window.localStorage.getItem(storageKey) === '1';
+    const stored = window.localStorage.getItem(storageKey);
+    muted = stored === null ? fallback : stored === '1';
   } catch {
-    muted = false;
+    muted = fallback;
   }
   return muted;
 }

@@ -260,6 +260,21 @@ describe('lyd-labyrint game', () => {
     expect(view.container.querySelector('.runner').textContent).toBe('🦊');
   });
 
+  it('starts with sound off – the muted speaker under the maze – and switches on with one tap', () => {
+    renderGame();
+    // Fresh player: sounds are off and the button shows the muted speaker.
+    const mutedToggle = screen.getByRole('button', { name: 'Slå på lyd' });
+    expect(mutedToggle.textContent).toContain('🔇');
+
+    fireEvent.click(mutedToggle);
+    expect(screen.getByRole('button', { name: 'Slå av lyd' }).textContent).toContain('🔊');
+    expect(window.localStorage.getItem('lydLabyrint:muted')).toBe('0');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Slå av lyd' }));
+    expect(screen.getByRole('button', { name: 'Slå på lyd' }).textContent).toContain('🔇');
+    expect(window.localStorage.getItem('lydLabyrint:muted')).toBe('1');
+  });
+
   it('moves with arrow keys and bumps into walls without moving', () => {
     const view = renderGame();
     const maze = expectedGame().maze;

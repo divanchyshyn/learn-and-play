@@ -2,8 +2,10 @@ import { isMuted, loadMuted, setMuted as setEngineMuted, tone } from '../../shar
 
 const MUTE_STORAGE_KEY = 'lydLabyrint:muted';
 
-// The labyrinth remembers your mute choice between visits.
-loadMuted(MUTE_STORAGE_KEY);
+// The labyrinth remembers your mute choice. A fresh player starts in silence –
+// the speaker button under the maze shows the muted state until it is tapped –
+// and any change from that point on is remembered between visits.
+loadMuted(MUTE_STORAGE_KEY, true);
 
 // Lyd-labyrinten's own sound character – effect definitions stay with the
 // game, the Web Audio engine comes from src/shared.

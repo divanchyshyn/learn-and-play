@@ -39,6 +39,16 @@ describe('shared audio engine mute state', () => {
     expect(isMuted()).toBe(false); // nothing stored under that key
   });
 
+  it('applies the provided fallback when nothing is stored', () => {
+    expect(loadMuted('fallback:muted', true)).toBe(true);
+    expect(isMuted()).toBe(true);
+
+    // A stored choice still wins over the fallback.
+    localStorage.setItem('fallback:muted', '0');
+    expect(loadMuted('fallback:muted', true)).toBe(false);
+    expect(isMuted()).toBe(false);
+  });
+
   it('treats junk storage values as unmuted', () => {
     localStorage.setItem('test:muted', 'yes');
     expect(loadMuted('test:muted')).toBe(false);
