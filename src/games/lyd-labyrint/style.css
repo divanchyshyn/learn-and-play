@@ -181,6 +181,7 @@
 }
 .spell-tray {
   display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  touch-action: none;
   max-width: 100%; min-height: 60px; padding: 8px;
   border: 3px dashed #c8b06a; border-radius: 12px;
   background: #faf6e8;
@@ -202,6 +203,7 @@
 .spell-tray-empty {
   width: 46px; height: 54px;
   border: 3px dashed #d9c98a; border-radius: 10px;
+  touch-action: none;
 }
 .spell-ghost {
   position: fixed; z-index: 50; pointer-events: none;
@@ -215,6 +217,7 @@
 }
 .spell-slots {
   display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  touch-action: none;
   max-width: 100%;
 }
 .spell-slot {
@@ -345,7 +348,7 @@
 .puzzle-hint { margin: 0; max-width: 42ch; color: #285362; line-height: 1.4; }
 .puzzle-prompt { margin: 0; color: #2f5d33; font-weight: 900; }
 
-.puzzle-slots { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.puzzle-slots { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; touch-action: none; }
 .puzzle-slot {
   width: 64px; height: 64px;
   display: grid; place-items: center;
@@ -372,6 +375,7 @@
   width: min(58vw, 330px);
   aspect-ratio: 1;
   display: grid;
+  touch-action: none;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 6px; padding: 6px;
@@ -383,6 +387,7 @@
 .puzzle-cell {
   position: relative;
   display: grid;
+  touch-action: none;
   border: 3px dashed #c8d4d8; border-radius: 9px;
   background: #eef7f5;
 }
@@ -424,6 +429,7 @@
   display: block;
   width: 100%; height: 100%;
   border: none; padding: 0;
+  touch-action: none; user-select: none; -webkit-user-select: none;
   background-color: #fff3d6;
   background-image: var(--puzzle-image, none);
   background-size: 200% 200%;

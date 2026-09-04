@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isDragStart } from './drag.js';
 import { sounds } from './sounds.js';
 import { speakWord } from './words.js';
 
@@ -139,7 +140,7 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
   }, []);
 
   const startDrag = useCallback((letter, index, area, event) => {
-    setDrag({ letter, index, area, startX: event.clientX, startY: event.clientY, moved: false });
+    setDrag({ letter, index, area, startX: event.clientX, startY: event.clientY, moved: false, pointerType: event.pointerType });
     setGhost({ x: event.clientX, y: event.clientY });
   }, []);
 
@@ -151,7 +152,7 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
     if (!drag) return undefined;
     const onMove = (event) => {
       setDrag((prev) => (prev
-        ? { ...prev, moved: prev.moved || Math.hypot(event.clientX - prev.startX, event.clientY - prev.startY) > 6 }
+        ? { ...prev, moved: prev.moved || isDragStart(prev.startX, prev.startY, event.clientX, event.clientY, prev.pointerType) }
         : prev));
       setGhost({ x: event.clientX, y: event.clientY });
     };
@@ -186,11 +187,20 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
       setDrag(null);
       setGhost(null);
     };
+    // When a mobile browser claims a gesture (usually for scrolling or an
+    // overscroll edge) it fires pointercancel instead of pointerup; clear the
+    // drag so a letter is never left in a half-finished state.
+    const onCancel = () => {
+      setDrag(null);
+      setGhost(null);
+    };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
     return () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
     };
   }, [drag, commitDrop]);
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isDragStart } from './drag.js';
 import { sounds } from './sounds.js';
 
 export const PUZZLE_PIECE_COUNT = 4;
@@ -115,7 +116,7 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
   }, [session]);
 
   const startDrag = useCallback((piece, from, event) => {
-    setDrag({ piece, from, startX: event.clientX, startY: event.clientY, moved: false });
+    setDrag({ piece, from, startX: event.clientX, startY: event.clientY, moved: false, pointerType: event.pointerType });
     setGhost({ x: event.clientX, y: event.clientY });
   }, []);
 
@@ -126,7 +127,7 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
     if (drag === null) return undefined;
     const onMove = (event) => {
       setDrag((prev) => (prev
-        ? { ...prev, moved: prev.moved || Math.hypot(event.clientX - prev.startX, event.clientY - prev.startY) > 6 }
+        ? { ...prev, moved: prev.moved || isDragStart(prev.startX, prev.startY, event.clientX, event.clientY, prev.pointerType) }
         : prev));
       setGhost({ x: event.clientX, y: event.clientY });
     };
@@ -148,11 +149,20 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
       setDrag(null);
       setGhost(null);
     };
+    // When a mobile browser claims a gesture (usually for scrolling or an
+    // overscroll edge) it fires pointercancel instead of pointerup; clear the
+    // drag so a piece is never left in a half-finished state.
+    const onCancel = () => {
+      setDrag(null);
+      setGhost(null);
+    };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
     return () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
     };
   }, [drag, onPlace, onRecall]);
 
