@@ -27,6 +27,8 @@ export const THEMES = [
   { name: 'Skogen', theme: 'skog', width: 17, height: 13 },
   { name: 'Havet', theme: 'hav', width: 17, height: 15 },
   { name: 'Savannen', theme: 'savanne', width: 17, height: 13 },
+  { name: 'Ukedagene', theme: 'ukedager', width: 17, height: 13 },
+  { name: 'Måneder og årstider', theme: 'aarstider', width: 17, height: 13 },
 ];
 
 function shuffled(items, random) {

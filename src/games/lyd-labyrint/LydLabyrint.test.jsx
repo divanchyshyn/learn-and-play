@@ -102,10 +102,12 @@ function doorAt(expected, x, y) {
 }
 
 // Tap the letter tiles (each tap fills the next slot) and then submit the
-// built word with the «Sjekk svaret» check button.
+// built word with the «Sjekk svaret» check button. A space inside a day phrase
+// is a tile of its own, labelled «Mellomrom» (see SpellPuzzle.jsx).
 function solveSpell(view, word) {
   for (const letter of [...word]) {
-    const tile = screen.getAllByRole('button', { name: `Bokstaven ${letter}` })[0];
+    const name = letter === ' ' ? 'Mellomrom' : `Bokstaven ${letter}`;
+    const tile = screen.getAllByRole('button', { name })[0];
     fireEvent.click(tile);
   }
   fireEvent.click(screen.getByRole('button', { name: /Sjekk/ }));
@@ -150,6 +152,15 @@ describe('lyd-labyrint spelling puzzle helpers', () => {
       expect([...letters].sort().join('')).toBe([...word].sort().join(''));
       expect(letters).toHaveLength(word.length);
     }
+  });
+
+  it('scrambleLetters keeps the space inside a day phrase as one more tile', () => {
+    const letters = scrambleLetters('i dag', () => 0);
+    expect(letters).toHaveLength(5);
+    expect(letters).toContain(' ');
+    // scrambleLetters returns a full permutation of the phrase, space included –
+    // every original letter shows up exactly once.
+    expect([...letters].sort().join('')).toBe([...'i dag'].sort().join(''));
   });
 
   it('applyDrop places a tray tile on any empty slot and leaves it empty on top', () => {
@@ -335,7 +346,9 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(screen.queryByRole('dialog')).toBeNull();
     // The runner steps onto the solved door tile, not past it.
     expect(runnerPosition(view)).toEqual({ x: door.x, y: door.y });
-  });
+    // A full maze walk plus two spell rounds takes a while on slow CI machines
+    // under parallel load – the same generous timeout as the exit-walk tests.
+  }, 15000);
 
   it('can close a lock without solving it, and no new door ever opens', () => {
     const view = renderGame();
@@ -470,7 +483,9 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     advance(50);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(chip()).toHaveTextContent('0/4');
-    expect(screen.getByText(/Havet/)).toBeInTheDocument();
+    // With five themes, the fourth solved maze (Ukedagene) is followed by the
+    // months and seasons maze in the rotation.
+    expect(screen.getByText(/Måneder og årstider/)).toBeInTheDocument();
     expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
     // Four full maze walks in one test take a while; give it room on slow CI.
   }, 20000);

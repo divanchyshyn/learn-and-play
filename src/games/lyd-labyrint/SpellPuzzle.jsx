@@ -278,9 +278,9 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
                   placeNext(letter, index);
                 }}
                 onPointerDown={(event) => startDrag(letter, index, 'tray', event)}
-                aria-label={`Bokstaven ${letter}`}
+                aria-label={letter === ' ' ? 'Mellomrom' : `Bokstaven ${letter}`}
               >
-                {letter}
+                {letter === ' ' ? '\u2423' : letter}
               </button>
             ) : (
               <span className="spell-tray-empty" key={index} aria-hidden="true" />
@@ -314,10 +314,10 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
                 startDrag(letter, index, 'slot', event);
               }}
               aria-label={letter
-                ? `Bokstaven ${letter} står på plass ${index + 1} – trykk for å ta den tilbake`
+                ? `${letter === ' ' ? 'Mellomrom' : `Bokstaven ${letter}`} står på plass ${index + 1} – trykk for å ta den tilbake`
                 : `Tom plass nummer ${index + 1}`}
             >
-              {letter ?? ''}
+              {letter === ' ' ? '\u2423' : (letter ?? '')}
             </button>
           ))}
         </div>

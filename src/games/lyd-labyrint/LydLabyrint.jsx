@@ -35,11 +35,21 @@ const KEY_DIRS = {
   W: 'up', S: 'down', A: 'left', D: 'right',
 };
 
-const THEME_EMOJI = { skog: '\u{1F332}', hav: '\u{1F30A}', savanne: '\u{1F33E}' };
-const THEME_BG = { skog: '#edf4e0', hav: '#e4f2f7', savanne: '#fcf5df' };
-// The explorer's mascot changes with the habitat: forest → fox, ocean → sea
-// turtle, savannah → leopard.
-const THEME_RUNNER = { skog: '\u{1F98A}', hav: '\u{1F422}', savanne: '\u{1F406}' };
+const THEME_EMOJI = {
+  skog: '\u{1F332}', hav: '\u{1F30A}', savanne: '\u{1F33E}',
+  ukedager: '\u{1F5D3}', aarstider: '\u{1F4C5}',
+};
+const THEME_BG = {
+  skog: '#edf4e0', hav: '#e4f2f7', savanne: '#fcf5df',
+  ukedager: '#eef0fa', aarstider: '#f7eef0',
+};
+// The explorer's mascot changes with the theme: forest → fox, ocean → sea
+// turtle, savannah → leopard, days of the week → snail, months and seasons →
+// hedgehog.
+const THEME_RUNNER = {
+  skog: '\u{1F98A}', hav: '\u{1F422}', savanne: '\u{1F406}',
+  ukedager: '\u{1F40C}', aarstider: '\u{1F42C}',
+};
 
 const STEP_LOCK_MS = 165;
 const WALL_BUMP_MS = 200;

@@ -19,6 +19,8 @@
 .theme-skog { --wall: #5f8f49; --wall-dark: rgba(35, 66, 24, .22); --frame: #4a7239; }
 .theme-hav { --wall: #1f81a3; --wall-dark: rgba(9, 51, 68, .25); --frame: #14688a; }
 .theme-savanne { --wall: #bd8a3b; --wall-dark: rgba(77, 52, 12, .24); --frame: #9a6f28; }
+.theme-ukedager { --wall: #8a7bb5; --wall-dark: rgba(52, 40, 84, .24); --frame: #6f5da3; }
+.theme-aarstider { --wall: #cf7d8a; --wall-dark: rgba(96, 45, 58, .22); --frame: #b06270; }
 
 /* ---- Board ------------------------------------------------------------ */
 .labyrinth-stage { display: grid; gap: 18px; justify-items: center; padding-bottom: 26px; }

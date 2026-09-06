@@ -3,7 +3,7 @@ import { WORDS_BY_THEME, pickWords, speakWord } from './words.js';
 
 describe('lyd-labyrint word picker', () => {
   for (const theme of Object.keys(WORDS_BY_THEME)) {
-    it(`picks a full set of distinct ${theme} habitat words`, () => {
+    it(`picks a full set of distinct ${theme} theme words`, () => {
       const bank = WORDS_BY_THEME[theme];
       for (let trial = 0; trial < 40; trial += 1) {
         const picked = pickWords(7, theme);
@@ -18,10 +18,10 @@ describe('lyd-labyrint word picker', () => {
     });
   }
 
-  it('returns a fresh random ordering of the habitat words each time', () => {
+  it('returns a fresh random ordering of the theme words each time', () => {
     // Every door is a spelling lock now, so no first-letter constraint is
     // needed – the guarantee that matters is that the words are drawn as a
-    // full, fresh shuffle from their habitat every single time.
+    // full, fresh shuffle from their theme every single time.
     for (const theme of Object.keys(WORDS_BY_THEME)) {
       const full = pickWords(WORDS_BY_THEME[theme].length, theme);
       expect(full.map((entry) => entry.word).sort())
@@ -35,15 +35,46 @@ describe('lyd-labyrint word picker', () => {
     expect(two).toHaveLength(2);
   });
 
-  it('keeps every word at most 5 letters for the spelling tray', () => {
+  it('ships at least twenty words per theme (days of the week slightly fewer)', () => {
+    const minimums = { ukedager: 13 };
     for (const theme of Object.keys(WORDS_BY_THEME)) {
+      expect(WORDS_BY_THEME[theme].length, theme).toBeGreaterThanOrEqual(minimums[theme] ?? 20);
+    }
+  });
+
+  it('keeps forest, ocean and savannah words at most 5 letters for the tray', () => {
+    for (const theme of ['skog', 'hav', 'savanne']) {
       for (const entry of WORDS_BY_THEME[theme]) {
         expect(entry.word.length, `${theme}: ${entry.word}`).toBeLessThanOrEqual(5);
       }
     }
   });
 
-  it('throws when a habitat cannot fill the request', () => {
+  it('keeps every word a single token or one of the known day phrases', () => {
+    const phraseWords = ['i dag', 'i morgen', 'i går'];
+    for (const theme of Object.keys(WORDS_BY_THEME)) {
+      for (const entry of WORDS_BY_THEME[theme]) {
+        expect(entry.word.trim(), `${theme}: ${entry.word}`).not.toBe('');
+        expect(entry.word.includes('  '), `${theme}: ${entry.word}`).toBe(false);
+        if (entry.word.includes(' ')) {
+          expect(phraseWords, `${theme}: ${entry.word}`).toContain(entry.word);
+        }
+      }
+    }
+  });
+
+  it('parses the required day, month and season words from the curriculum text', () => {
+    const dayWords = WORDS_BY_THEME.ukedager.map((entry) => entry.word);
+    for (const required of ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag', 'dag', 'uke', 'helg', 'i dag', 'i morgen', 'i går']) {
+      expect(dayWords).toContain(required);
+    }
+    const seasonWords = WORDS_BY_THEME.aarstider.map((entry) => entry.word);
+    for (const required of ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember', 'vår', 'våren', 'sommer', 'sommeren', 'høst', 'høsten', 'vinter', 'vinteren']) {
+      expect(seasonWords).toContain(required);
+    }
+  });
+
+  it('throws when a theme cannot fill the request', () => {
     expect(() => pickWords(WORDS_BY_THEME.skog.length + 1, 'skog')).toThrow();
     expect(() => pickWords(3, 'unknown')).toThrow();
   });
