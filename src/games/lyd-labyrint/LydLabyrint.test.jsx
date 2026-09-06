@@ -5,6 +5,7 @@ import { pickWords, WORDS_BY_THEME } from './words.js';
 import { shuffle } from '../../shared/random.js';
 import { applyDrop, scrambleLetters } from './SpellPuzzle.jsx';
 import { LydLabyrint } from './LydLabyrint.jsx';
+import { PROGRESS_KEY, pieceSessionCodec } from './progress.js';
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 
@@ -538,5 +539,73 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     press(view, arrowFor(openDir));
     advance(200);
     expect(runnerPosition(view)).not.toEqual(pos);
+  }, 15000);
+
+  it('keeps the earned pieces and picture across a refresh, but starts a fresh maze', () => {
+    const view = renderGame();
+    const expected = expectedGame();
+    const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
+    walkRoute(view, expected, route);
+    advance(600);
+    fireEvent.click(screen.getByRole('button', { name: /Trykk på brikken/ }));
+    advance(50);
+    expect(view.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
+
+    // A page reload unmounts the game; the next mount restores the picture
+    // collection from storage, while the maze itself always starts over.
+    view.unmount();
+    const reopened = renderGame();
+
+    expect(reopened.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
+    expect(runnerPosition(reopened)).toEqual({ x: 1, y: 1 });
+
+    fireEvent.click(screen.getByRole('button', { name: /Puslespill – 1 av 4 brikker funnet/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Puslespill' });
+    expect(within(dialog).getByRole('button', { name: 'Brikke 1 – dra den til bildet eller trykk' })).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('button', { name: /Tom plass/ })).toHaveLength(3);
+  }, 15000);
+
+  it('restores a saved picture collection from storage when it mounts', () => {
+    const saved = pieceSessionCodec.serialize({ imageIndex: 1, earned: [0, 2], cells: [null, 0, null, 2] });
+    window.localStorage.setItem(PROGRESS_KEY, saved);
+
+    const view = renderGame();
+    expect(view.container.querySelector('.puzzle-chip')).toHaveTextContent('2/4');
+
+    fireEvent.click(screen.getByRole('button', { name: /Puslespill – 2 av 4 brikker funnet/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Puslespill' });
+    // Pieces 1 and 3 are earned and both rest exactly where they were left.
+    expect(within(dialog).getByRole('button', { name: 'Brikke 1 ligger i bildet' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Brikke 3 ligger i bildet' })).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('button', { name: /Tom plass/ })).toHaveLength(2);
+  });
+
+  it('resets progress, picture and maze with «Start på nytt» after a confirming tap', () => {
+    const view = renderGame();
+    const expected = expectedGame();
+    const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
+    walkRoute(view, expected, route);
+    advance(600);
+    fireEvent.click(screen.getByRole('button', { name: /Trykk på brikken/ }));
+    advance(50);
+    expect(view.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
+
+    // A first tap only arms the reset and asks for a confirming tap...
+    fireEvent.click(screen.getByRole('button', { name: /Start på nytt/ }));
+    expect(view.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
+
+    // ...the second tap within the armed window really starts over.
+    fireEvent.click(screen.getByRole('button', { name: /Sikker/ }));
+    advance(50);
+
+    expect(view.container.querySelector('.puzzle-chip')).toHaveTextContent('0/4');
+    expect(screen.queryByRole('button', { name: /Sikker/ })).not.toBeInTheDocument();
+    expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
+    // The saved progress is replaced by the fresh session, so the reset itself
+    // also survives a page refresh.
+    const saved = JSON.parse(window.localStorage.getItem(PROGRESS_KEY));
+    expect(saved.version).toBe(1);
+    expect(saved.pieceSession.earned).toEqual([]);
+    expect(saved.pieceSession.cells).toEqual([null, null, null, null]);
   }, 15000);
 });

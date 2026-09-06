@@ -13,7 +13,9 @@ import {
   recallPiece,
 } from './PiecePuzzle.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
+import { PROGRESS_KEY, pieceSessionCodec } from './progress.js';
 import { shuffle } from '../../shared/random.js';
+import { usePersistentState } from '../../shared/usePersistentState.js';
 import puzzleCarrier from './puzzle-assets/carrier.webp';
 import puzzleSubmarine from './puzzle-assets/submarine-yard.webp';
 import puzzleChinook from './puzzle-assets/chinook.webp';
@@ -42,6 +44,9 @@ const THEME_RUNNER = { skog: '\u{1F98A}', hav: '\u{1F422}', savanne: '\u{1F406}'
 const STEP_LOCK_MS = 165;
 const WALL_BUMP_MS = 200;
 const CELEBRATE_DELAY_MS = 340;
+// How long "Start på nytt" stays armed between the first tap and the
+// confirming tap; after this the arm quietly times out.
+const RESET_CONFIRM_MS = 3000;
 
 // The picture rotates between five prepared puzzle images (one per full run).
 // The images are square crops of the originals the feature shipped with; the
@@ -79,7 +84,14 @@ export function LydLabyrint() {
   const [game, setGame] = useState(() => createGame(Math.floor(Math.random() * THEMES.length)));
   const [fx, setFx] = useState(null);
   const [soundOn, setSoundOn] = useState(!isMuted());
-  const [pieceSession, setPieceSession] = useState(() => createPuzzleSession(PUZZLE_IMAGES.length));
+  // The collected pieces and their picture survive a page refresh (see
+  // progress.js); the maze itself never does – every visit carves a fresh
+  // labyrinth, and only the collection carries over.
+  const [pieceSession, setPieceSession] = usePersistentState(
+    PROGRESS_KEY,
+    () => createPuzzleSession(PUZZLE_IMAGES.length),
+    pieceSessionCodec,
+  );
   const [puzzleOpen, setPuzzleOpen] = useState(false);
   const [pieceReveal, setPieceReveal] = useState(false);
   const busyRef = useRef(false);
@@ -121,7 +133,7 @@ export function LydLabyrint() {
       sounds.pieceEarned();
       setPieceReveal(true);
     }
-  }, []);
+  }, [setPieceSession]);
 
   // The earned piece stays on the celebrate card until the child clicks it away.
   // For the fourth earned piece that click hands straight over to the puzzle
@@ -222,7 +234,7 @@ export function LydLabyrint() {
       setPieceSession(next);
       sounds.piecePlaced();
     }
-  }, []);
+  }, [setPieceSession]);
 
   const handleRecallPiece = useCallback((piece) => {
     const next = recallPiece(pieceSessionRef.current, piece);
@@ -230,7 +242,7 @@ export function LydLabyrint() {
       setPieceSession(next);
       sounds.select();
     }
-  }, []);
+  }, [setPieceSession]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -263,8 +275,13 @@ export function LydLabyrint() {
     setGame(createGame(nextIndex));
   }
 
+  // Armed by the first tap on "Start på nytt"; the second tap within
+  // RESET_CONFIRM_MS really resets, and the arm times out on its own.
+  const [confirmReset, setConfirmReset] = useState(false);
+
   function newMaze() {
     setPieceReveal(false);
+    setConfirmReset(false);
     startFreshMaze();
     sounds.select();
   }
@@ -274,12 +291,40 @@ export function LydLabyrint() {
     sounds.select();
   }
 
+  // Throw away every collected piece and start a brand-new picture run. Shared
+  // by the always-visible "Start på nytt" control and the finished picture's
+  // "Spill igjen" action. The fresh session replaces the saved one through the
+  // hook's normal write-back, so a reset also survives a page refresh.
+  function resetCollection() {
+    genRef.current += 1;
+    busyRef.current = false;
+    setFx(null);
+    setPieceReveal(false);
+    setPuzzleOpen(false);
+    setPieceSession(createPuzzleSession(PUZZLE_IMAGES.length));
+  }
+
+  // "Start på nytt" – the full reset. A first tap arms it and asks for a
+  // confirming tap, so a stray click can never wipe a child's collection; the
+  // second tap regenerates the maze from a fresh random theme and resets the
+  // picture, exactly like the very first mount of the game.
+  function startOver() {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      later(genRef.current, () => setConfirmReset(false), RESET_CONFIRM_MS);
+      sounds.select();
+      return;
+    }
+    setConfirmReset(false);
+    resetCollection();
+    setGame(createGame(Math.floor(Math.random() * THEMES.length)));
+    sounds.select();
+  }
+
   // "Spill igjen" on the finished picture: collect a brand-new picture (the
   // next rotating image) from a fresh maze.
   const handleRestart = () => {
-    setPieceSession(createPuzzleSession(PUZZLE_IMAGES.length));
-    setPieceReveal(false);
-    setPuzzleOpen(false);
+    resetCollection();
     startFreshMaze();
     sounds.select();
   };
@@ -445,6 +490,14 @@ export function LydLabyrint() {
       <div className="game-controls">
         <span className="maze-chip">{THEME_EMOJI[maze.theme]} {maze.name}</span>
         <button className="chip" type="button" onClick={newMaze}>Nytt labyrint {'\u{1F504}'}</button>
+        <button
+          className={`chip reset${confirmReset ? ' confirming' : ''}`}
+          type="button"
+          onClick={startOver}
+          aria-label={confirmReset ? 'Sikker? Trykk igjen for å starte på nytt' : 'Start på nytt – sletter all fremgang'}
+        >
+          {confirmReset ? 'Sikker? Trykk igjen' : `Start på nytt ${'\u{1F5D1}'}`}
+        </button>
         <button
           className="chip toggle"
           type="button"

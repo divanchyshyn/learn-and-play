@@ -7,6 +7,11 @@
 .maze-chip { padding: 6px 11px; border: 2px solid #63a375; border-radius: 999px; background: #eef6e6; color: #2f5d33; font-size: .88rem; font-weight: 900; white-space: nowrap; }
 .chip { min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
 .chip:hover { transform: translateY(-2px); }
+/* "Start på nytt" is the big reset: the coral border marks it as destructive
+   so it reads clearly against the teal "Nytt labyrint" chip beside it. While
+   an armed reset waits for its confirming tap it flips to a warm tint. */
+.chip.reset { border-color: #d94f3b; background: #fff3ec; color: #b23a28; }
+.chip.reset.confirming { border-color: #a13324; background: #f6c8bd; }
 
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
