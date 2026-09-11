@@ -59,24 +59,31 @@ always been, so the published site is never touched without you.
 
 These are repository settings, not files, so they have to be done by hand once.
 
-1. **Add the provider key.** Settings → Secrets and variables → Actions → new
-   repository secret named `OPENROUTER_API_KEY`. Also set a spend limit on the
-   OpenRouter key so a runaway loop cannot surprise you.
-2. **Protect `main`.** Settings → Branches → add a rule for `main`:
+1. **Create a dedicated OpenRouter key.** Do not reuse your IDE key. Make a new
+   key named `learn-and-play CI` and give it a **credit limit** (about $10–$20 is
+   generous for this model, and it is the only real brake — OpenRouter keys are
+   full-access with no scopes). A separate key means you can disable, rotate or
+   delete the CI key without breaking your local setup, and OpenRouter is a
+   GitHub secret-scanning partner, so an exposed key is detected and can be
+   revoked on its own. Pause or disable the key from the dashboard to cut off
+   inference immediately.
+2. **Add it as a secret.** Settings → Secrets and variables → Actions → new
+   repository secret named `OPENROUTER_API_KEY`.
+3. **Protect `main`.** Settings → Branches → add a rule for `main`:
    - require a pull request before merging
    - require at least one approval
    - require status checks: `Run game tests` (ci.yml) and `Analyze JavaScript` (CodeQL)
    - require branches to be up to date, and block force pushes
    This is the setting that makes every other promise here true — it is what
    stops an agent (or anyone) from reaching the published site unreviewed.
-3. **Install the OpenCode GitHub App.** Run `opencode github install` locally, or
+4. **Install the OpenCode GitHub App.** Run `opencode github install` locally, or
    install `github.com/apps/opencode-agent` on this repository. The pull request
    is opened with the app's token, which matters: pull requests opened with the
    default `GITHUB_TOKEN` do **not** trigger other workflows, so CI and the
    reviewer would never run on the agent's work.
-4. **Create labels.** Issues → Labels → add `ai-ready`, `ai-in-progress`,
+5. **Create labels.** Issues → Labels → add `ai-ready`, `ai-in-progress`,
    `ai-blocked`, `skip-ai-review`, and optionally `risk:low` / `risk:high`.
-5. **Enable CodeQL.** Settings → Code scanning. CodeQL is free for public
+6. **Enable CodeQL.** Settings → Code scanning. CodeQL is free for public
    repositories; it uses the workflow in `codeql.yml`.
 
 ## Day to day
@@ -84,7 +91,9 @@ These are repository settings, not files, so they have to be done by hand once.
 - **Start the agent:** add the `ai-ready` label to an issue. Or comment `/oc`
   (or `/opencode`) on any issue for a one-off run.
 - **Skip the reviewer:** add the `skip-ai-review` label to a pull request.
-- **Steer a pull request:** comment on it with `/oc <instruction>`.
+- **Steer a pull request:** comment on it with `/oc <instruction>`, or comment on
+  a specific line in the pull request's **Files** tab to have the agent work on
+  just that spot. Both go through the `comment` job in `opencode.yml`.
 - **Run it locally first:** install the CLI (`npm i -g opencode-ai`), run
   `opencode auth login` and choose OpenRouter, then `opencode models` to confirm
   `openrouter/deepseek/deepseek-v4.1-flash` is listed. A dry run:
@@ -146,6 +155,11 @@ until the current loop feels boring and reliable:
   `GITHUB_TOKEN` instead of the app token.
 - **The reviewer said nothing.** Check the pull request is not from a fork and
   does not carry `skip-ai-review`, and that the agent name is `review`.
+- **`opencode github install` overwrote `opencode.yml`.** The installer writes its
+  stock template, which drops the `ai-ready` label trigger, the job timeouts and
+  the pinned action ref. Once the tuned version is committed, restore it with
+  `git checkout -- .github/workflows/opencode.yml`. The action itself never
+  rewrites the file at run time, so this only happens when you run the installer.
 - **Tests fail only in CI.** The local convention is `npm.cmd` on Windows; CI
   uses plain `npm` on Linux. Run `npm.cmd run lint; npm.cmd run test; npm.cmd run build`
   before handing off.
