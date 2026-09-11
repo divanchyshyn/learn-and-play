@@ -1,0 +1,62 @@
+name: OpenCode
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+# The OpenCode GitHub App token is what opens the pull request. Pull requests
+# opened with the default GITHUB_TOKEN would not trigger other workflows, so CI
+# would never run on the agent's work.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: opencode-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    name: Implement issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: |
+      (github.event_name == 'issues' && github.event.label.name == 'ai-ready') ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request == null &&
+        (contains(github.event.comment.body, '/oc') ||
+         contains(github.event.comment.body, '/opencode')))
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run OpenCode
+        # Pinned to a release tag. Note that the action still installs the
+        # latest opencode binary at run time, so the tag pins the workflow
+        # script, not the agent itself.
+        uses: anomalyco/opencode/github@v1.18.30
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        with:
+          model: openrouter/deepseek/deepseek-v4.1-flash
+          variant: max
+          prompt: |
+            Work only on the issue in this thread. Follow AGENTS.md, including its
+            "Definition of done" section: `npm run lint`, `npm run test` and
+            `npm run build` must all pass before you finish, tests must cover the
+            new logic, and README.md must be updated when user-visible behaviour
+            changes. Keep the change small and scoped to this issue. Open a pull
+            request that closes the issue with "Closes #<number>". If the work
+            needs a new dependency or a decision you cannot make, stop and say so
+            instead of guessing.

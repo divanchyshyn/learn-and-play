@@ -1,0 +1,43 @@
+name: OpenCode review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: opencode-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Same-repository pull requests only, so forks never get this runner.
+    # Add the "skip-ai-review" label to opt a pull request out.
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-ai-review')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run OpenCode review
+        uses: anomalyco/opencode/github@v1.18.30
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        with:
+          model: openrouter/deepseek/deepseek-v4.1-flash
+          agent: review
+          variant: max
+          prompt: |
+            Review this pull request using the "review" agent rules. Post one
+            structured comment covering Summary, Correctness, Tests, Security and
+            Design fit. Do not modify any files, do not push commits, and do not
+            approve or merge the pull request.

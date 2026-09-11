@@ -27,8 +27,16 @@ src/styles/base.css                     Shared reset and base styles
 src/test/setup.js                       Vitest setup (jest-dom matchers)
 vite.config.js                          Multi-page build entry points and test config
 eslint.config.js                        ESLint flat config (core, react, react-hooks rules)
-.github/workflows/ci.yml                Runs lint and the test suite on pushes and pull requests
+.github/workflows/ci.yml                Runs lint, tests and the build on pushes and pull requests
 .github/workflows/deploy-pages.yml      GitHub Pages build and deployment (lint and tests gate the deploy)
+.github/workflows/codeql.yml            CodeQL security analysis on pull requests and weekly
+.github/workflows/opencode.yml          Runs the coding agent when an issue is labelled ai-ready
+.github/workflows/opencode-review.yml   Reviews pull requests and posts findings as a comment
+.github/dependabot.yml                  Weekly dependency and GitHub Actions updates
+.github/ISSUE_TEMPLATE/                 Issue forms that double as the coding agent's brief
+opencode.json                           Coding agent config: model, permissions, provider
+.opencode/agents/review.md              Read-only reviewer agent used by the review workflow
+docs/agent-pipeline.md                  How the agent pipeline is wired up and how to run it
 ```
 
 ## Adding a game
@@ -83,6 +91,26 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 - Preserve existing games while adding new ones. Do not rename a game slug without also preserving or intentionally redirecting its published URL.
 - Hide an unfinished game by commenting out its tile in `src/home/main.jsx` and marking it "(hidden)" in `README.md`. Keep its entry point in the build so the direct URL keeps working (see Kortkrig, Ordfiske and Tierhopp).
 - Build (`npm.cmd run build`), lint (`npm.cmd run lint`), and test (`npm.cmd run test`) before handing off changes. For interactive changes, also verify the relevant game route locally.
+
+## Definition of done
+
+A change, whether written by a person or by the coding agent, is finished only when:
+
+- `npm run lint`, `npm run test` and `npm run build` all pass (use `npm.cmd` in PowerShell on this machine).
+- New pure logic is exported from the component or module and covered by a unit test; new UI has at least one rendered happy path.
+- `README.md` is updated when user-visible behaviour, the game list, or a published route changes.
+- A new game also gets its `games/<slug>/index.html`, its `src/games/<slug>/` folder, a tile in `src/home/main.jsx`, and a README entry.
+- The production build still contains every published route (`dist/games/<slug>/index.html`).
+- No published game slug is renamed or removed.
+- No new runtime dependency is added without a human decision.
+
+## Agent pipeline
+
+- The coding agent runs headless in GitHub Actions. It reads this file as its instructions and `opencode.json` for its model and permissions.
+- Label an issue `ai-ready`, or comment `/oc` on it, to start the agent. It works on a branch and opens a pull request. It never pushes to `main` and never merges.
+- A second, read-only agent named `review` comments on pull requests with QA and security findings. It cannot edit files.
+- The `build` agent's shell access is deliberately narrow: `npm ci`, `npm run lint`, `npm run test*`, `npm run build` and read-only git. `npm install <pkg>`, network tools (`curl`, `wget`), `webfetch` and paths outside the repository are denied. If a task needs one of these, stop and explain instead of working around it.
+- Keep every pull request scoped to a single issue. Branch protection on `main` requires the CI checks and a human review before anything merges.
 
 ## Useful commands
 

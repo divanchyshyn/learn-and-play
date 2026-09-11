@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in the library or a game is broken.
+title: '[Bug] '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Adding the **ai-ready** label starts the agent on this issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the broken behaviour and what you expected instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Home / game library
+        - Butikken
+        - Slangen og stigers
+        - Lyd-labyrinten
+        - Ordfiske (hidden)
+        - Kortkrig (hidden)
+        - Tierhopp (hidden)
+        - Shared helpers (src/shared)
+        - Build, tooling or CI
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ./games/butikken/
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] The bug no longer reproduces
+        - [ ] `npm run lint`, `npm run test` and `npm run build` all pass
+        - [ ] A regression test covers the fix
+    validations:
+      required: true

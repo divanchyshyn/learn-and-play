@@ -34,6 +34,19 @@ npm run lint        # eslint over the whole project
 
 Tests live next to the code they cover (for example `src/games/lyd-labyrint/mazes.test.js`) and are not included in the production build.
 
+## Coding agent pipeline
+
+Issues labelled `ai-ready` — or any issue comment starting with `/oc` — start a
+coding agent that implements the change on a branch and opens a pull request. A
+second, read-only agent reviews every pull request and posts QA and security
+findings as a comment. Nothing merges without passing CI and a human review, and
+merging `main` deploys the site exactly as before.
+
+The agent runs on DeepSeek V4.1 Flash through OpenRouter at maximum reasoning
+effort. Its configuration lives in `opencode.json` and `.opencode/agents/`. The
+wiring, the one-time repository setup, and the guardrails are described in
+[`docs/agent-pipeline.md`](./docs/agent-pipeline.md).
+
 ## GitHub Pages
 
 ```sh

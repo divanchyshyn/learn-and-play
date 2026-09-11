@@ -1,0 +1,55 @@
+name: Feature request
+description: Request a change to the game library or one of the games.
+title: '[Feature] '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is read by both humans and the coding agent, so be specific.
+
+        Adding the **ai-ready** label starts the agent. Leave the label off if you
+        want to write or discuss the issue first.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should change, and why?
+      placeholder: Describe the outcome, not just the implementation.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the project does this touch?
+      options:
+        - Home / game library
+        - Butikken
+        - Slangen og stigers
+        - Lyd-labyrinten
+        - Ordfiske (hidden)
+        - Kortkrig (hidden)
+        - Tierhopp (hidden)
+        - Shared helpers (src/shared)
+        - Build, tooling or CI
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: A checklist the change must satisfy.
+      value: |
+        - [ ] `npm run lint`, `npm run test` and `npm run build` all pass
+        - [ ] Tests added or updated for the changed logic
+        - [ ] README.md updated when user-visible behaviour changes
+        - [ ] No new runtime dependencies
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What must not change? Useful for keeping the pull request small.
+    validations:
+      required: false
