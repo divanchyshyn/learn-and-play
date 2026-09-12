@@ -7,6 +7,15 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # ESLint 10 is blocked upstream: eslint-plugin-react@7.37.5, its latest
+    # release, still declares a peer range ending at ^9.7, so `npm ci` dies with
+    # ERESOLVE. Both packages are version-locked, so hold them together. Delete
+    # this block once eslint-plugin-react ships ESLint 10 support.
+    ignore:
+      - dependency-name: 'eslint'
+        versions: ['>=10']
+      - dependency-name: '@eslint/js'
+        versions: ['>=10']
     groups:
       # Minor and patch updates arrive together so they stay easy to review and
       # merge. Major updates are kept in their own groups so they never ride
