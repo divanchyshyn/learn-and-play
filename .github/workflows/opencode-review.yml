@@ -20,8 +20,17 @@ jobs:
     timeout-minutes: 30
     # Same-repository pull requests only, so forks never get this runner.
     # Add the "skip-ai-review" label to opt a pull request out.
+    #
+    # Dependabot is skipped by login on purpose. The action refuses to run for an
+    # actor without admin/write repository permission ("User <actor> does not have
+    # write permissions"), and Dependabot's bot account never has any, so every
+    # Dependabot pull request failed this job before the reviewer started. Its
+    # dependency bumps are covered by `ci.yml`, which is the required check.
+    # Filtering on the login instead of on `user.type == 'Bot'` keeps the reviewer
+    # running for the coding agent's own pull requests, which is the point of it.
     if: |
       github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
       !contains(github.event.pull_request.labels.*.name, 'skip-ai-review')
     steps:
       - uses: actions/checkout@v7

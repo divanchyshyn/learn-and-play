@@ -91,6 +91,8 @@ These are repository settings, not files, so they have to be done by hand once.
 - **Start the agent:** add the `ai-ready` label to an issue. Or comment `/oc`
   (or `/opencode`) on any issue for a one-off run.
 - **Skip the reviewer:** add the `skip-ai-review` label to a pull request.
+  Dependabot pull requests are skipped automatically, because its bot account
+  cannot pass the action's write-permission check.
 - **Steer a pull request:** comment on it with `/oc <instruction>`, or comment on
   a specific line in the pull request's **Files** tab to have the agent work on
   just that spot. Both go through the `comment` job in `opencode.yml`.
@@ -113,6 +115,7 @@ These are repository settings, not files, so they have to be done by hand once.
 | Secrets leaking into the agent's shell | `OPENROUTER_API_KEY` is the only secret in the job, and the bash allowlist cannot read the environment |
 | The reviewer changing what it reviews | The `review` agent denies `edit`; the review workflow grants `contents: read` |
 | Untrusted forks | The reviewer only runs for pull requests whose head repo is this repository |
+| An account with no repository permission driving the agent | The action refuses any actor without `admin`/`write` permission; `opencode-review.yml` skips Dependabot pull requests, which can never pass that check |
 | Runaway loops or cost | `timeout-minutes: 30` on both agent jobs, plus an OpenRouter spend limit |
 | Supply chain in the action itself | `anomalyco/opencode/github` is pinned to the release tag `v1.18.30` |
 
@@ -155,6 +158,14 @@ until the current loop feels boring and reliable:
   `GITHUB_TOKEN` instead of the app token.
 - **The reviewer said nothing.** Check the pull request is not from a fork and
   does not carry `skip-ai-review`, and that the agent name is `review`.
+- **The reviewer failed with `User dependabot[bot] does not have write
+  permissions`.** Before it does anything else, the action asserts that the actor
+  who triggered the run has `admin` or `write` permission on the repository, and
+  it reports that assertion as a comment when it fails. Dependabot's bot account
+  has no permission at all, so `opencode-review.yml` now skips Dependabot pull
+  requests. Seeing this again means another bot account opened a pull request —
+  add its login to the job's `if` condition, or label the pull request
+  `skip-ai-review` and re-run.
 - **`opencode github install` overwrote `opencode.yml`.** The installer writes its
   stock template, which drops the `ai-ready` label trigger, the job timeouts and
   the pinned action ref. Once the tuned version is committed, restore it with
