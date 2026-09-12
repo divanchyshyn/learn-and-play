@@ -8,10 +8,21 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      # Minor and patch updates arrive together so they stay easy to review and
+      # merge. Major updates are kept in their own groups so they never ride
+      # along with safe bumps: a breaking major should be reviewable on its own.
       dev-dependencies:
         dependency-type: development
+        update-types: ['minor', 'patch']
+      dev-dependencies-major:
+        dependency-type: development
+        update-types: ['major']
       production-dependencies:
         dependency-type: production
+        update-types: ['minor', 'patch']
+      production-dependencies-major:
+        dependency-type: production
+        update-types: ['major']
 
   - package-ecosystem: github-actions
     directory: /
