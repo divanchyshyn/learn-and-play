@@ -146,6 +146,35 @@ describe('reading a saved trip back', () => {
     expect(isValidTripShape({ ...order, orderCrateId: null })).toBe(false);
   });
 
+  it('refuses a crate set the kind is never dealt with', () => {
+    // A length trip is dealt the two length crates, never two categories, and a
+    // free-sorting trip is dealt all four – so a saved trip that mismatches its
+    // own kind is refused instead of half-understood.
+    const length = createTripPlan(3);
+    expect(isValidTripShape({ ...length, crates: [CATEGORY_CRATE_IDS[0], CATEGORY_CRATE_IDS[1]] })).toBe(false);
+    expect(isValidTripShape({ ...length, crates: [LENGTH_CRATE_IDS[0], CATEGORY_CRATE_IDS[0]] })).toBe(false);
+    expect(isValidTripShape({ ...length, crates: [LENGTH_CRATE_IDS[0]] })).toBe(false);
+    expect(isValidTripShape({ ...length, orderCrateId: CATEGORY_CRATE_IDS[0] })).toBe(false);
+
+    const free = createTripPlan(1);
+    expect(isValidTripShape({ ...free, crates: [...LENGTH_CRATE_IDS] })).toBe(false);
+    expect(isValidTripShape({ ...free, crates: [CATEGORY_CRATE_IDS[0], CATEGORY_CRATE_IDS[1]] })).toBe(false);
+    expect(isValidTripShape({ ...free, orderCrateId: CATEGORY_CRATE_IDS[0] })).toBe(false);
+
+    const order = createTripPlan(4);
+    // An order trip never points at a length crate.
+    expect(isValidTripShape({ ...order, crates: [LENGTH_CRATE_IDS[0]], orderCrateId: LENGTH_CRATE_IDS[0] })).toBe(false);
+    expect(isValidTripShape({ ...order, crates: [...CATEGORY_CRATE_IDS], orderCrateId: CATEGORY_CRATE_IDS[0] })).toBe(false);
+  });
+
+  it('refuses a goal the kind is never dealt with', () => {
+    expect(isValidTripShape({ ...createTripPlan(1), goal: ORDER_TRIP_GOAL })).toBe(false);
+    expect(isValidTripShape({ ...createTripPlan(3), goal: ORDER_TRIP_GOAL })).toBe(false);
+    expect(isValidTripShape({ ...createTripPlan(4), goal: CATCHES_PER_TRIP })).toBe(false);
+    expect(isValidTripShape({ ...createTripPlan(4), goal: 0 })).toBe(false);
+    expect(isValidTripShape({ ...createTripPlan(1), collected: CATCHES_PER_TRIP + 1 })).toBe(false);
+  });
+
   it('refuses impossible progress', () => {
     const trip = createTripPlan(1);
     expect(isValidTripShape({ ...trip, goal: 0 })).toBe(false);

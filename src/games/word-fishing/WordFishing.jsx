@@ -4,13 +4,13 @@ import { GameHeader } from '../../shared/GameHeader.jsx';
 import { speakNorwegian } from '../../shared/speech.js';
 import { usePersistentState } from '../../shared/usePersistentState.js';
 import { CrateDock } from './CrateDock.jsx';
-import { Fangstbok } from './Fangstbok.jsx';
+import { FishingBook } from './FishingBook.jsx';
 import { FishSprite } from './FishSprite.jsx';
 import { SeaScene } from './SeaScene.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
 import {
   DELIVER_TICKS, FISH_ON_SCREEN, REEL_STEPS, TICK_MS, WATERLINE,
-  aboardFish, activeFish, createSea, deliverFish, fishWord,
+  aboardFish, activeFish, canHookFish, createSea, deliverFish, fishWord,
   hookFish, lineTarget, reelFish, slipFish, tickSea,
 } from './sea.js';
 import {
@@ -143,6 +143,10 @@ export function WordFishing() {
     // up the shoal keeps drifting but nobody can be hooked or reeled.
     if (tripCard) return;
     if (fish.status === 'swim') {
+      // A catch still waiting on deck is the task at hand: nobody new can be
+      // hooked, so a tap on the shoal is not a move at all – no sound, no state
+      // change, and no fish drawn as a button (see FishSprite).
+      if (!canHookFish(sea)) return;
       sounds.hook();
       setHintCrateId(null);
       setNotice(null);
@@ -257,7 +261,9 @@ export function WordFishing() {
           onLine={Boolean(onLine)}
           slack={onLine && onLine.status === 'hooked' ? 1 - onLine.grip : 0}
         >
-          {sea.fishes.map((fish) => <FishSprite key={fish.id} fish={fish} onTap={tapFish} />)}
+          {sea.fishes.map((fish) => (
+            <FishSprite key={fish.id} fish={fish} onTap={tapFish} tappable={!tripCard && canHookFish(sea)} />
+          ))}
         </SeaScene>
 
         <div className="trip-order">
@@ -300,7 +306,7 @@ export function WordFishing() {
           </div>
         </>}
 
-        {bookOpen && <Fangstbok journal={journal} onClose={() => setBookOpen(false)} />}
+        {bookOpen && <FishingBook journal={journal} onClose={() => setBookOpen(false)} />}
 
         <p className="visually-hidden" role="status">{landed
           ? `Ordet ${landed.word} ligger i kassen ${crateById(landed.crateId).label}.${landed.gain === 1 ? '' : ` ${landed.word} var allerede i fangstboka.`}`

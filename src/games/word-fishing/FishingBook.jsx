@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { ReefArt } from './ReefArt.jsx';
 import { allWordsCaught, crateTally, hasWord, wordsCaught, wordsLeftToCatch } from './journal.js';
 import { REEF_REWARDS } from './trip.js';
@@ -6,16 +7,66 @@ import { ALL_CRATES, WORD_COUNT, wordsInCrate } from './words.js';
 // How many trip stamps fit on the page before we simply count the rest.
 const MAX_STAMPS = 12;
 
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 // The fishing book: every word the child has caught, the trips they have
 // finished, and the reef they have grown. Locked words show as "?" – a calm
 // picture of what is left to find rather than a punishment for what is missing.
-export function Fangstbok({ journal, onClose }) {
+//
+// It declares itself a modal dialog, so it has to behave like one: the focus
+// moves into the book when it opens, Tab stays inside until it closes, and the
+// button that opened it gets the focus back afterwards.
+export function FishingBook({ journal, onClose }) {
   const crates = ALL_CRATES.filter((crate) => crate.kind === 'category');
   const complete = allWordsCaught(journal);
   const found = new Set(journal.decorations);
+  const panelRef = useRef(null);
+  const openerRef = useRef(null);
+
+  useEffect(() => {
+    // Whatever had the focus (the "Fangstboka" chip) is what gets it back.
+    openerRef.current = document.activeElement;
+    panelRef.current?.focus();
+    return () => {
+      const opener = openerRef.current;
+      if (opener && typeof opener.focus === 'function') opener.focus();
+    };
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (event.key !== 'Tab') return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const stops = [...panel.querySelectorAll(FOCUSABLE)];
+      if (stops.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === panel)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return <div className="book-overlay">
-    <article className="book" role="dialog" aria-modal="true" aria-label="Fangstboka">
+    <article
+      className="book"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Fangstboka"
+      ref={panelRef}
+      tabIndex={-1}
+    >
       <header className="book-head">
         <h2>Fangstboka</h2>
         <p className="book-tally">{wordsCaught(journal)} av {WORD_COUNT} ord fanget</p>
@@ -64,7 +115,7 @@ export function Fangstbok({ journal, onClose }) {
       </section>
 
       <section className="book-reef" aria-label="Sjøbunnen din">
-        <h3>Sjobunnen <span className="book-page-count">{found.size} av {REEF_REWARDS.length}</span></h3>
+        <h3>Sjøbunnen <span className="book-page-count">{found.size} av {REEF_REWARDS.length}</span></h3>
         <ul className="reef-row">
           {REEF_REWARDS.map((reward, index) => {
             const isFound = found.has(index);

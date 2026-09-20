@@ -147,6 +147,13 @@ export function aboardFish(sea) {
   return sea.fishes.find((fish) => fish.status === 'aboard') ?? null;
 }
 
+// Is the crew free to hook a new fish? While a catch is still waiting on deck –
+// to be put in a crate or let go – tapping the shoal changes nothing, so the
+// component asks this before it plays a sound or paints a fish as tappable.
+export function canHookFish(sea) {
+  return !aboardFish(sea);
+}
+
 // The fish the child is busy with, whether it is still on the line or already
 // waiting on deck.
 export function activeFish(sea) {
@@ -238,7 +245,7 @@ function mapFish(sea, fishId, mapEntry) {
 // slips free first, and while a catch is waiting on deck nobody new is hooked –
 // so there is never more than one fish to think about.
 export function hookFish(sea, fishId) {
-  if (aboardFish(sea)) return sea;
+  if (!canHookFish(sea)) return sea;
   const target = sea.fishes.find((fish) => fish.id === fishId);
   if (!target || target.status !== 'swim') return sea;
   const fishes = sea.fishes.map((fish) => {

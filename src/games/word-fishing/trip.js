@@ -136,9 +136,28 @@ export function unlockedRewards(decorationIndexes) {
 
 // ---- Reading a saved trip back -------------------------------------------
 // A stored trip is only trusted when it is a shape this version of the game
-// could actually have dealt: the right kind for its number, a crate set that
-// kind allows, and a progress that has not run past its own goal. Anything else
-// falls back to a fresh trip instead of a boat with no crates.
+// could actually have dealt: the right kind for its number, exactly the crates
+// and the goal that kind is dealt with, and a progress that has not run past
+// its own goal. Anything else falls back to a fresh trip instead of a boat with
+// no crates.
+//
+// The crates each kind is dealt with, and the one goal it is dealt with. A
+// length trip with two category crates, an order trip pointing at a length
+// crate, or an order goal on a free-sorting trip is a shape this game never
+// handed out, so it is refused rather than half-understood.
+function dealtCrates(kind, orderCrateId) {
+  if (kind === 'length') return orderCrateId === null ? [...LENGTH_CRATE_IDS] : null;
+  if (kind === 'order') {
+    const crate = crateById(orderCrateId);
+    return crate && crate.kind === 'category' ? [orderCrateId] : null;
+  }
+  return orderCrateId === null ? [...CATEGORY_CRATE_IDS] : null;
+}
+
+function dealtGoal(kind) {
+  return kind === 'order' ? ORDER_TRIP_GOAL : CATCHES_PER_TRIP;
+}
+
 export function isValidTripShape(saved) {
   if (!saved || typeof saved !== 'object') return false;
   if (typeof saved.kind !== 'string' || !(saved.kind in TRIP_KIND_LABEL)) return false;
@@ -147,14 +166,11 @@ export function isValidTripShape(saved) {
   if (!Array.isArray(saved.crates) || saved.crates.length === 0) return false;
   if (saved.crates.some((crateId) => !crateById(crateId))) return false;
   if (new Set(saved.crates).size !== saved.crates.length) return false;
-  if (!Number.isInteger(saved.goal) || saved.goal < 1) return false;
-  if (!Number.isInteger(saved.collected) || saved.collected < 0) return false;
-  if (saved.kind === 'length') return saved.crates.length === LENGTH_CRATE_IDS.length;
-  if (saved.kind === 'order') {
-    return saved.crates.length === 1
-      && crateById(saved.orderCrateId) !== null
-      && saved.crates[0] === saved.orderCrateId;
-  }
-  return saved.crates.length === CATEGORY_CRATE_IDS.length;
+  if (!Number.isInteger(saved.goal) || !Number.isInteger(saved.collected)) return false;
+  if (saved.collected < 0 || saved.collected > saved.goal) return false;
+  if (saved.goal !== dealtGoal(saved.kind)) return false;
+  const dealt = dealtCrates(saved.kind, saved.orderCrateId);
+  if (!dealt || saved.crates.length !== dealt.length) return false;
+  return saved.crates.every((crateId) => dealt.includes(crateId));
 }
 

@@ -114,8 +114,12 @@ describe('word-fishing trip storage', () => {
     expect(tripCodec.parse('ikke json')).toBeNull();
   });
 
-  it('never restores more progress than the goal', () => {
+  it('refuses progress that runs past the goal', () => {
+    // A delivery is always clamped to the goal (see withDelivery), so a trip
+    // saved past its own goal is a shape this game could not have written: the
+    // whole trip falls back to a fresh one instead of being half-trusted.
     const trip = { ...createTripPlan(1), collected: 99 };
-    expect(tripCodec.parse(tripCodec.serialize(trip)).collected).toBe(trip.goal);
+    expect(tripCodec.parse(tripCodec.serialize(trip))).toBeNull();
+    expect(tripCodec.parse(tripCodec.serialize({ ...createTripPlan(1), collected: 3 })).collected).toBe(3);
   });
 });

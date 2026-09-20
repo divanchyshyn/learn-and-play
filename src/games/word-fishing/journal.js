@@ -119,7 +119,7 @@ export const tripCodec = {
         kind: saved.kind,
         crates: [...saved.crates],
         goal: saved.goal,
-        collected: Math.min(saved.goal, saved.collected),
+        collected: saved.collected,
         orderCrateId: saved.kind === 'order' ? saved.orderCrateId : null,
       };
     } catch {

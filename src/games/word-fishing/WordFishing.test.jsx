@@ -226,6 +226,41 @@ describe('word-fishing catch and reward', () => {
     expect(screen.getByText(`1 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT - 1} igjen.`)).toBeInTheDocument();
   });
 
+  it('makes the shoal inert while a catch waits on deck – nothing looks tappable', () => {
+    const hookSound = vi.spyOn(sounds, 'hook');
+    const view = render(<WordFishing />);
+    const word = catchWord(view);
+    expect(view.container.querySelector('.fish-aboard')).toBeTruthy();
+    hookSound.mockClear();
+
+    // The fish that has landed is scenery now: the catch card and the crates are
+    // what the child acts on, so it is not a button (nor is anything else).
+    expect(view.container.querySelector('.fish-aboard button')).toBeNull();
+    expect(view.container.querySelector('.fish-aboard .fish-art').tagName).toBe('SPAN');
+    expect(screen.queryByRole('button', { name: /feste kroken/ })).toBeNull();
+
+    // Tapping a swimming fish is therefore not a move at all: no sound, no state.
+    let swimming = null;
+    for (let guard = 0; guard < 400 && !swimming; guard += 1) {
+      swimming = visibleFish(view).find((element) => !element.className.includes('aboard'));
+      if (!swimming) ticks(5);
+    }
+    expect(swimming).toBeTruthy();
+    fireEvent.click(swimming.querySelector('.fish-art'));
+    expect(hookSound).not.toHaveBeenCalled();
+    expect(view.container.querySelector('.fish-aboard')).toBeTruthy();
+    expect(view.container.querySelector('.catch-card')).toBeTruthy();
+    expect(view.container.querySelector('.catch-word').textContent).toContain(word);
+
+    // Once the catch is in its crate, the shoal answers again.
+    fireEvent.click(crateElement(view, categoryOf(word)));
+    ticks(DELIVER_TICKS + 2);
+    expect(view.container.querySelector('.fish-aboard')).toBeNull();
+    fireEvent.click(firstVisibleFish(view).querySelector('.fish-art'));
+    expect(hookSound).toHaveBeenCalled();
+    expect(view.container.querySelector('.fish-hooked')).toBeTruthy();
+  });
+
   it('lets a fish that belongs in another crate swim on, with nothing lost', () => {
     const view = render(<WordFishing />);
     const word = catchWord(view);
@@ -440,6 +475,9 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(document.querySelector('.confetti-layer')).toBeTruthy();
     // The dock says why nothing can be answered until the next trip starts.
     expect(view.container.querySelector('.dock-hint').textContent).toMatch(/ny tur/i);
+    // Nobody can be hooked while the card is up, so nothing may look tappable.
+    expect(view.container.querySelectorAll('.fish button')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /feste kroken|Sveiv inn/ })).toBeNull();
     // The reef grew: the first reward is painted on the seabed.
     expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
     expect(view.container.querySelector('.reward-coral')).toBeNull();
@@ -516,6 +554,30 @@ describe('word-fishing rewards and the fishing book', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Slå av lyd' }));
     expect(screen.getByRole('button', { name: 'Slå på lyd' })).toBeInTheDocument();
     expect(window.localStorage.getItem('wordFishing:muted')).toBe('1');
+  });
+
+  it('behaves like the modal dialog it declares itself to be', () => {
+    render(<WordFishing />);
+    const opener = screen.getByRole('button', { name: /Fangstboka/ });
+    opener.focus();
+    fireEvent.click(opener);
+
+    // The focus moves into the book…
+    const book = screen.getByRole('dialog', { name: 'Fangstboka' });
+    expect(document.activeElement).toBe(book);
+
+    // …Tab stays inside it instead of wandering off behind the overlay…
+    const close = screen.getByRole('button', { name: 'Lukk fangstboka' });
+    close.focus();
+    fireEvent.keyDown(close, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(close);
+
+    // …and closing it hands the focus back to the button that opened it.
+    fireEvent.click(close);
+    expect(screen.queryByRole('dialog', { name: 'Fangstboka' })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(opener);
   });
 });
 

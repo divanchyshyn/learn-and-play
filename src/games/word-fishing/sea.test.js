@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   DELIVER_TICKS, FISH_ON_SCREEN, FLOAT_POINT, GRIP_TICKS, HOOK_LANDING, LANES, REEL_STEPS,
   SAG_MAX, SPEED_MAX, SPEED_MIN, STRUGGLE_SWING,
-  aboardFish, activeFish, createSea, deliverFish, fishPosition, fishWord, hookedFish,
+  aboardFish, activeFish, canHookFish, createSea, deliverFish, fishPosition, fishWord, hookedFish,
   hookFish, lineTarget, reelFish, slipFish, tickSea,
 } from './sea.js';
 import { acceptsWord, createTripPlan } from './trip.js';
@@ -294,6 +294,25 @@ describe('word-fishing the fight on the line', () => {
 
 
 describe('word-fishing releasing and delivering', () => {
+  it('says whether a new fish may be hooked at all', () => {
+    const sea = createSea(freeSortTrip());
+    // Nothing on deck: the shoal is open for business.
+    expect(canHookFish(sea)).toBe(true);
+    expect(canHookFish(hookFish(sea, sea.fishes[0].id))).toBe(true);
+
+    // A catch on deck is the task at hand – nobody new can be hooked, and hooking
+    // anyone else changes nothing at all.
+    const onDeck = reelIn(sea, sea.fishes[0].id);
+    expect(canHookFish(onDeck)).toBe(false);
+    const other = onDeck.fishes.find((fish) => fish.status === 'swim');
+    expect(hookFish(onDeck, other.id)).toBe(onDeck);
+    expect(hookedFish(hookFish(onDeck, other.id))).toBeNull();
+
+    // Let it go (or crate it) and the shoal answers again.
+    expect(canHookFish(slipFish(onDeck, sea.fishes[0].id))).toBe(true);
+    expect(canHookFish(deliverFish(onDeck, sea.fishes[0].id, 'animals'))).toBe(true);
+  });
+
   it('sends a fish back into the water exactly where it was hooked', () => {
     const sea = createSea(freeSortTrip());
     const id = sea.fishes[0].id;

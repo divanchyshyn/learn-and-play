@@ -5,9 +5,13 @@ import { REEL_STEPS, fishPosition, fishWord } from './sea.js';
 // `fish-<colour>` class in style.css, so a new colour is one CSS line and
 // nothing binary ever ships with the game.
 //
-// A swimming fish is a button (tap it to put it on the line); a fish on the line
-// is a button too (tap it to wind the reel). A fish that has been delivered is
-// purely decorative – it is busy sinking into its crate.
+// A fish is a button only while tapping it would really do something: a fish
+// swimming freely is tapped to put it on the line, a fish on the line is tapped
+// to wind the reel. A fish that has landed, is sinking into a crate, or is busy
+// because a catch already waits on deck is scenery – the catch card and the
+// crates are what the child acts on then, and nothing should look tappable
+// while it is not. A decorative fish is a non-interactive span for a screen
+// reader as well, so nothing useless is announced.
 function FishArt() {
   return <svg className="fish-drawing" viewBox="0 0 120 72" aria-hidden="true" focusable="false">
     <path className="fish-tail" d="M34 36 L4 8 L14 36 L4 64 Z" />
@@ -33,19 +37,19 @@ function ReelMeter({ step, slack }) {
   </span>;
 }
 
-export function FishSprite({ fish, onTap }) {
+export function FishSprite({ fish, onTap, tappable = true }) {
   const word = fishWord(fish);
   const { x, y } = fishPosition(fish);
   const swimming = fish.status === 'swim';
   const onLine = fish.status === 'hooked';
   const aboard = fish.status === 'aboard';
   const busy = fish.status === 'delivered';
+  const pressable = tappable && (swimming || onLine);
   const className = `fish fish-${fish.color} fish-${fish.status}${busy ? ' is-away' : ''}`;
 
   return <div className={className} style={{ left: `${x}%`, top: `${y}%`, '--dir': fish.dir }}>
-    {busy
-      ? <span className="fish-art"><FishArt /></span>
-      : <button
+    {pressable
+      ? <button
         type="button"
         className="fish-art"
         onClick={() => onTap(fish)}
@@ -54,7 +58,8 @@ export function FishSprite({ fish, onTap }) {
           : `Sveiv inn fisken med ordet ${word} – ${fish.reelStep} av ${REEL_STEPS}`}
       >
         <FishArt />
-      </button>}
+      </button>
+      : <span className="fish-art" aria-hidden="true"><FishArt /></span>}
 
     {swimming && <span className="fish-tag" aria-hidden="true">{word}</span>}
     {onLine && <ReelMeter step={fish.reelStep} slack={fish.grip < 0.45} />}
