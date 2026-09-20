@@ -17,11 +17,14 @@ import { GAME_KEY, PROGRESS_KEY, gameCodec, pieceSessionCodec } from './progress
 import { PAGE_GUTTER, PAGE_MAX_WIDTH, PAD_GAP, PAD_SIZE, boardLayout } from './layout.js';
 import { shuffle } from '../../shared/random.js';
 import { usePersistentState } from '../../shared/usePersistentState.js';
-import puzzleCarrier from './puzzle-assets/carrier.webp';
 import puzzleSubmarine from './puzzle-assets/submarine-yard.webp';
-import puzzleChinook from './puzzle-assets/chinook.webp';
-import puzzleSr71 from './puzzle-assets/sr71.webp';
-import puzzleTomcat from './puzzle-assets/tomcat.webp';
+import puzzleChipmunk from './puzzle-assets/chipmunk.webp';
+import puzzleRedSquirrel from './puzzle-assets/red-squirrel.webp';
+import puzzleCherryShrimp from './puzzle-assets/cherry-shrimp.webp';
+import puzzleBettaFish from './puzzle-assets/betta-fish.webp';
+import puzzleCrab from './puzzle-assets/crab.webp';
+import puzzleB2Spirit from './puzzle-assets/b-2-spirit.webp';
+import puzzleBattleship from './puzzle-assets/battleship.webp';
 
 const MOVES = {
   up: [0, -1],
@@ -59,10 +62,22 @@ const CELEBRATE_DELAY_MS = 340;
 // confirming tap; after this the arm quietly times out.
 const RESET_CONFIRM_MS = 3000;
 
-// The picture rotates between five prepared puzzle images (one per full run).
-// The images are square crops of the originals the feature shipped with; the
-// four pieces are just the four quadrants, sliced in CSS at render time.
-const PUZZLE_IMAGES = [puzzleCarrier, puzzleSubmarine, puzzleChinook, puzzleSr71, puzzleTomcat];
+// The picture rotates between the eight prepared puzzle pictures (one per full
+// run): the submarine yard plus a chipmunk, a red squirrel, a cherry shrimp, a
+// betta fish, a crab, a B-2 Spirit and a battleship. Every picture is a square
+// 1024 x 1024 crop of its original, so the four pieces are simply its four
+// quadrants, sliced in CSS at render time.
+// Exported so tests can check the rotation stays whole and repeat-free.
+export const PUZZLE_IMAGES = [
+  puzzleSubmarine,
+  puzzleChipmunk,
+  puzzleCherryShrimp,
+  puzzleBattleship,
+  puzzleRedSquirrel,
+  puzzleBettaFish,
+  puzzleB2Spirit,
+  puzzleCrab,
+];
 
 // A fresh maze is carved for every game: bigger than the old hand-drawn maps,
 // with real branches and dead ends to explore - but exactly one way out.

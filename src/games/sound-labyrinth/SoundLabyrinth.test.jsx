@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, within } from '@testing-library/react';
 import { WORDS_BY_THEME } from './words.js';
 import { applyDrop, scrambleLetters } from './SpellPuzzle.jsx';
-import { SoundLabyrinth, createGame, THEME_BG } from './SoundLabyrinth.jsx';
+import { SoundLabyrinth, PUZZLE_IMAGES, createGame, THEME_BG } from './SoundLabyrinth.jsx';
+import { createPuzzleSession } from './PiecePuzzle.jsx';
 import { PROGRESS_KEY, GAME_KEY, pieceSessionCodec, gameCodec } from './progress.js';
 import { BOARD_BORDER, PAGE_GUTTER, PAGE_MAX_WIDTH, PAD_COLUMN, boardLayout } from './layout.js';
 
@@ -457,6 +458,19 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
     // The ocean maze swaps the forest fox for a sea turtle.
     expect(view.container.querySelector('.runner').textContent).toBe('🐢');
+  });
+
+  it('rotates between eight different shipped pictures, none of them missing', () => {
+    // The rotation is the whole picture library: eight square crops, one per full
+    // run, and no picture may repeat inside it.
+    expect(PUZZLE_IMAGES).toHaveLength(8);
+    expect(PUZZLE_IMAGES.every((src) => typeof src === 'string' && src.length > 0)).toBe(true);
+    expect(new Set(PUZZLE_IMAGES).size).toBe(PUZZLE_IMAGES.length);
+    // Whatever the picture dice roll, it lands on a picture that exists.
+    for (let step = 0; step < 32; step += 1) {
+      const session = createPuzzleSession(PUZZLE_IMAGES.length, () => step / 32);
+      expect(PUZZLE_IMAGES[session.imageIndex]).toBeTruthy();
+    }
   });
 
   it('collects one piece per solved maze and celebrates the full picture after four', () => {
