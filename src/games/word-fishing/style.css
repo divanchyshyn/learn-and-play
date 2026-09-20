@@ -306,9 +306,9 @@ button.fish-art:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 4px
 }
 @keyframes card-pop { from { opacity: 0; translate: -50% calc(-50% + 14px); } to { opacity: 1; translate: -50% -50%; } }
 .catch-kicker { margin: 0; color: #285362; font-size: .92rem; font-weight: 900; }
-.catch-word { display: inline-flex; align-items: baseline; gap: 8px; padding: 2px 6px; border: 0; background: none; color: #0b7897; font-weight: 900; font-size: clamp(1.9rem, 8vw, 2.7rem); line-height: 1.05; }
-.catch-word:hover { text-decoration: underline dotted #92c1c8 3px; text-underline-offset: 6px; }
-.catch-speaker { font-size: .5em; }
+/* The caught word is meant to be read, never tapped: plain text, no control,
+   and nothing in this game ever speaks a word aloud. */
+.catch-word { margin: 0; padding: 2px 6px; color: #0b7897; font-weight: 900; font-size: clamp(1.9rem, 8vw, 2.7rem); line-height: 1.05; }
 .catch-card .outline-button { width: 100%; }
 
 .primary-button, .outline-button {
@@ -475,7 +475,7 @@ button.fish-art:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 4px
 
 
 /* ---- Focus rings and small screens --------------------------------------- */
-.fish-art:focus-visible, .catch-word:focus-visible, .crate:focus-visible, .chip:focus-visible,
+.fish-art:focus-visible, .crate:focus-visible, .chip:focus-visible,
 .primary-button:focus-visible, .outline-button:focus-visible, .notice-card:focus-visible,
 .book-close:focus-visible, .back-link:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
 

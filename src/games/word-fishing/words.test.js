@@ -1,16 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ALL_CRATES, CATEGORY_CRATE_IDS, CRATE_TARGET, LENGTH_CRATE_IDS, SHORT_WORD_MAX,
-  TARGET_WORD_COUNT, WORD_BANK, WORD_CATEGORIES, WORD_COUNT, categoryForWord, crateById,
-  crateTarget, crateWordCount, drawWordIndexWhere, isWordInBank, pickWordOrder, wordsInCrate,
+  ALL_CRATES, CATEGORY_CRATE_IDS, CRATE_TARGET, LENGTH_CRATE_IDS, MAX_WORD_LENGTH,
+  SHORT_WORD_MAX, TARGET_WORD_COUNT, WORD_BANK, WORD_CATEGORIES, WORD_COUNT, categoryForWord,
+  crateById, crateTarget, crateWordCount, drawWordIndexWhere, isWordInBank, pickWordOrder,
+  wordsInCrate,
 } from './words.js';
 
 describe('word-fishing word bank', () => {
   it('offers a healthy pile of short words', () => {
     expect(WORD_BANK.length).toBeGreaterThanOrEqual(40);
+    expect(MAX_WORD_LENGTH).toBe(5);
     for (const entry of WORD_BANK) {
       expect(entry.word.length).toBeGreaterThanOrEqual(2);
-      expect(entry.word.length).toBeLessThanOrEqual(7);
+      // Reading is the whole task – no fish carries a word to be worked out
+      // letter by letter, so every word fits MAX_WORD_LENGTH.
+      expect(entry.word.length).toBeLessThanOrEqual(MAX_WORD_LENGTH);
     }
   });
 

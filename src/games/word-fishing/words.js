@@ -1,11 +1,15 @@
 // Simple Norwegian words at 1st-grade level, grouped so a fishing trip can sort
 // its catch into crates. Words are short and phonetically regular where possible.
 //
-// Deliberately no picture hints on the fish: the reading practice should
-// come from decoding, and the optional scaffold is *hearing* the word
-// (tap the word on a caught fish), not guessing it from an image.
+// Deliberately no picture hints and no pronunciation anywhere in the game: the
+// reading practice is decoding the word on the fish, so no word is ever spoken
+// aloud and no word can be tapped to be heard.
 
 import { shuffle } from '../../shared/random.js';
+
+// The longest word a fish may carry. Reading is the whole task here, so every
+// word stays short enough to decode at a glance, even on a small screen.
+export const MAX_WORD_LENGTH = 5;
 
 // The crate a word belongs to is the game's reading task: every catch has to be
 // decoded and put in the right crate. Every category crate draws from a pool of
@@ -94,13 +98,13 @@ export const WORD_BANK = [
   { word: 'suppe', cat: 'food' },
   { word: 'ris', cat: 'food' },
   { word: 'salt', cat: 'food' },
-  { word: 'sukker', cat: 'food' },
+  { word: 'brus', cat: 'food' },
   { word: 'smør', cat: 'food' },
   { word: 'saft', cat: 'food' },
   { word: 'vann', cat: 'food' },
   { word: 'tomat', cat: 'food' },
   { word: 'agurk', cat: 'food' },
-  { word: 'gulrot', cat: 'food' },
+  { word: 'bær', cat: 'food' },
   { word: 'potet', cat: 'food' },
   // Nature
   { word: 'sol', cat: 'nature' },
@@ -115,13 +119,13 @@ export const WORD_BANK = [
   { word: 'hav', cat: 'nature' },
   { word: 'vind', cat: 'nature' },
   { word: 'gress', cat: 'nature' },
-  { word: 'blomst', cat: 'nature' },
+  { word: 'rose', cat: 'nature' },
   { word: 'fjell', cat: 'nature' },
   { word: 'elv', cat: 'nature' },
   { word: 'bølge', cat: 'nature' },
   { word: 'sand', cat: 'nature' },
   { word: 'jord', cat: 'nature' },
-  { word: 'stjerne', cat: 'nature' },
+  { word: 'natt', cat: 'nature' },
   { word: 'tåke', cat: 'nature' },
   // The home
   { word: 'hus', cat: 'home' },
@@ -143,7 +147,7 @@ export const WORD_BANK = [
   { word: 'pute', cat: 'home' },
   { word: 'kniv', cat: 'home' },
   { word: 'skje', cat: 'home' },
-  { word: 'nøkkel', cat: 'home' },
+  { word: 'hylle', cat: 'home' },
 ];
 
 export const WORD_COUNT = WORD_BANK.length;
