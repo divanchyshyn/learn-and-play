@@ -9,8 +9,8 @@ import { shuffle } from '../../shared/random.js';
 
 // The crate a word belongs to is the game's reading task: every catch has to be
 // decoded and put in the right crate. The four category crates hold exactly the
-// same number of words – ten each, forty in all – so "collect them all" is a
-// balanced goal a child can finish. crateWordCount always tells the truth, so
+// same number of words – twenty each, eighty in all – so "collect them all" is
+// a balanced goal a child can finish. crateWordCount always tells the truth, so
 // the crates, the fishing book and the finale follow the bank on their own.
 export const WORD_CATEGORIES = {
   animals: 'Dyr',
@@ -71,6 +71,16 @@ export const WORD_BANK = [
   { word: 'hest', cat: 'animals' },
   { word: 'rev', cat: 'animals' },
   { word: 'fugl', cat: 'animals' },
+  { word: 'bjørn', cat: 'animals' },
+  { word: 'ulv', cat: 'animals' },
+  { word: 'elg', cat: 'animals' },
+  { word: 'geit', cat: 'animals' },
+  { word: 'and', cat: 'animals' },
+  { word: 'ørn', cat: 'animals' },
+  { word: 'kanin', cat: 'animals' },
+  { word: 'frosk', cat: 'animals' },
+  { word: 'bie', cat: 'animals' },
+  { word: 'maur', cat: 'animals' },
   // Food
   { word: 'is', cat: 'food' },
   { word: 'ost', cat: 'food' },
@@ -82,6 +92,16 @@ export const WORD_BANK = [
   { word: 'pære', cat: 'food' },
   { word: 'banan', cat: 'food' },
   { word: 'suppe', cat: 'food' },
+  { word: 'ris', cat: 'food' },
+  { word: 'salt', cat: 'food' },
+  { word: 'sukker', cat: 'food' },
+  { word: 'smør', cat: 'food' },
+  { word: 'saft', cat: 'food' },
+  { word: 'vann', cat: 'food' },
+  { word: 'tomat', cat: 'food' },
+  { word: 'agurk', cat: 'food' },
+  { word: 'gulrot', cat: 'food' },
+  { word: 'potet', cat: 'food' },
   // Nature
   { word: 'sol', cat: 'nature' },
   { word: 'måne', cat: 'nature' },
@@ -93,6 +113,16 @@ export const WORD_BANK = [
   { word: 'blad', cat: 'nature' },
   { word: 'stein', cat: 'nature' },
   { word: 'hav', cat: 'nature' },
+  { word: 'vind', cat: 'nature' },
+  { word: 'gress', cat: 'nature' },
+  { word: 'blomst', cat: 'nature' },
+  { word: 'fjell', cat: 'nature' },
+  { word: 'elv', cat: 'nature' },
+  { word: 'bølge', cat: 'nature' },
+  { word: 'sand', cat: 'nature' },
+  { word: 'jord', cat: 'nature' },
+  { word: 'stjerne', cat: 'nature' },
+  { word: 'tåke', cat: 'nature' },
   // The home
   { word: 'hus', cat: 'home' },
   { word: 'bok', cat: 'home' },
@@ -104,6 +134,16 @@ export const WORD_BANK = [
   { word: 'lue', cat: 'home' },
   { word: 'kopp', cat: 'home' },
   { word: 'lampe', cat: 'home' },
+  { word: 'gulv', cat: 'home' },
+  { word: 'tak', cat: 'home' },
+  { word: 'vegg', cat: 'home' },
+  { word: 'vindu', cat: 'home' },
+  { word: 'sofa', cat: 'home' },
+  { word: 'teppe', cat: 'home' },
+  { word: 'pute', cat: 'home' },
+  { word: 'kniv', cat: 'home' },
+  { word: 'skje', cat: 'home' },
+  { word: 'nøkkel', cat: 'home' },
 ];
 
 export const WORD_COUNT = WORD_BANK.length;
@@ -132,17 +172,13 @@ export function pickWordOrder() {
   return shuffle(WORD_BANK.map((_, index) => index));
 }
 
-// Walk the shuffled order from `pos`, skipping any word that is already
-// swimming around on screen, so two fish never show the same word at once.
-// Wraps around when the bank runs dry mid-session; if every single word is
-// somehow taken it falls back to the next in line rather than getting stuck.
-export function drawWordIndex(order, pos, takenIndexes) {
-  return drawWordIndexWhere(order, pos, takenIndexes, () => true);
-}
-
-// The same walk, but only words that `accepts` waves through may be drawn. A
-// trip that asks for one kind of word uses this, so the child never has to wait
-// for a fish that counts.
+// Walk the shuffled order from `pos`, skipping any word that is already on
+// screen, so two fish never show the same word at once, and skipping any word
+// `accepts` refuses. A trip that asks for one kind of word draws through this,
+// so the child never has to wait for a fish that counts; the sea also refuses
+// words the fishing book already has. When nothing in the whole bank is allowed
+// – say, every word it could carry is already caught – it hands out nothing:
+// the caller may not show a word the child has already caught.
 export function drawWordIndexWhere(order, pos, takenIndexes, accepts) {
   const total = order.length;
   for (let step = 0; step < total; step += 1) {
@@ -150,6 +186,5 @@ export function drawWordIndexWhere(order, pos, takenIndexes, accepts) {
     if (accepts(candidate) && !takenIndexes.has(candidate)) return { index: candidate, nextPos: pos + 1 };
     pos += 1;
   }
-  // Nothing left to draw: hand out the next in line rather than getting stuck.
-  return { index: order[pos % total], nextPos: pos + 1 };
+  return { index: null, nextPos: pos };
 }

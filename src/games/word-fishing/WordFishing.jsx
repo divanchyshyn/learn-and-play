@@ -19,8 +19,8 @@ import {
 } from './trip.js';
 import {
   ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, allWordsCaught, createJournal, hasWord,
-  journalCodec, recordCatch, recordDecoration, recordTrip, tripCodec,
-  wordsCaught, wordsLeftToCatch,
+  journalCodec, openCategoryIds, recordCatch, recordDecoration, recordTrip, tripCodec,
+  tripHasWork, wordsCaught, wordsLeftToCatch,
 } from './journal.js';
 import { WORD_COUNT, crateById } from './words.js';
 
@@ -47,7 +47,8 @@ export function dockHint(sea, tripCard = null) {
 
 // Neutral narration for screen readers – and a calm map of the flow. The tug on
 // the line is part of the story, so it is spoken too.
-export function statusLine(sea, trip) {
+export function statusLine(sea, trip, finale = false) {
+  if (finale) return 'Gratulerer! Alle ordene er fanget.';
   // A fish breaking free is the most immediate thing that can happen.
   if (sea.fishes.some((fish) => fish.escaped)) return 'Fisken slapp unna – den svømmer videre.';
   const fish = activeFish(sea);
@@ -62,11 +63,11 @@ export function statusLine(sea, trip) {
 export function WordFishing() {
   const [journal, setJournal] = usePersistentState(JOURNAL_KEY, createJournal, journalCodec);
   const [trip, setTrip] = usePersistentState(TRIP_KEY, () => createTripPlan(1), tripCodec);
-  const [sea, setSea] = useState(() => createSea(trip));
+  const [sea, setSea] = useState(() => createSea(trip, new Set(journal.words)));
   const [soundOn, setSoundOn] = useState(!isMuted());
   const [bookOpen, setBookOpen] = useState(false);
   const [notice, setNotice] = useState(null); // { kind: 'notWanted' } while a fish had nowhere to go
-  const [tripCard, setTripCard] = useState(null); // { tripNumber, reward }
+  const [tripCard, setTripCard] = useState(null); // { tripNumber, reward, fullCrate }
   const [hintCrateId, setHintCrateId] = useState(null);
   const [landed, setLanded] = useState(null); // { crateId, word, gain, key } just after a catch lands
 
@@ -74,6 +75,19 @@ export function WordFishing() {
   const aboard = aboardFish(sea);
   const rewards = unlockedRewards(journal.decorations);
   const finale = allWordsCaught(journal);
+
+  // A saved trip can be out of work – say, its one ordered crate was already
+  // filled last visit. The child must never be stuck on a boat that can take
+  // nothing, so a fresh plan with words left is dealt once, on the way in.
+  const tripChecked = useRef(false);
+  useEffect(() => {
+    if (tripChecked.current) return;
+    tripChecked.current = true;
+    if (allWordsCaught(journal) || tripHasWork(trip, journal)) return;
+    const plan = createTripPlan(trip.number, Math.random, openCategoryIds(journal));
+    setTrip(plan);
+    setSea(createSea(plan, new Set(journal.words)));
+  }, [journal, trip, setTrip]);
 
   // The whole sea lives on one calm heartbeat; every rule runs inside tickSea,
   // so the component only renders and plays sounds.
@@ -127,21 +141,31 @@ export function WordFishing() {
     return () => window.removeEventListener('keydown', onKey);
   }, [bookOpen]);
 
-  // Every trip is a fresh sea: new shoal, new deal, same crates.
-  function startTrip(tripNumber) {
-    const plan = createTripPlan(tripNumber);
+  // Every trip is a fresh sea: new shoal, new deal, same crates. The deal never
+  // orders a category the fishing book has already filled.
+  function startTrip(tripNumber, planJournal = journal) {
+    const plan = createTripPlan(tripNumber, Math.random, openCategoryIds(planJournal));
     setTrip(plan);
-    setSea(createSea(plan));
+    setSea(createSea(plan, new Set(planJournal.words)));
     setNotice(null);
     setTripCard(null);
     setHintCrateId(null);
     setLanded(null);
   }
 
+  // The whole book is full: back to a brand-new hunt, with an empty book.
+  function startOver() {
+    sounds.select();
+    const fresh = createJournal();
+    setJournal(fresh);
+    startTrip(1, fresh);
+  }
+
   function tapFish(fish) {
-    // The end-of-trip card is a moment to read, not a place to fish: while it is
-    // up the shoal keeps drifting but nobody can be hooked or reeled.
-    if (tripCard) return;
+    // The end-of-trip card, and the grand finale, are moments to read, not
+    // places to fish: while either is up the shoal keeps drifting but nobody can
+    // be hooked or reeled.
+    if (tripCard || finale) return;
     if (fish.status === 'swim') {
       // A catch still waiting on deck is the task at hand: nobody new can be
       // hooked, so a tap on the shoal is not a move at all – no sound, no state
@@ -165,7 +189,7 @@ export function WordFishing() {
   // crate glows, and the word is read aloud. Nothing is lost and nothing counts.
   function putInCrate(crateId) {
     const fish = aboard;
-    if (!fish) return;
+    if (!fish || finale) return;
     const word = fishWord(fish);
     const wanted = crateForWord(trip, word);
 
@@ -188,14 +212,26 @@ export function WordFishing() {
     let nextJournal = isNewWord ? recordCatch(journal, word) : journal;
     const nextTrip = withDelivery(trip);
 
-    // The trip is celebrated exactly on the delivery that completes it – a trip
-    // that was already full (say, restored from a save) never awards twice.
-    if (tripComplete(nextTrip) && !tripComplete(trip)) {
+    // The trip is celebrated on the delivery that completes it, and also when
+    // its crates cannot take another word: an order trip whose crate just filled
+    // has nothing left to fish for, and the child is not made to finish it. A
+    // trip that was already full (say, restored from a save) never awards twice.
+    const final = allWordsCaught(nextJournal);
+    const finished = tripComplete(nextTrip) && !tripComplete(trip);
+    const workless = !tripHasWork(nextTrip, nextJournal);
+    if (final || finished || workless) {
       const trips = nextJournal.trips + 1;
       const reward = rewardForTrip(trips);
       nextJournal = recordDecoration(recordTrip(nextJournal), reward ? trips - 1 : -1);
       sounds.fanfare();
-      setTripCard({ tripNumber: trips, reward });
+      // The final catch ends the whole game; the finale screen takes over.
+      if (!final) {
+        setTripCard({
+          tripNumber: trips,
+          reward,
+          fullCrate: workless && !finished ? crateById(nextTrip.orderCrateId) : null,
+        });
+      }
     }
 
     setJournal(nextJournal);
@@ -216,6 +252,7 @@ export function WordFishing() {
   }
 
   function newTrip() {
+    if (finale) return;
     sounds.select();
     startTrip(journal.trips + 1);
   }
@@ -239,7 +276,7 @@ export function WordFishing() {
           Fangstboka <span aria-hidden="true">📖</span>
           <span className="chip-badge">{wordsCaught(journal)}/{WORD_COUNT}</span>
         </button>
-        <button className="chip" type="button" onClick={newTrip}>Ny tur <span aria-hidden="true">🎣</span></button>
+        <button className="chip" type="button" onClick={newTrip} disabled={finale}>Ny tur <span aria-hidden="true">🎣</span></button>
         <button
           className="chip chip-icon"
           type="button"
@@ -292,17 +329,34 @@ export function WordFishing() {
           <span className="notice-note">{tripRequest(trip)}</span>
         </button>}
 
-        {tripCard && <>
+        {tripCard && !finale && <>
           <ConfettiLayer count={44} />
           <div className="trip-done" role="dialog" aria-live="polite" aria-label={`Tur ${tripCard.tripNumber} er ferdig`}>
             <p className="trip-done-mascot" aria-hidden="true">{tripCard.reward ? '⭐' : '🎣'}</p>
             <h2>Tur {tripCard.tripNumber} er ferdig!</h2>
+            {tripCard.fullCrate && <p className="trip-done-full">
+              Kassen {tripCard.fullCrate.label} er full – vi fisker videre etter noe annet!
+            </p>}
             {tripCard.reward && <p className="trip-done-reward">
               Du fant {tripCard.reward.label.toLowerCase()} på sjøbunnen!
             </p>}
-            {finale && <p className="trip-done-finale"><span aria-hidden="true">🎉</span> {ALL_WORDS_MESSAGE}</p>}
             <p className="trip-done-tally">{wordsCaught(journal)} av {WORD_COUNT} ord i fangstboka</p>
             <button className="primary-button" type="button" onClick={newTrip}>Ny tur <span aria-hidden="true">🎣</span></button>
+          </div>
+        </>}
+
+        {finale && <>
+          <ConfettiLayer count={90} />
+          <div className="finale-done" role="dialog" aria-live="polite" aria-label="Gratulerer med alle ordene">
+            <p className="finale-mascot" aria-hidden="true">🏆</p>
+            <h2>Gratulerer!</h2>
+            <p className="finale-message"><span aria-hidden="true">🎉</span> {ALL_WORDS_MESSAGE}</p>
+            <p className="finale-tally">
+              Du har fanget alle {WORD_COUNT} ordene og funnet {rewards.length} skatter på sjøbunnen!
+            </p>
+            <button className="primary-button" type="button" onClick={startOver}>
+              Start på nytt <span aria-hidden="true">🔄</span>
+            </button>
           </div>
         </>}
 
@@ -310,10 +364,10 @@ export function WordFishing() {
 
         <p className="visually-hidden" role="status">{landed
           ? `Ordet ${landed.word} ligger i kassen ${crateById(landed.crateId).label}.${landed.gain === 1 ? '' : ` ${landed.word} var allerede i fangstboka.`}`
-          : statusLine(sea, trip)}</p>
+          : statusLine(sea, trip, finale)}</p>
       </div>
 
-      <p className="dock-hint" aria-hidden="true">{dockHint(sea, tripCard)}</p>
+      <p className="dock-hint" aria-hidden="true">{finale ? 'Alle ordene er fanget! 🎉' : dockHint(sea, tripCard)}</p>
       <CrateDock
         trip={trip}
         journal={journal}

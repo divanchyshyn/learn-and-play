@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ALL_CRATES, CATEGORY_CRATE_IDS, LENGTH_CRATE_IDS, SHORT_WORD_MAX, WORD_BANK, WORD_CATEGORIES,
-  WORD_COUNT, categoryForWord, crateById, crateWordCount, drawWordIndex, drawWordIndexWhere,
+  WORD_COUNT, categoryForWord, crateById, crateWordCount, drawWordIndexWhere,
   isWordInBank, pickWordOrder, wordsInCrate,
 } from './words.js';
 
@@ -43,10 +43,10 @@ describe('word-fishing word bank', () => {
     expect(CATEGORY_CRATE_IDS).toHaveLength(4);
     const counts = CATEGORY_CRATE_IDS.map((id) => crateWordCount(id));
     expect(new Set(counts).size).toBe(1);
-    // Ten words in every crate: forty words to collect in all – a goal a child
-    // can actually finish, with the same work behind every crate.
-    expect(counts).toEqual([10, 10, 10, 10]);
-    expect(WORD_COUNT).toBe(40);
+    // Twenty words in every crate: eighty words to collect in all – a goal a
+    // child can actually finish, with the same work behind every crate.
+    expect(counts).toEqual([20, 20, 20, 20]);
+    expect(WORD_COUNT).toBe(80);
     expect(wordsInCrate(CATEGORY_CRATE_IDS[0])).toHaveLength(counts[0]);
   });
 });
@@ -84,27 +84,27 @@ describe('word-fishing word dealing', () => {
 
   it('walks the order in sequence when nothing is taken', () => {
     const order = [5, 2, 9];
-    expect(drawWordIndex(order, 0, new Set())).toEqual({ index: 5, nextPos: 1 });
-    expect(drawWordIndex(order, 1, new Set())).toEqual({ index: 2, nextPos: 2 });
-    expect(drawWordIndex(order, 2, new Set())).toEqual({ index: 9, nextPos: 3 });
+    const any = () => true;
+    expect(drawWordIndexWhere(order, 0, new Set(), any)).toEqual({ index: 5, nextPos: 1 });
+    expect(drawWordIndexWhere(order, 1, new Set(), any)).toEqual({ index: 2, nextPos: 2 });
+    expect(drawWordIndexWhere(order, 2, new Set(), any)).toEqual({ index: 9, nextPos: 3 });
   });
 
   it('skips words that are already on screen', () => {
     const order = [0, 1, 2];
-    expect(drawWordIndex(order, 0, new Set([0]))).toEqual({ index: 1, nextPos: 2 });
-    expect(drawWordIndex(order, 0, new Set([0, 1]))).toEqual({ index: 2, nextPos: 3 });
+    const any = () => true;
+    expect(drawWordIndexWhere(order, 0, new Set([0]), any)).toEqual({ index: 1, nextPos: 2 });
+    expect(drawWordIndexWhere(order, 0, new Set([0, 1]), any)).toEqual({ index: 2, nextPos: 3 });
   });
 
   it('wraps around after the end of the bank', () => {
     const order = [0, 1, 2];
-    expect(drawWordIndex(order, 3, new Set())).toEqual({ index: 0, nextPos: 4 });
+    expect(drawWordIndexWhere(order, 3, new Set(), () => true)).toEqual({ index: 0, nextPos: 4 });
   });
 
-  it('falls back gracefully when every word is somehow taken', () => {
+  it('hands out nothing when every word is somehow taken', () => {
     const order = [0, 1, 2];
-    const draw = drawWordIndex(order, 0, new Set([0, 1, 2]));
-    expect(order).toContain(draw.index);
-    expect(draw.nextPos).toBe(4);
+    expect(drawWordIndexWhere(order, 0, new Set([0, 1, 2]), () => true)).toEqual({ index: null, nextPos: 3 });
   });
 
   it('draws only words a filter allows, and still avoids duplicates', () => {
@@ -115,9 +115,11 @@ describe('word-fishing word dealing', () => {
     expect(drawWordIndexWhere(order, 2, new Set([2]), allowed)).toEqual({ index: 0, nextPos: 5 });
   });
 
-  it('still hands out a word when a filter allows none of them', () => {
+  it('hands out nothing when a filter allows none of them', () => {
+    // The sea relies on this: a word no filter allows – say, every word it
+    // could carry is already in the book – must not be shown at all.
     const order = [0, 1, 2];
-    const draw = drawWordIndexWhere(order, 0, new Set(), () => false);
-    expect(order).toContain(draw.index);
+    expect(drawWordIndexWhere(order, 0, new Set(), () => false)).toEqual({ index: null, nextPos: 3 });
+    expect(drawWordIndexWhere(order, 1, new Set([2]), (index) => index === 2)).toEqual({ index: null, nextPos: 4 });
   });
 });

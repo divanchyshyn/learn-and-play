@@ -11,7 +11,7 @@
 //   still waiting on deck.
 
 import { pickOne } from '../../shared/random.js';
-import { drawWordIndex, drawWordIndexWhere, pickWordOrder, WORD_BANK } from './words.js';
+import { drawWordIndexWhere, pickWordOrder, WORD_BANK } from './words.js';
 import { acceptsWord } from './trip.js';
 
 export const FISH_ON_SCREEN = 5;
@@ -91,15 +91,16 @@ export function fishPosition(fish) {
 }
 
 
-function spawnFrom(fishes, order, orderPos, trip, entryOffset = 0) {
+function spawnFrom(fishes, order, orderPos, trip, caught, entryOffset = 0) {
   const taken = new Set(fishes.map((fish) => fish.wordIndex));
-  const acceptsIndex = (index) => acceptsWord(trip, WORD_BANK[index].word);
+  const isCaught = (index) => caught.has(WORD_BANK[index].word);
+  // A word the book already has never swims again, so it is not a catch at all.
+  const keepable = (index) => !isCaught(index) && acceptsWord(trip, WORD_BANK[index].word);
   // There is always at least one fish worth catching: while nobody in the shoal
   // counts towards this trip, the arriving fish is drawn from the words that do.
-  const mustYield = !fishes.some((fish) => acceptsIndex(fish.wordIndex));
-  const drawn = mustYield
-    ? drawWordIndexWhere(order, orderPos, taken, acceptsIndex)
-    : drawWordIndex(order, orderPos, taken);
+  const mustYield = !fishes.some((fish) => keepable(fish.wordIndex));
+  const drawn = drawWordIndexWhere(order, orderPos, taken, mustYield ? keepable : (index) => !isCaught(index));
+  if (drawn.index === null) return { fish: null, orderPos: drawn.nextPos };
   const freeLanes = LANES.filter((lane) => !fishes.some((fish) => fish.lane === lane));
   const dir = Math.random() < 0.5 ? -1 : 1;
   const slip = Math.random() * EDGE_SLIP_MAX + entryOffset;
@@ -127,14 +128,16 @@ function spawnFrom(fishes, order, orderPos, trip, entryOffset = 0) {
 }
 
 function addFish(sea, entryOffset = 0) {
-  const spawned = spawnFrom(sea.fishes, sea.order, sea.orderPos, sea.trip, entryOffset);
+  const spawned = spawnFrom(sea.fishes, sea.order, sea.orderPos, sea.trip, sea.caught, entryOffset);
+  if (!spawned.fish) return sea;
   return { ...sea, fishes: [...sea.fishes, spawned.fish], orderPos: spawned.orderPos };
 }
 
-// A fresh sea for one trip: a shuffled word order and a small shoal that drifts
-// in staggered, so the water comes alive within seconds.
-export function createSea(trip) {
-  let sea = { trip, fishes: [], order: pickWordOrder(), orderPos: 0 };
+// A fresh sea for one trip: a shuffled word order, the words already caught in
+// the fishing book, and a small shoal that drifts in staggered, so the water
+// comes alive within seconds.
+export function createSea(trip, caught = new Set()) {
+  let sea = { trip, caught, fishes: [], order: pickWordOrder(), orderPos: 0 };
   for (let index = 0; index < FISH_ON_SCREEN; index += 1) sea = addFish(sea, index * 7);
   return sea;
 }
@@ -189,9 +192,10 @@ function isGone(fish) {
   return fish.dir === -1 ? fish.x < -16 : fish.x > 116;
 }
 
-// Advance the whole sea one tick. Fish that swim off or finish sinking into
-// their crate are replaced immediately by a new arrival waiting just outside
-// the edge, so there is always fresh water traffic.
+// Advance the whole sea one tick. A fish that swims off the edge is replaced
+// immediately by a new arrival waiting just outside it, so there is always
+// fresh water traffic. A fish that was delivered was already replaced the
+// moment it landed (see deliverFish), so it only sinks out of sight here.
 export function tickSea(sea) {
   const survivors = [];
   let departures = 0;
@@ -205,7 +209,7 @@ export function tickSea(sea) {
       if (isGone(stepped)) { departures += 1; continue; }
       survivors.push(stepped);
     } else if (stepped.status === 'delivered' && stepped.ticksLeft <= 0) {
-      departures += 1;
+      // Already replaced when it was delivered: it just sinks away.
     } else {
       survivors.push(stepped);
     }
@@ -214,8 +218,8 @@ export function tickSea(sea) {
   let fishes = [...survivors];
   let orderPos = sea.orderPos;
   for (let index = 0; index < departures; index += 1) {
-    const spawned = spawnFrom(fishes, sea.order, orderPos, sea.trip);
-    fishes = [...fishes, spawned.fish];
+    const spawned = spawnFrom(fishes, sea.order, orderPos, sea.trip, sea.caught);
+    if (spawned.fish) fishes = [...fishes, spawned.fish];
     orderPos = spawned.orderPos;
   }
 
@@ -279,16 +283,24 @@ export function slipFish(sea, fishId) {
   return mapFish(sea, fishId, freeSwimmer);
 }
 
-// Drop a catch into a crate. The fish sinks down into it and a new arrival takes
-// its place in the water.
+// Drop a catch into a crate. The fish sinks down into it, and a replacement
+// swims in at that very moment, so the child never looks at an emptying sea.
+// The delivered word is in the book now: it joins `caught` and never appears
+// again, and a word the book already has is not drawn at all.
 export function deliverFish(sea, fishId, crateId) {
   const fish = sea.fishes.find((entry) => entry.id === fishId);
   if (!fish || fish.status !== 'aboard') return sea;
-  return mapFish(sea, fishId, (entry) => ({
-    ...entry,
-    status: 'delivered',
-    crateId,
-    ticksLeft: DELIVER_TICKS,
-  }));
+  const caught = new Set(sea.caught);
+  caught.add(fishWord(fish));
+  const fishes = sea.fishes.map((entry) => (entry.id === fishId
+    ? { ...entry, status: 'delivered', crateId, ticksLeft: DELIVER_TICKS }
+    : entry));
+  const spawned = spawnFrom(fishes, sea.order, sea.orderPos, sea.trip, caught);
+  return {
+    ...sea,
+    caught,
+    fishes: spawned.fish ? [...fishes, spawned.fish] : fishes,
+    orderPos: spawned.orderPos,
+  };
 }
 

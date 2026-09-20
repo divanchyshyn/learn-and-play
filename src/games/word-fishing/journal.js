@@ -1,4 +1,4 @@
-import { isWordInBank, WORD_BANK, WORD_COUNT } from './words.js';
+import { CATEGORY_CRATE_IDS, isWordInBank, WORD_BANK, WORD_COUNT } from './words.js';
 import { crateTakesWord, isValidTripShape } from './trip.js';
 
 // The fishing journal is what makes Word Fishing a game a child can come back
@@ -71,6 +71,28 @@ export function crateTally(journal, crateId) {
     caught: journal.words.filter((word) => crateTakesWord(crateId, word)).length,
     total: WORD_BANK.filter((entry) => crateTakesWord(crateId, entry.word)).length,
   };
+}
+
+// The words a crate could still take: uncaught, and belonging in it under its
+// own rule (meaning or length). An order trip is over when its crate is full –
+// there is nothing left the child could add to it, so nothing to fish for.
+export function uncaughtWordsInCrate(journal, crateId) {
+  return WORD_BANK.filter((entry) => crateTakesWord(crateId, entry.word) && !hasWord(journal, entry.word));
+}
+
+export function crateFull(journal, crateId) {
+  return uncaughtWordsInCrate(journal, crateId).length === 0;
+}
+
+// Can this trip still add a single word to the book? Once every crate on board
+// is full the trip is pointless – the child must not be made to finish it.
+export function tripHasWork(trip, journal) {
+  return trip.crates.some((crateId) => !crateFull(journal, crateId));
+}
+
+// The meaning crates that still have words to find, for dealing the next trip.
+export function openCategoryIds(journal) {
+  return CATEGORY_CRATE_IDS.filter((crateId) => !crateFull(journal, crateId));
 }
 
 function normalizeWords(words) {

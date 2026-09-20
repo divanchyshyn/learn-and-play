@@ -65,14 +65,19 @@ export function tripKindForNumber(tripNumber) {
 
 // A fresh trip. `tripNumber` is the number of finished trips + 1, and only the
 // kind's randomness (which category the boat is after) needs a random source.
-export function createTripPlan(tripNumber, random = Math.random) {
+// `availableCategories` limits which categories an order trip may ask for: a
+// full crate is never picked, so the child is never sent after words that are
+// already all in the book.
+export function createTripPlan(tripNumber, random = Math.random, availableCategories = CATEGORY_CRATE_IDS) {
   const number = Math.max(1, Math.trunc(tripNumber) || 1);
   const kind = tripKindForNumber(number);
   if (kind === 'length') {
     return { number, kind, crates: [...LENGTH_CRATE_IDS], goal: CATCHES_PER_TRIP, collected: 0, orderCrateId: null };
   }
   if (kind === 'order') {
-    const orderCrateId = CATEGORY_CRATE_IDS[Math.floor(random() * CATEGORY_CRATE_IDS.length)];
+    const open = availableCategories.filter((crateId) => crateById(crateId)?.kind === 'category');
+    const pool = open.length > 0 ? open : CATEGORY_CRATE_IDS;
+    const orderCrateId = pool[Math.floor(random() * pool.length)];
     return { number, kind, crates: [orderCrateId], goal: ORDER_TRIP_GOAL, collected: 0, orderCrateId };
   }
   return { number, kind, crates: [...CATEGORY_CRATE_IDS], goal: CATCHES_PER_TRIP, collected: 0, orderCrateId: null };
@@ -107,17 +112,20 @@ export function tripRequest(trip) {
 // index past the end of this list is simply skipped when painting – so this list
 // may grow or shrink without breaking a saved game.
 
+// Sizes are generous on purpose: the seabed is the child's own collection, and
+// a small decoration is easy to miss. Each one also carries a little motion
+// (see the `.reward-*` rules in style.css), so the floor feels alive.
 export const REEF_REWARDS = [
-  { id: 'starfish', label: 'Sjøstjernen', x: 8, y: 93, size: 30 },
-  { id: 'coral', label: 'Korallen', x: 23, y: 88, size: 52 },
-  { id: 'shell', label: 'Skjellet', x: 57, y: 96, size: 24 },
-  { id: 'seagrass', label: 'Sjøgresset', x: 39, y: 86, size: 58 },
-  { id: 'crab', label: 'Krabben', x: 71, y: 94, size: 32 },
-  { id: 'jellyfish', label: 'Maneten', x: 87, y: 68, size: 40 },
-  { id: 'octopus', label: 'Blekkspruten', x: 5, y: 80, size: 46 },
-  { id: 'seahorse', label: 'Sjøhesten', x: 94, y: 81, size: 36 },
-  { id: 'wreck', label: 'Skipsvraket', x: 64, y: 83, size: 104 },
-  { id: 'chest', label: 'Skattekisten', x: 31, y: 95, size: 42 },
+  { id: 'starfish', label: 'Sjøstjernen', x: 8, y: 91, size: 44 },
+  { id: 'coral', label: 'Korallen', x: 23, y: 87, size: 72 },
+  { id: 'shell', label: 'Skjellet', x: 57, y: 93, size: 34 },
+  { id: 'seagrass', label: 'Sjøgresset', x: 39, y: 85, size: 78 },
+  { id: 'crab', label: 'Krabben', x: 71, y: 92, size: 46 },
+  { id: 'jellyfish', label: 'Maneten', x: 87, y: 66, size: 56 },
+  { id: 'octopus', label: 'Blekkspruten', x: 5, y: 79, size: 64 },
+  { id: 'seahorse', label: 'Sjøhesten', x: 94, y: 80, size: 52 },
+  { id: 'wreck', label: 'Skipsvraket', x: 64, y: 80, size: 128 },
+  { id: 'chest', label: 'Skattekisten', x: 31, y: 92, size: 58 },
 ];
 
 export function rewardForTrip(tripNumber) {
