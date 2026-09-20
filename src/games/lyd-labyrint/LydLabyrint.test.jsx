@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, within } from '@testing-library/react';
-import { THEMES, generateMaze } from './mazes.js';
-import { pickWords, WORDS_BY_THEME } from './words.js';
-import { shuffle } from '../../shared/random.js';
+import { WORDS_BY_THEME } from './words.js';
 import { applyDrop, scrambleLetters } from './SpellPuzzle.jsx';
-import { LydLabyrint } from './LydLabyrint.jsx';
-import { PROGRESS_KEY, pieceSessionCodec } from './progress.js';
+import { LydLabyrint, createGame } from './LydLabyrint.jsx';
+import { PROGRESS_KEY, GAME_KEY, pieceSessionCodec, gameCodec } from './progress.js';
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 
@@ -50,15 +48,10 @@ function runnerPosition(view) {
 // Regenerate the exact starting game (maze index 0 = Skogen with the pinned
 // random) so the tests know where the doors are and which animal word sits on
 // each. A mazeIndex lets the flow tests re-derive each maze the component
-// creates after a "Ny labyrint" click.
+// creates after a "Ny labyrint" click. Reuses the component's own createGame,
+// so the fixture can never drift from the real game.
 function expectedGame(mazeIndex = 0) {
-  const maze = generateMaze({ ...THEMES[mazeIndex % THEMES.length], random: Math.random });
-  const words = shuffle(pickWords(maze.doors.length, maze.theme, Math.random));
-  const doors = maze.doors.map((door, index) => ({
-    ...door,
-    ...words[index % words.length],
-  }));
-  return { maze, doors };
+  return createGame(mazeIndex);
 }
 
 function routeBetween(maze, from, to) {
@@ -556,7 +549,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(runnerPosition(view)).not.toEqual(pos);
   }, 15000);
 
-  it('keeps the earned pieces and picture across a refresh, but starts a fresh maze', () => {
+  it('keeps the earned pieces, the maze and the exact position across a refresh', () => {
     const view = renderGame();
     const expected = expectedGame();
     const route = routeBetween(expected.maze, expected.maze.start, expected.maze.exit);
@@ -565,20 +558,54 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     fireEvent.click(screen.getByRole('button', { name: /Trykk på brikken/ }));
     advance(50);
     expect(view.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
+    // The walk opened some doors; they must still be open after the reload.
+    const openDoors = view.container.querySelectorAll('.door-panel.open').length;
+    expect(openDoors).toBeGreaterThan(0);
 
     // A page reload unmounts the game; the next mount restores the picture
-    // collection from storage, while the maze itself always starts over.
+    // collection and the maze session from storage, so the child comes back to
+    // the same tile they left.
     view.unmount();
     const reopened = renderGame();
 
     expect(reopened.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
-    expect(runnerPosition(reopened)).toEqual({ x: 1, y: 1 });
+    expect(screen.getByText(new RegExp(expected.maze.name))).toBeInTheDocument();
+    expect(runnerPosition(reopened)).toEqual({ x: expected.maze.exit.x, y: expected.maze.exit.y });
+    expect(reopened.container.querySelectorAll('.door-panel.open')).toHaveLength(openDoors);
+
+    // The restored maze was already celebrated: stepping back onto its exit
+    // must not hand out a second piece for it.
+    const exit = expected.maze.exit;
+    const away = DIRS.find(([dx, dy]) => expected.maze.floors.has(`${exit.x + dx},${exit.y + dy}`));
+    expect(away).toBeTruthy();
+    press(reopened, arrowFor(away));
+    advance(200);
+    press(reopened, arrowFor([-away[0], -away[1]]));
+    advance(200);
+    advance(600);
+    expect(screen.queryByText('Du fant veien ut!')).not.toBeInTheDocument();
+    expect(reopened.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
 
     fireEvent.click(screen.getByRole('button', { name: /Puslespill – 1 av 4 brikker funnet/ }));
     const dialog = screen.getByRole('dialog', { name: 'Puslespill' });
     expect(within(dialog).getByRole('button', { name: 'Brikke 1 – dra den til bildet eller trykk' })).toBeInTheDocument();
     expect(within(dialog).getAllByRole('button', { name: /Tom plass/ })).toHaveLength(3);
   }, 15000);
+
+  it('restores a saved maze session and its exact position when it mounts', () => {
+    const game = expectedGame();
+    const doors = game.doors.map((door, index) => (index === 0 ? { ...door, open: true } : door));
+    window.localStorage.setItem(
+      GAME_KEY,
+      gameCodec.serialize({ ...game, doors, pos: { ...game.maze.exit }, celebrated: true }),
+    );
+
+    const view = renderGame();
+    expect(runnerPosition(view)).toEqual({ x: game.maze.exit.x, y: game.maze.exit.y });
+    expect(view.container.querySelectorAll('.door-panel.open')).toHaveLength(1);
+    // A saved moment – the celebrate card – does not reopen on its own.
+    expect(screen.queryByText('Du fant veien ut!')).not.toBeInTheDocument();
+  });
 
   it('restores a saved picture collection from storage when it mounts', () => {
     const saved = pieceSessionCodec.serialize({ imageIndex: 1, earned: [0, 2], cells: [null, 0, null, 2] });
@@ -622,5 +649,8 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(saved.version).toBe(1);
     expect(saved.pieceSession.earned).toEqual([]);
     expect(saved.pieceSession.cells).toEqual([null, null, null, null]);
+    // The saved maze session is replaced too: a reload after the reset starts
+    // from the fresh start tile, not the old position.
+    expect(gameCodec.parse(window.localStorage.getItem(GAME_KEY)).pos).toEqual({ x: 1, y: 1 });
   }, 15000);
 });
