@@ -7,7 +7,9 @@ import {
 } from './journal.js';
 import { createTripPlan, crateForWord, tripRequest } from './trip.js';
 import { sounds } from './sounds.js';
-import { CATEGORY_CRATE_IDS, WORD_BANK, WORD_COUNT, crateById, crateWordCount, wordsInCrate } from './words.js';
+import {
+  CATEGORY_CRATE_IDS, CRATE_TARGET, TARGET_WORD_COUNT, WORD_BANK, crateById, crateTarget, wordsInCrate,
+} from './words.js';
 
 // Math.random is pinned so the shoal is deterministic: every fish enters from
 // the right edge at the calmest speed and takes the first free lane.
@@ -86,10 +88,10 @@ function categoryOf(word) {
   return WORD_BANK.find((entry) => entry.word === word).cat;
 }
 
-// How many words one crate holds, straight from the bank, so changing the bank
-// never means rewriting a rendered test.
+// How many words fill one crate, straight from the target, so changing the
+// pool behind it never means rewriting a rendered test.
 function crateGoal(crateId) {
-  return crateWordCount(crateId);
+  return crateTarget(crateId);
 }
 
 // Catch one word and put it in the crate it belongs in.
@@ -127,6 +129,14 @@ describe('word-fishing rendered game', () => {
 
     expect(screen.getByText(tripRequest(createTripPlan(1)))).toBeInTheDocument();
     expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+  });
+
+  it('sets every crate goal at ten even though its pool holds twenty', () => {
+    const view = render(<WordFishing />);
+    for (const crateId of CATEGORY_CRATE_IDS) {
+      expect(crateProgress(view, crateId)).toBe(`0 av ${CRATE_TARGET} ord`);
+      expect(wordsInCrate(crateId).length).toBeGreaterThan(CRATE_TARGET);
+    }
   });
 
   it('hooks a fish, winds it in and shows the word on deck', () => {
@@ -194,7 +204,7 @@ describe('word-fishing catch and reward', () => {
     expect(view.container.querySelector('.trip-done')).toBeNull();
     expect(view.container.querySelector('.fish-aboard')).toBeNull();
     expect(crateProgress(view, crateId)).toBe(`1 av ${crateGoal(crateId)} ord`);
-    expect(screen.getByText(`1 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT - 1} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`1 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - 1} igjen.`)).toBeInTheDocument();
 
     // The caught word is really in the book.
     fireEvent.click(screen.getByRole('button', { name: /Fangstboka/ }));
@@ -215,7 +225,7 @@ describe('word-fishing catch and reward', () => {
 
     const view = render(<WordFishing />);
 
-    expect(screen.getByText(`1 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT - 1} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`1 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - 1} igjen.`)).toBeInTheDocument();
     // Several shoals come and go; the caught word is never among them.
     for (let guard = 0; guard < 80; guard += 1) {
       const tags = [...view.container.querySelectorAll('.fish-tag')].map((tag) => tag.textContent);
@@ -229,7 +239,7 @@ describe('word-fishing catch and reward', () => {
     const crateId = categoryOf(word);
     const crateCount = crateId === categoryOf(known) ? 2 : 1;
     expect(crateProgress(view, crateId)).toBe(`${crateCount} av ${crateGoal(crateId)} ord`);
-    expect(screen.getByText(`2 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT - 2} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`2 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - 2} igjen.`)).toBeInTheDocument();
   });
 
   it('makes the shoal inert while a catch waits on deck – nothing looks tappable', () => {
@@ -283,7 +293,7 @@ describe('word-fishing catch and reward', () => {
     expect(view.container.querySelector('.crate.hint').getAttribute('aria-label'))
       .toBe(`Kassen ${crateById(rightCrate).label}: 0 av ${crateGoal(rightCrate)} ord`);
     expect(crateProgress(view, wrongCrate)).toBe(`0 av ${crateGoal(wrongCrate)} ord`);
-    expect(screen.getByText(`0 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
     // No failure language anywhere, and the day's order still stands.
     expect(screen.queryByText(/feil|galt|straff|mistet/i)).not.toBeInTheDocument();
     expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
@@ -320,7 +330,7 @@ describe('word-fishing catch and reward', () => {
     // The fish is back in the water, nothing is counted and nothing is stamped.
     expect(view.container.querySelector('.catch-card')).toBeNull();
     expect(view.container.querySelector('.fish-aboard')).toBeNull();
-    expect(screen.getByText(`0 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
     expect(screen.getByText('0 av 3 i dag')).toBeInTheDocument();
 
     fireEvent.click(notice);
@@ -346,7 +356,7 @@ describe('word-fishing catch and reward', () => {
     expect(view.container.querySelector('.catch-card')).toBeNull();
     expect(view.container.querySelector('.fish-aboard')).toBeNull();
     // Nothing is counted, nothing is scolded, nothing is lost.
-    expect(screen.getByText(`0 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
     expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
     expect(screen.queryByText(/feil|galt|straff|mistet|stakk av/i)).not.toBeInTheDocument();
 
@@ -455,7 +465,7 @@ describe('word-fishing catch and reward', () => {
     fireEvent.click(screen.getByRole('button', { name: /Slipp ut igjen/ }));
 
     expect(view.container.querySelector('.catch-card')).toBeNull();
-    expect(screen.getByText(`0 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
     for (const crate of view.container.querySelectorAll('.crate')) expect(crate).toBeDisabled();
     expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
   });
@@ -485,7 +495,7 @@ describe('word-fishing rewards and the fishing book', () => {
 
     expect(view.container.querySelector('.trip-done')).toBeNull();
     expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
-    expect(screen.getByText(`4 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT - 4} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`4 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - 4} igjen.`)).toBeInTheDocument();
     // The decoration stays on the seabed while the next trip starts.
     expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
   });
@@ -503,17 +513,18 @@ describe('word-fishing rewards and the fishing book', () => {
     catchAndSort(view);
 
     expect(view.container.querySelector('.trip-done')).toBeNull();
-    expect(screen.getByText(`1 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT - 1} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`1 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - 1} igjen.`)).toBeInTheDocument();
     expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
     expect(view.container.querySelector('.reward-coral')).toBeNull();
   });
 
-  it('ends an order trip once its crate is full, instead of forcing the round', () => {
-    const natureWords = wordsInCrate('nature').map((entry) => entry.word);
-    const lastNature = natureWords[natureWords.length - 1];
+  it('ends an order trip once its crate reaches its target, instead of forcing the round', () => {
+    const naturePool = wordsInCrate('nature').map((entry) => entry.word);
+    const lastNature = naturePool[CRATE_TARGET - 1];
+    expect(naturePool.length).toBeGreaterThan(CRATE_TARGET);
     window.localStorage.setItem(JOURNAL_KEY, journalCodec.serialize({
       ...createJournal(),
-      words: natureWords.filter((word) => word !== lastNature),
+      words: naturePool.slice(0, CRATE_TARGET - 1),
     }));
     // Trip 4 is the single-crate trip; 0.5 picks Nature.
     window.localStorage.setItem(TRIP_KEY, tripCodec.serialize(createTripPlan(4, () => 0.5)));
@@ -541,7 +552,7 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(done.textContent).toContain('Kassen Natur er full');
     expect(done.textContent).toContain('Tur 1 er ferdig!');
     expect(screen.getByText('1 av 3 i dag')).toBeInTheDocument();
-    expect(screen.getByText(`20 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT - 20} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`${CRATE_TARGET} av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - CRATE_TARGET} igjen.`)).toBeInTheDocument();
     // The filled crate earns its reward like any finished trip.
     expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
 
@@ -549,6 +560,9 @@ describe('word-fishing rewards and the fishing book', () => {
     fireEvent.click(within(done).getByRole('button', { name: /Ny tur/ }));
     expect(view.container.querySelectorAll('.crate')).toHaveLength(4);
     expect(screen.getByText(tripRequest(createTripPlan(2)))).toBeInTheDocument();
+    // The ten uncaught words the finished pool still holds stay out of the
+    // water: the rest of the run can only meet the other categories.
+    expect(categoryOf(catchAndSort(view))).not.toBe('nature');
   });
 
   it('re-deals a workless saved trip as the next trip, on the cycle', () => {
@@ -580,20 +594,27 @@ describe('word-fishing rewards and the fishing book', () => {
   });
 
   it('celebrates the very last word with confetti and a fresh start', () => {
-    const lastWord = WORD_BANK[WORD_BANK.length - 1].word;
+    // Three crates are at their target; the home crate only has nine of its
+    // ten, so the book is one word short. Every word still swimming belongs to
+    // that one open crate, and any of them closes the book.
+    const openCrateId = CATEGORY_CRATE_IDS[CATEGORY_CRATE_IDS.length - 1];
+    const words = [];
+    for (const crateId of CATEGORY_CRATE_IDS) {
+      const pool = wordsInCrate(crateId).map((entry) => entry.word);
+      words.push(...pool.slice(0, crateId === openCrateId ? CRATE_TARGET - 1 : CRATE_TARGET));
+    }
     window.localStorage.setItem(JOURNAL_KEY, journalCodec.serialize({
       ...createJournal(),
-      words: WORD_BANK.filter((entry) => entry.word !== lastWord).map((entry) => entry.word),
+      words,
       trips: 2,
       decorations: [0, 1],
     }));
 
     const view = render(<WordFishing />);
     expect(view.container.querySelector('.finale-done')).toBeNull();
-    expect(screen.getByText(`${WORD_COUNT - 1} av ${WORD_COUNT} ord i fangstboka – 1 igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`${TARGET_WORD_COUNT - 1} av ${TARGET_WORD_COUNT} ord i fangstboka – 1 igjen.`)).toBeInTheDocument();
 
-    // The one word left is the one the sea can still deal.
-    expect(catchAndSort(view)).toBe(lastWord);
+    expect(categoryOf(catchAndSort(view))).toBe(openCrateId);
 
     const finale = view.container.querySelector('.finale-done');
     expect(finale).toBeTruthy();
@@ -607,7 +628,7 @@ describe('word-fishing rewards and the fishing book', () => {
     // Starting over really starts over: an empty book and a living sea again.
     fireEvent.click(within(finale).getByRole('button', { name: /Start på nytt/ }));
     expect(view.container.querySelector('.finale-done')).toBeNull();
-    expect(screen.getByText(`0 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
     expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
     ticks(DELIVER_TICKS + 2);
     expect(fishElements(view)).toHaveLength(FISH_ON_SCREEN);
@@ -628,12 +649,17 @@ describe('word-fishing rewards and the fishing book', () => {
 
     const book = screen.getByRole('dialog', { name: 'Fangstboka' });
     expect(book).toBeInTheDocument();
-    expect(book.textContent).toContain(`3 av ${WORD_COUNT} ord fanget`);
-    // Caught words read as words, the rest wait as question marks.
+    expect(book.textContent).toContain(`3 av ${TARGET_WORD_COUNT} ord fanget`);
+    // Caught words read as words, the rest wait as question marks – three
+    // found slots and one "?" for every word left of the forty-word goal.
     expect(within(book).getByText('fisk')).toBeInTheDocument();
     expect(within(book).getByText('is')).toBeInTheDocument();
     expect(within(book).getByText('sol')).toBeInTheDocument();
-    expect(screen.getAllByText('?').length).toBeGreaterThan(WORD_COUNT - 3);
+    expect(book.querySelectorAll('.word-slots .found')).toHaveLength(3);
+    expect(book.querySelectorAll('.word-slots .missing')).toHaveLength(TARGET_WORD_COUNT - 3);
+    // Every category page counts against its ten-word target.
+    expect(within(book).getAllByText(`1 av ${CRATE_TARGET}`)).toHaveLength(3);
+    expect(within(book).getAllByText(`0 av ${CRATE_TARGET}`)).toHaveLength(1);
     // Two finished trips left two stamps and two decorations.
     expect(within(book).getByText('Tur 1')).toBeInTheDocument();
     expect(within(book).getByText('Tur 2')).toBeInTheDocument();

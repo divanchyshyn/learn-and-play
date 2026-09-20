@@ -1,4 +1,4 @@
-import { crateTally } from './journal.js';
+import { crateFull, crateTally } from './journal.js';
 import { crateById } from './words.js';
 
 // The crates the boat carries, lined up in the dock under the water. While a
@@ -18,7 +18,7 @@ export function CrateDock({ trip, journal, aboard, hintCrateId, landed, onPut })
     {trip.crates.map((crateId) => {
       const crate = crateById(crateId);
       const { caught, total } = crateTally(journal, crateId);
-      const full = caught >= total;
+      const full = crateFull(journal, crateId);
       const crateClasses = ['crate'];
       if (hintCrateId === crateId) crateClasses.push('hint');
       if (full) crateClasses.push('full');

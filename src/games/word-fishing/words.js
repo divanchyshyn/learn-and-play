@@ -8,10 +8,10 @@
 import { shuffle } from '../../shared/random.js';
 
 // The crate a word belongs to is the game's reading task: every catch has to be
-// decoded and put in the right crate. The four category crates hold exactly the
-// same number of words – twenty each, eighty in all – so "collect them all" is
-// a balanced goal a child can finish. crateWordCount always tells the truth, so
-// the crates, the fishing book and the finale follow the bank on their own.
+// decoded and put in the right crate. Every category crate draws from a pool of
+// twenty words – eighty in all – but it only takes ten words to fill it. The
+// target a child has to reach therefore stays at ten, while the bigger pool
+// keeps the sea from dealing the same words every run.
 export const WORD_CATEGORIES = {
   animals: 'Dyr',
   food: 'Mat',
@@ -163,6 +163,24 @@ export function wordsInCrate(crateId) {
 export function crateWordCount(crateId) {
   return wordsInCrate(crateId).length;
 }
+
+// How many words fill one category crate. The pool behind it is twice as big
+// (see crateWordCount), so the target is what keeps "collect them all" the same
+// ten-word goal per crate it has always been.
+export const CRATE_TARGET = 10;
+
+export function crateTarget(crateId) {
+  const crate = crateById(crateId);
+  if (!crate || crate.kind !== 'category') return 0;
+  return Math.min(CRATE_TARGET, crateWordCount(crateId));
+}
+
+// The number of words that fill the fishing book: ten in every category.
+// Deliberately smaller than WORD_COUNT, which is the size of the whole pool.
+export const TARGET_WORD_COUNT = CATEGORY_CRATE_IDS.reduce(
+  (sum, crateId) => sum + crateTarget(crateId),
+  0,
+);
 
 export function isWordInBank(word) {
   return WORD_TO_CATEGORY.has(word);

@@ -1,4 +1,6 @@
-import { CATEGORY_CRATE_IDS, isWordInBank, WORD_BANK, WORD_COUNT } from './words.js';
+import {
+  CATEGORY_CRATE_IDS, WORD_BANK, crateById, crateTarget, categoryForWord, isWordInBank, wordsInCrate,
+} from './words.js';
 import { crateTakesWord, isValidTripShape } from './trip.js';
 
 // The fishing journal is what makes Word Fishing a game a child can come back
@@ -54,7 +56,10 @@ export function wordsCaught(journal) {
 }
 
 export function wordsLeftToCatch(journal) {
-  return Math.max(0, WORD_COUNT - journal.words.length);
+  return CATEGORY_CRATE_IDS.reduce((left, crateId) => {
+    const { caught, total } = crateTally(journal, crateId);
+    return left + Math.max(0, total - caught);
+  }, 0);
 }
 
 export function allWordsCaught(journal) {
@@ -64,24 +69,68 @@ export function allWordsCaught(journal) {
 // What the celebrate card says when the very last word has been caught.
 export const ALL_WORDS_MESSAGE = 'Alle ordene er fanget!';
 
-// How full one crate is: how many of its words are in the book, out of the words
-// that ever go in it.
+// How full one crate is. A category crate counts its words in the book against
+// its target of ten, even though the pool behind it holds twenty. The length
+// crates are not goals of their own: they show how many words of each length
+// are in the book, out of all the words of that length.
 export function crateTally(journal, crateId) {
-  return {
-    caught: journal.words.filter((word) => crateTakesWord(crateId, word)).length,
-    total: WORD_BANK.filter((entry) => crateTakesWord(crateId, entry.word)).length,
-  };
+  const crate = crateById(crateId);
+  const caught = journal.words.filter((word) => crateTakesWord(crateId, word)).length;
+  const total = crate?.kind === 'category'
+    ? crateTarget(crateId)
+    : WORD_BANK.filter((entry) => crateTakesWord(crateId, entry.word)).length;
+  return { caught: Math.min(caught, total), total };
 }
 
 // The words a crate could still take: uncaught, and belonging in it under its
-// own rule (meaning or length). An order trip is over when its crate is full –
-// there is nothing left the child could add to it, so nothing to fish for.
+// own rule (meaning or length). A category crate is done at its target even
+// though its pool holds more words, so it takes nothing more; a word from a
+// finished category has no crate left to go to, so a length crate takes none
+// of those either. An order trip is over when its crate is full – there is
+// nothing left the child could add to it, so nothing to fish for.
 export function uncaughtWordsInCrate(journal, crateId) {
-  return WORD_BANK.filter((entry) => crateTakesWord(crateId, entry.word) && !hasWord(journal, entry.word));
+  const crate = crateById(crateId);
+  if (!crate) return [];
+  if (crate.kind === 'category') {
+    if (crateFull(journal, crateId)) return [];
+    return wordsInCrate(crateId).filter((entry) => !hasWord(journal, entry.word));
+  }
+  return WORD_BANK.filter((entry) =>
+    crateTakesWord(crateId, entry.word)
+    && !hasWord(journal, entry.word)
+    && !crateFull(journal, entry.cat));
 }
 
 export function crateFull(journal, crateId) {
+  const crate = crateById(crateId);
+  if (!crate) return false;
+  if (crate.kind === 'category') {
+    const { caught, total } = crateTally(journal, crateId);
+    return caught >= total;
+  }
   return uncaughtWordsInCrate(journal, crateId).length === 0;
+}
+
+// The words the sea must not serve any more: the words already in the book,
+// plus every word still in the pool of a category that has reached its target.
+// Those have no crate left to go to this run, so they never swim again.
+export function unavailableWords(journal) {
+  const finished = new Set(CATEGORY_CRATE_IDS.filter((crateId) => crateFull(journal, crateId)));
+  return new Set(WORD_BANK
+    .filter((entry) => finished.has(entry.cat) || hasWord(journal, entry.word))
+    .map((entry) => entry.word));
+}
+
+// The fishing book lists a crate's caught words in the order they were found.
+export function caughtWordsInCrate(journal, crateId) {
+  return journal.words.filter((word) => crateTakesWord(crateId, word));
+}
+
+// Is there still room in the book for this word? A finished category takes no
+// more words, whichever crate on board could sort them.
+export function hasRoomForWord(journal, word) {
+  const crateId = categoryForWord(word);
+  return crateId !== null && !crateFull(journal, crateId);
 }
 
 // Can this trip still add a single word to the book? Once every crate on board

@@ -91,15 +91,16 @@ export function fishPosition(fish) {
 }
 
 
-function spawnFrom(fishes, order, orderPos, trip, caught, entryOffset = 0) {
+function spawnFrom(fishes, order, orderPos, trip, unavailable, entryOffset = 0) {
   const taken = new Set(fishes.map((fish) => fish.wordIndex));
-  const isCaught = (index) => caught.has(WORD_BANK[index].word);
-  // A word the book already has never swims again, so it is not a catch at all.
-  const keepable = (index) => !isCaught(index) && acceptsWord(trip, WORD_BANK[index].word);
+  const isUnavailable = (index) => unavailable.has(WORD_BANK[index].word);
+  // A word the book already has – or whose crate has reached its target – never
+  // swims again, so it is not a catch at all.
+  const keepable = (index) => !isUnavailable(index) && acceptsWord(trip, WORD_BANK[index].word);
   // There is always at least one fish worth catching: while nobody in the shoal
   // counts towards this trip, the arriving fish is drawn from the words that do.
   const mustYield = !fishes.some((fish) => keepable(fish.wordIndex));
-  const drawn = drawWordIndexWhere(order, orderPos, taken, mustYield ? keepable : (index) => !isCaught(index));
+  const drawn = drawWordIndexWhere(order, orderPos, taken, mustYield ? keepable : (index) => !isUnavailable(index));
   if (drawn.index === null) return { fish: null, orderPos: drawn.nextPos };
   const freeLanes = LANES.filter((lane) => !fishes.some((fish) => fish.lane === lane));
   const dir = Math.random() < 0.5 ? -1 : 1;
@@ -128,16 +129,17 @@ function spawnFrom(fishes, order, orderPos, trip, caught, entryOffset = 0) {
 }
 
 function addFish(sea, entryOffset = 0) {
-  const spawned = spawnFrom(sea.fishes, sea.order, sea.orderPos, sea.trip, sea.caught, entryOffset);
+  const spawned = spawnFrom(sea.fishes, sea.order, sea.orderPos, sea.trip, sea.unavailable, entryOffset);
   if (!spawned.fish) return sea;
   return { ...sea, fishes: [...sea.fishes, spawned.fish], orderPos: spawned.orderPos };
 }
 
-// A fresh sea for one trip: a shuffled word order, the words already caught in
-// the fishing book, and a small shoal that drifts in staggered, so the water
-// comes alive within seconds.
-export function createSea(trip, caught = new Set()) {
-  let sea = { trip, caught, fishes: [], order: pickWordOrder(), orderPos: 0 };
+// A fresh sea for one trip: a shuffled word order, the words that may not swim
+// (everything in the fishing book, and everything whose crate is already full),
+// and a small shoal that drifts in staggered, so the water comes alive within
+// seconds.
+export function createSea(trip, unavailable = new Set()) {
+  let sea = { trip, unavailable, fishes: [], order: pickWordOrder(), orderPos: 0 };
   for (let index = 0; index < FISH_ON_SCREEN; index += 1) sea = addFish(sea, index * 7);
   return sea;
 }
@@ -194,8 +196,11 @@ function isGone(fish) {
 
 // Advance the whole sea one tick. A fish that swims off the edge is replaced
 // immediately by a new arrival waiting just outside it, so there is always
-// fresh water traffic. A fish that was delivered was already replaced the
-// moment it landed (see deliverFish), so it only sinks out of sight here.
+// fresh water traffic. A fish whose word was taken out of play in the meantime
+// – say, its crate reached its target while it was swimming – is replaced the
+// same way, so the water never carries a fish that can no longer be kept. A
+// fish that was delivered was already replaced the moment it landed (see
+// deliverFish), so it only sinks out of sight here.
 export function tickSea(sea) {
   const survivors = [];
   let departures = 0;
@@ -206,7 +211,7 @@ export function tickSea(sea) {
       // Nobody kept the line taut, so the fish wins this round and swims on.
       survivors.push(breakFree(stepped));
     } else if (stepped.status === 'swim') {
-      if (isGone(stepped)) { departures += 1; continue; }
+      if (isGone(stepped) || sea.unavailable.has(fishWord(stepped))) { departures += 1; continue; }
       survivors.push(stepped);
     } else if (stepped.status === 'delivered' && stepped.ticksLeft <= 0) {
       // Already replaced when it was delivered: it just sinks away.
@@ -218,7 +223,7 @@ export function tickSea(sea) {
   let fishes = [...survivors];
   let orderPos = sea.orderPos;
   for (let index = 0; index < departures; index += 1) {
-    const spawned = spawnFrom(fishes, sea.order, orderPos, sea.trip, sea.caught);
+    const spawned = spawnFrom(fishes, sea.order, orderPos, sea.trip, sea.unavailable);
     if (spawned.fish) fishes = [...fishes, spawned.fish];
     orderPos = spawned.orderPos;
   }
@@ -285,20 +290,22 @@ export function slipFish(sea, fishId) {
 
 // Drop a catch into a crate. The fish sinks down into it, and a replacement
 // swims in at that very moment, so the child never looks at an emptying sea.
-// The delivered word is in the book now: it joins `caught` and never appears
-// again, and a word the book already has is not drawn at all.
-export function deliverFish(sea, fishId, crateId) {
+// The delivered word joins the words that may not swim again; `outOfPlay` may
+// add more of them at the same moment – the words a just-filled crate leaves
+// behind, for instance – so the next arrival already respects them.
+export function deliverFish(sea, fishId, crateId, outOfPlay = []) {
   const fish = sea.fishes.find((entry) => entry.id === fishId);
   if (!fish || fish.status !== 'aboard') return sea;
-  const caught = new Set(sea.caught);
-  caught.add(fishWord(fish));
+  const unavailable = new Set(sea.unavailable);
+  unavailable.add(fishWord(fish));
+  for (const word of outOfPlay) unavailable.add(word);
   const fishes = sea.fishes.map((entry) => (entry.id === fishId
     ? { ...entry, status: 'delivered', crateId, ticksLeft: DELIVER_TICKS }
     : entry));
-  const spawned = spawnFrom(fishes, sea.order, sea.orderPos, sea.trip, caught);
+  const spawned = spawnFrom(fishes, sea.order, sea.orderPos, sea.trip, unavailable);
   return {
     ...sea,
-    caught,
+    unavailable,
     fishes: spawned.fish ? [...fishes, spawned.fish] : fishes,
     orderPos: spawned.orderPos,
   };

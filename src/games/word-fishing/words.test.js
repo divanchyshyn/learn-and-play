@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ALL_CRATES, CATEGORY_CRATE_IDS, LENGTH_CRATE_IDS, SHORT_WORD_MAX, WORD_BANK, WORD_CATEGORIES,
-  WORD_COUNT, categoryForWord, crateById, crateWordCount, drawWordIndexWhere,
-  isWordInBank, pickWordOrder, wordsInCrate,
+  ALL_CRATES, CATEGORY_CRATE_IDS, CRATE_TARGET, LENGTH_CRATE_IDS, SHORT_WORD_MAX,
+  TARGET_WORD_COUNT, WORD_BANK, WORD_CATEGORIES, WORD_COUNT, categoryForWord, crateById,
+  crateTarget, crateWordCount, drawWordIndexWhere, isWordInBank, pickWordOrder, wordsInCrate,
 } from './words.js';
 
 describe('word-fishing word bank', () => {
@@ -39,15 +39,23 @@ describe('word-fishing word bank', () => {
     expect(isWordInBank('finnesikke')).toBe(false);
   });
 
-  it('fills all four crates equally, so collecting them all is a balanced goal', () => {
+  it('fills all four pools equally, with the same ten-word target above them', () => {
     expect(CATEGORY_CRATE_IDS).toHaveLength(4);
     const counts = CATEGORY_CRATE_IDS.map((id) => crateWordCount(id));
     expect(new Set(counts).size).toBe(1);
-    // Twenty words in every crate: eighty words to collect in all – a goal a
-    // child can actually finish, with the same work behind every crate.
+    // Twenty words in every pool: eighty words available, and the same ten to
+    // collect in each crate – a balanced goal a child can actually finish.
     expect(counts).toEqual([20, 20, 20, 20]);
     expect(WORD_COUNT).toBe(80);
+    for (const crateId of CATEGORY_CRATE_IDS) expect(crateTarget(crateId)).toBe(CRATE_TARGET);
+    expect(TARGET_WORD_COUNT).toBe(CRATE_TARGET * CATEGORY_CRATE_IDS.length);
+    expect(TARGET_WORD_COUNT).toBeLessThan(WORD_COUNT);
     expect(wordsInCrate(CATEGORY_CRATE_IDS[0])).toHaveLength(counts[0]);
+  });
+
+  it('gives the length crates no target of their own', () => {
+    expect(CRATE_TARGET).toBe(10);
+    for (const crateId of LENGTH_CRATE_IDS) expect(crateTarget(crateId)).toBe(0);
   });
 });
 

@@ -18,11 +18,11 @@ import {
   tripRequest, unlockedRewards, withDelivery,
 } from './trip.js';
 import {
-  ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, allWordsCaught, createJournal, hasWord,
+  ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, allWordsCaught, createJournal, hasRoomForWord, hasWord,
   journalCodec, openCategoryIds, recordCatch, recordDecoration, recordTrip, tripCodec,
-  tripHasWork, wordsCaught, wordsLeftToCatch,
+  tripHasWork, unavailableWords, wordsCaught, wordsLeftToCatch,
 } from './journal.js';
-import { WORD_COUNT, crateById } from './words.js';
+import { TARGET_WORD_COUNT, crateById } from './words.js';
 
 const PAGE_BG = '#dceef4';
 // How long a crate glows after a catch that belongs elsewhere.
@@ -63,7 +63,7 @@ export function statusLine(sea, trip, finale = false) {
 export function WordFishing() {
   const [journal, setJournal] = usePersistentState(JOURNAL_KEY, createJournal, journalCodec);
   const [trip, setTrip] = usePersistentState(TRIP_KEY, () => createTripPlan(1), tripCodec);
-  const [sea, setSea] = useState(() => createSea(trip, new Set(journal.words)));
+  const [sea, setSea] = useState(() => createSea(trip, unavailableWords(journal)));
   const [soundOn, setSoundOn] = useState(!isMuted());
   const [bookOpen, setBookOpen] = useState(false);
   const [notice, setNotice] = useState(null); // { kind: 'notWanted' } while a fish had nowhere to go
@@ -88,7 +88,7 @@ export function WordFishing() {
     if (allWordsCaught(journal) || tripHasWork(trip, journal)) return;
     const plan = createTripPlan(journal.trips + 1, Math.random, openCategoryIds(journal));
     setTrip(plan);
-    setSea(createSea(plan, new Set(journal.words)));
+    setSea(createSea(plan, unavailableWords(journal)));
   }, [journal, trip, setTrip]);
 
   // The whole sea lives on one calm heartbeat; every rule runs inside tickSea,
@@ -148,7 +148,7 @@ export function WordFishing() {
   function startTrip(tripNumber, planJournal = journal) {
     const plan = createTripPlan(tripNumber, Math.random, openCategoryIds(planJournal));
     setTrip(plan);
-    setSea(createSea(plan, new Set(planJournal.words)));
+    setSea(createSea(plan, unavailableWords(planJournal)));
     setNotice(null);
     setTripCard(null);
     setHintCrateId(null);
@@ -195,7 +195,10 @@ export function WordFishing() {
     const fish = aboard;
     if (!fish || finale) return;
     const word = fishWord(fish);
-    const wanted = crateForWord(trip, word);
+    // A word from a finished category has nowhere to go, exactly as if no
+    // crate on board carried it.
+    const targetCrateId = crateForWord(trip, word);
+    const wanted = targetCrateId && hasRoomForWord(journal, word) ? targetCrateId : null;
 
     if (wanted !== crateId) {
       sounds.blub();
@@ -207,13 +210,17 @@ export function WordFishing() {
     }
 
     sounds.crate();
-    setSea((prev) => deliverFish(prev, fish.id, crateId));
-
     const isNewWord = !hasWord(journal, word);
+    let nextJournal = isNewWord ? recordCatch(journal, word) : journal;
+    // The words this delivery takes out of play – the catch itself and, when a
+    // crate just reached its target, everything left in its pool – leave the
+    // water with it, so no fish ever carries a word with nowhere to go.
+    const outOfPlay = unavailableWords(nextJournal);
+    setSea((prev) => deliverFish(prev, fish.id, crateId, outOfPlay));
+
     // The crate pops for every catch, but only a word that is new to the book
     // gets the "+1": the crate's count is a count of different words.
     setLanded((prev) => ({ crateId, word, gain: isNewWord ? 1 : 0, key: (prev?.key ?? 0) + 1 }));
-    let nextJournal = isNewWord ? recordCatch(journal, word) : journal;
     const nextTrip = withDelivery(trip);
 
     // The trip is celebrated on the delivery that completes it, and also when
@@ -278,7 +285,7 @@ export function WordFishing() {
       <div className="game-controls">
         <button className="chip" type="button" onClick={() => { sounds.select(); setBookOpen(true); }}>
           Fangstboka <span aria-hidden="true">📖</span>
-          <span className="chip-badge">{wordsCaught(journal)}/{WORD_COUNT}</span>
+          <span className="chip-badge">{wordsCaught(journal)}/{TARGET_WORD_COUNT}</span>
         </button>
         <button className="chip" type="button" onClick={newTrip} disabled={finale}>Ny tur <span aria-hidden="true">🎣</span></button>
         <button
@@ -344,7 +351,7 @@ export function WordFishing() {
             {tripCard.reward && <p className="trip-done-reward">
               Du fant {tripCard.reward.label.toLowerCase()} på sjøbunnen!
             </p>}
-            <p className="trip-done-tally">{wordsCaught(journal)} av {WORD_COUNT} ord i fangstboka</p>
+            <p className="trip-done-tally">{wordsCaught(journal)} av {TARGET_WORD_COUNT} ord i fangstboka</p>
             <button className="primary-button" type="button" onClick={newTrip}>Ny tur <span aria-hidden="true">🎣</span></button>
           </div>
         </>}
@@ -356,7 +363,7 @@ export function WordFishing() {
             <h2>Gratulerer!</h2>
             <p className="finale-message"><span aria-hidden="true">🎉</span> {ALL_WORDS_MESSAGE}</p>
             <p className="finale-tally">
-              Du har fanget alle {WORD_COUNT} ordene og funnet {rewards.length} skatter på sjøbunnen!
+              Du har fanget alle {TARGET_WORD_COUNT} ordene og funnet {rewards.length} skatter på sjøbunnen!
             </p>
             <button className="primary-button" type="button" onClick={startOver}>
               Start på nytt <span aria-hidden="true">🔄</span>
@@ -383,7 +390,7 @@ export function WordFishing() {
       <p className="sea-note">
         {finale
           ? 'Alle ordene i fangstboka er fanget!'
-          : `${wordsCaught(journal)} av ${WORD_COUNT} ord i fangstboka – ${wordsLeftToCatch(journal)} igjen.`}
+          : `${wordsCaught(journal)} av ${TARGET_WORD_COUNT} ord i fangstboka – ${wordsLeftToCatch(journal)} igjen.`}
       </p>
     </section>
   </main>;
