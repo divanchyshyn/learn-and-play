@@ -4,7 +4,7 @@ import { WORDS_BY_THEME } from './words.js';
 import { applyDrop, scrambleLetters } from './SpellPuzzle.jsx';
 import { SoundLabyrinth, PUZZLE_IMAGES, createGame, THEME_BG } from './SoundLabyrinth.jsx';
 import { createPuzzleSession } from './PiecePuzzle.jsx';
-import { PROGRESS_KEY, GAME_KEY, pieceSessionCodec, gameCodec } from './progress.js';
+import { PROGRESS_KEY, GALLERY_KEY, GAME_KEY, pieceSessionCodec, gameCodec, galleryCodec } from './progress.js';
 import { BOARD_BORDER, PAGE_GUTTER, PAGE_MAX_WIDTH, PAD_COLUMN, boardLayout } from './layout.js';
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
@@ -509,6 +509,10 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     // The finished picture stays on screen, shown clearly with no covering effect.
     expect(screen.getByText(/Bildet er ferdig/)).toBeInTheDocument();
     expect(document.querySelector('.confetti-lift')).toBeNull();
+    // The assembled picture is remembered, so the rotation moves on instead of
+    // dealing the same picture again (see the gallery in progress.js).
+    expect(galleryCodec.parse(window.localStorage.getItem(GALLERY_KEY)))
+      .toEqual({ seen: [0], round: [0] });
 
     // The only way to hide the picture is a click on it.
     fireEvent.click(view.container.querySelector('.puzzle-board.done'));
@@ -525,6 +529,8 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     advance(50);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(chip()).toHaveTextContent('0/4');
+    // The fresh run collects the next picture: picture 0 has been seen already.
+    expect(JSON.parse(window.localStorage.getItem(PROGRESS_KEY)).pieceSession.imageIndex).toBe(1);
     // With five themes, the fourth solved maze (Ukedagene) is followed by the
     // months and seasons maze in the rotation.
     expect(screen.getByText(/Måneder og årstider/)).toBeInTheDocument();
@@ -702,4 +708,40 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     // from the fresh start tile, not the old position.
     expect(gameCodec.parse(window.localStorage.getItem(GAME_KEY)).pos).toEqual({ x: 1, y: 1 });
   }, 15000);
+
+  it('starts a new child on a picture they have not seen yet', () => {
+    window.localStorage.setItem(
+      GALLERY_KEY,
+      galleryCodec.serialize({ seen: [0, 1], round: [0, 1] }),
+    );
+
+    renderGame();
+
+    // The current round steers the choice: pictures 0 and 1 are already done, so
+    // the run starts on picture 2.
+    expect(JSON.parse(window.localStorage.getItem(PROGRESS_KEY)).pieceSession.imageIndex).toBe(2);
+    expect(galleryCodec.parse(window.localStorage.getItem(GALLERY_KEY)))
+      .toEqual({ seen: [0, 1], round: [0, 1] });
+  });
+
+  it('keeps the pictures already seen when «Start på nytt» clears the collection', () => {
+    window.localStorage.setItem(
+      GALLERY_KEY,
+      galleryCodec.serialize({ seen: [3, 0], round: [3, 0] }),
+    );
+    renderGame();
+
+    fireEvent.click(screen.getByRole('button', { name: /Start på nytt/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Sikker/ }));
+    advance(50);
+
+    // The piece session is thrown away, but the record of seen pictures is not:
+    // a reset must never bring an already finished picture back, so the fresh run
+    // still draws from the same round.
+    const saved = JSON.parse(window.localStorage.getItem(PROGRESS_KEY));
+    expect(saved.pieceSession.earned).toEqual([]);
+    expect(saved.pieceSession.imageIndex).toBe(1);
+    expect(galleryCodec.parse(window.localStorage.getItem(GALLERY_KEY)))
+      .toEqual({ seen: [3, 0], round: [3, 0] });
+  });
 });

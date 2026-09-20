@@ -4,13 +4,32 @@ import { sounds } from './sounds.js';
 
 export const PUZZLE_PIECE_COUNT = 4;
 
-// A puzzle session is one whole picture run: which picture is being collected
-// (rotated between sessions), the order the pieces were found, and which
-// pieces already sit on the board (indexed by cell). Pure and injectable, so
-// tests can pin Math.random and stay deterministic.
-export function createPuzzleSession(imageCount, random = Math.random) {
+// Which picture does this run collect? A picture the child has already seen
+// whole is excluded (see the gallery in progress.js), so a finished picture
+// stays out of the rotation until the other pictures have had their turn. When
+// nothing is left to exclude, the whole library is allowed again. `excluded`
+// may name indices the library no longer has – a renamed or removed picture
+// never breaks a save – so only real indices are offered. Pure and injectable,
+// so tests can pin Math.random and stay deterministic.
+export function nextImageIndex(imageCount, excluded = [], random = Math.random) {
+  if (imageCount <= 0) return 0;
+  const used = new Set(excluded);
+  const unseen = [];
+  for (let index = 0; index < imageCount; index += 1) {
+    if (!used.has(index)) unseen.push(index);
+  }
+  const pool = unseen.length > 0
+    ? unseen
+    : Array.from({ length: imageCount }, (_, index) => index);
+  return pool[Math.floor(random() * pool.length)];
+}
+
+// A puzzle session is one whole picture run: which picture is being collected,
+// the order the pieces were found, and which pieces already sit on the board
+// (indexed by cell).
+export function createPuzzleSession(imageCount, random = Math.random, excluded = []) {
   return {
-    imageIndex: Math.floor(random() * imageCount),
+    imageIndex: nextImageIndex(imageCount, excluded, random),
     earned: [],
     cells: [null, null, null, null], // cell -> piece index, or null when empty
   };
@@ -68,7 +87,7 @@ export function isPuzzleCorrect(session) {
 // word: when the picture reads correctly it snaps together, zooms, and bursts
 // confetti; a jumbled picture shakes red and the child drags the pieces back
 // to the top and tries again.
-export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRestart }) {
+export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRestart, onSolved }) {
   const { imageIndex, earned, cells } = session;
   const image = images[imageIndex] ?? images[0];
   const solved = isBoardFull(session) && isPuzzleCorrect(session);
@@ -103,6 +122,9 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
       setWrong(false);
       setFeedback(null);
       sounds.puzzleDone();
+      // The picture has been seen whole: tell the game so its rotation moves on
+      // to a picture the child has not seen yet (the gallery in progress.js).
+      onSolved?.(imageIndex);
     } else if (verdict === 'full-wrong') {
       setWrong(true);
       setFeedback('Ikke riktig – prøv igjen!');
@@ -113,7 +135,7 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
       setFeedback(null);
     }
     return undefined;
-  }, [session]);
+  }, [imageIndex, onSolved, session]);
 
   const startDrag = useCallback((piece, from, event) => {
     setDrag({ piece, from, startX: event.clientX, startY: event.clientY, moved: false, pointerType: event.pointerType });

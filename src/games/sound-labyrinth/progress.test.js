@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { pieceSessionCodec, gameCodec } from './progress.js';
+import { createGallery, galleryCodec, pieceSessionCodec, gameCodec, recordSeenImage } from './progress.js';
 import { createGame } from './SoundLabyrinth.jsx';
 
 // createGame carves a maze with whatever Math.random says; pinning it keeps the
@@ -61,6 +61,69 @@ describe('sound-labyrinth progress codec', () => {
       earned: [0, 1],
       cells: [null, 0, 1, null],
     });
+  });
+});
+
+describe('sound-labyrinth gallery codec', () => {
+  it('starts an empty gallery', () => {
+    expect(createGallery()).toEqual({ seen: [], round: [] });
+  });
+
+  it('round-trips the seen pictures and the current round', () => {
+    const gallery = { seen: [2, 0, 5], round: [5, 2] };
+    expect(galleryCodec.parse(galleryCodec.serialize(gallery))).toEqual(gallery);
+  });
+
+  it('returns null for junk or non-JSON storage', () => {
+    expect(galleryCodec.parse('not json at all')).toBeNull();
+    expect(galleryCodec.parse('{"version":1,"gallery":"nope"}')).toBeNull();
+    expect(galleryCodec.parse('{"version":1,"gallery":null}')).toBeNull();
+    expect(galleryCodec.parse(null)).toBeNull();
+  });
+
+  it('rejects saved states from a different schema version', () => {
+    expect(galleryCodec.parse('{"version":99,"gallery":{}}')).toBeNull();
+  });
+
+  it('normalizes stored index lists instead of trusting storage', () => {
+    const raw = JSON.stringify({
+      version: 1,
+      // Duplicates, negatives, fractions, junk – plus a round that is not a list.
+      gallery: { seen: [1, 1, -3, 2.5, 'x', 0], round: 'nope' },
+    });
+    expect(galleryCodec.parse(raw)).toEqual({ seen: [1, 0], round: [] });
+  });
+});
+
+describe('sound-labyrinth picture gallery', () => {
+  it('records assembled pictures in the order they were seen, without repeats', () => {
+    let gallery = createGallery();
+    gallery = recordSeenImage(gallery, 4, 8);
+    gallery = recordSeenImage(gallery, 1, 8);
+    gallery = recordSeenImage(gallery, 4, 8); // seen again: nothing left to add
+    expect(gallery).toEqual({ seen: [4, 1], round: [4, 1] });
+  });
+
+  it('returns the very same gallery when there is nothing new to record', () => {
+    const gallery = recordSeenImage(createGallery(), 2, 8);
+    expect(recordSeenImage(gallery, 2, 8)).toBe(gallery);
+  });
+
+  it('starts a fresh round once every picture has had its turn', () => {
+    let gallery = createGallery();
+    for (const index of [0, 1, 2]) gallery = recordSeenImage(gallery, index, 3);
+    // The third picture closes the round, and the new round starts from it, so
+    // the picture just finished is not offered again straight away.
+    expect(gallery).toEqual({ seen: [0, 1, 2], round: [2] });
+    gallery = recordSeenImage(gallery, 0, 3);
+    expect(gallery).toEqual({ seen: [0, 1, 2], round: [2, 0] });
+  });
+
+  it('ignores an index the picture library does not have', () => {
+    const gallery = createGallery();
+    expect(recordSeenImage(gallery, 8, 8)).toBe(gallery);
+    expect(recordSeenImage(gallery, -1, 8)).toBe(gallery);
+    expect(recordSeenImage(gallery, 1.5, 8)).toBe(gallery);
   });
 });
 

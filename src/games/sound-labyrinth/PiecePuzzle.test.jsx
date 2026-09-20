@@ -9,6 +9,7 @@ import {
   earnPiece,
   isBoardFull,
   isPuzzleCorrect,
+  nextImageIndex,
   placePiece,
   recallPiece,
 } from './PiecePuzzle.jsx';
@@ -23,7 +24,7 @@ function earnedAll(imageCount = 3) {
 // Controlled harness so tests can place/recall pieces and watch the parent
 // state move, exactly like the real game wires the panel. Closing or
 // restarting actually hides the panel, letting the tests verify the gestures.
-function PuzzleHarness({ images, initial }) {
+function PuzzleHarness({ images, initial, onSolved }) {
   const [session, setSession] = useState(initial);
   const [open, setOpen] = useState(true);
   if (!open) return null;
@@ -38,6 +39,7 @@ function PuzzleHarness({ images, initial }) {
         setSession(createPuzzleSession(images.length, () => 0));
         setOpen(false);
       }}
+      onSolved={onSolved}
     />
   );
 }
@@ -49,6 +51,27 @@ describe('piece puzzle helpers', () => {
     const session = createPuzzleSession(1, () => 0);
     expect(session.earned).toEqual([]);
     expect(session.cells).toEqual([null, null, null, null]);
+  });
+
+  it('nextImageIndex draws from the pictures outside the current rotation', () => {
+    expect(nextImageIndex(5, [0, 1, 2], () => 0)).toBe(3);
+    expect(nextImageIndex(5, [0, 1, 2], () => 0.99)).toBe(4);
+    // Every picture excluded – the whole library is allowed again.
+    expect(nextImageIndex(3, [0, 1, 2], () => 0.5)).toBe(1);
+    // Whatever the dice roll, the pick is a real picture the child has not seen.
+    for (let step = 0; step < 16; step += 1) {
+      const index = nextImageIndex(4, [1], () => step / 16);
+      expect(index).not.toBe(1);
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(index).toBeLessThan(4);
+    }
+  });
+
+  it('createPuzzleSession collects a picture the child has not seen yet', () => {
+    expect(createPuzzleSession(5, () => 0, [0, 1]).imageIndex).toBe(2);
+    expect(createPuzzleSession(4, () => 0.99, [3, 1]).imageIndex).toBe(2);
+    // Indices the current library does not have never break a saved rotation.
+    expect(createPuzzleSession(2, () => 0, [7, 9]).imageIndex).toBe(0);
   });
 
   it('earnPiece rewards pieces in order and caps at four', () => {
@@ -169,6 +192,32 @@ describe('piece puzzle screen', () => {
     // A click anywhere on the picture closes the panel.
     fireEvent.click(dialog.querySelector('.puzzle-board.done'));
     expect(screen.queryByRole('dialog', { name: 'Puslespill' })).toBeNull();
+  });
+
+  it('reports the finished picture to the game once, and only when it is right', () => {
+    const onSolved = vi.fn();
+    const session = earnedAll();
+    render(<PuzzleHarness images={['a', 'b', 'c']} initial={session} onSolved={onSolved} />);
+    const dialog = screen.getByRole('dialog', { name: 'Puslespill' });
+    expect(onSolved).not.toHaveBeenCalled();
+
+    // A full board in the wrong order is not the picture yet.
+    for (const name of ['Brikke 2', 'Brikke 1', 'Brikke 4', 'Brikke 3']) {
+      fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(`^${name}`) }));
+    }
+    expect(dialog.querySelector('.puzzle-board').classList.contains('wrong')).toBe(true);
+    expect(onSolved).not.toHaveBeenCalled();
+
+    // Free the pieces and assemble them correctly.
+    for (const piece of [1, 2, 3, 4]) {
+      fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(`Brikke ${piece} ligger i rute`) }));
+    }
+    for (const name of ['Brikke 1', 'Brikke 2', 'Brikke 3', 'Brikke 4']) {
+      fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(`^${name}`) }));
+    }
+    expect(screen.getByText(/Bildet er ferdig/)).toBeInTheDocument();
+    expect(onSolved).toHaveBeenCalledTimes(1);
+    expect(onSolved).toHaveBeenCalledWith(session.imageIndex);
   });
 
   it('Spill igjen restarts a fresh picture and hides the panel', () => {

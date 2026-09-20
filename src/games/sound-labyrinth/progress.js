@@ -2,15 +2,17 @@ import { PUZZLE_PIECE_COUNT } from './PiecePuzzle.jsx';
 import { migrateStorage } from '../../shared/persistence.js';
 import { THEMES } from './mazes.js';
 
-// What a child has collected in Sound Labyrinth survives a page refresh. Two
+// What a child has collected in Sound Labyrinth survives a page refresh. Three
 // pieces of state are saved:
 //
 //  * the earned puzzle pieces and the picture they belong to (pieceSession
-//    from PiecePuzzle.jsx), and
+//    from PiecePuzzle.jsx),
 //  * the maze session itself – the carved labyrinth, which spelling locks are
 //    already open, whether the exit was celebrated, and exactly where the
 //    runner stood – so a reload drops the child back onto the same tile
-//    instead of carving a fresh maze.
+//    instead of carving a fresh maze, and
+//  * the picture gallery – which pictures the child has already seen whole, so
+//    the next run collects a picture they have not seen yet.
 //
 // The codecs here format each piece for localStorage and read it back,
 // refusing any saved state that does not match this version of the game, so a
@@ -20,6 +22,8 @@ export const PROGRESS_KEY = 'soundLabyrinth:progress';
 const PROGRESS_VERSION = 1;
 export const GAME_KEY = 'soundLabyrinth:game';
 const GAME_VERSION = 1;
+export const GALLERY_KEY = 'soundLabyrinth:gallery';
+const GALLERY_VERSION = 1;
 
 // Saved games used to live under the game's old Norwegian name. Move them to
 // their current keys once, so a child's collected pieces and carved maze
@@ -65,6 +69,72 @@ export const pieceSessionCodec = {
         ? saved.imageIndex
         : 0;
       return { imageIndex, earned, cells };
+    } catch {
+      return null;
+    }
+  },
+};
+
+// ---- The picture gallery ----------------------------------------------------
+// The pictures a child has already assembled. This lives under its own key on
+// purpose: "Start på nytt" clears the piece session, and the record of pictures
+// already seen must survive that, or a reset would deal the same picture again.
+//
+//  * `seen`  – every picture the child has seen whole, in the order they were
+//              found and without repeats. A future gallery view ("bildene du
+//              har funnet") reads exactly this list.
+//  * `round` – the pictures already used in the current rotation. The next run
+//              collects a picture from outside this list, so no picture comes
+//              back until every other one has had its turn. Adding the picture
+//              that completes a round starts the next round from it, so the
+//              picture just finished is never the immediate next one either.
+//
+// The codec cannot know how many pictures ship with the game, so a stored index
+// is accepted as any whole number `>= 0` - the same rule the piece session uses
+// for `imageIndex`. Picking a picture only ever offers indices inside the
+// current rotation (see nextImageIndex in PiecePuzzle.jsx), so a rotation that
+// grows or shrinks keeps every saved gallery working.
+
+export function createGallery() {
+  return { seen: [], round: [] };
+}
+
+const isImageIndex = (index) => Number.isInteger(index) && index >= 0;
+
+function normalizeIndexList(list) {
+  if (!Array.isArray(list)) return [];
+  return [...new Set(list.filter(isImageIndex))];
+}
+
+// Record one assembled picture. Returns the very same gallery when nothing
+// changes (a picture recorded twice, or an index the library does not have), so
+// re-opening an already solved board never writes storage for nothing.
+export function recordSeenImage(gallery, imageIndex, imageCount) {
+  if (!isImageIndex(imageIndex) || imageIndex >= imageCount) return gallery;
+  const seen = gallery.seen.includes(imageIndex)
+    ? gallery.seen
+    : [...gallery.seen, imageIndex];
+  const added = !gallery.round.includes(imageIndex);
+  let round = added ? [...gallery.round, imageIndex] : gallery.round;
+  if (added && round.length >= imageCount) round = [imageIndex];
+  if (seen === gallery.seen && round === gallery.round) return gallery;
+  return { seen, round };
+}
+
+export const galleryCodec = {
+  serialize(gallery) {
+    return JSON.stringify({ version: GALLERY_VERSION, gallery });
+  },
+  parse(raw) {
+    try {
+      const data = JSON.parse(raw);
+      if (!data || data.version !== GALLERY_VERSION) return null;
+      const saved = data.gallery;
+      if (!saved || typeof saved !== 'object') return null;
+      return {
+        seen: normalizeIndexList(saved.seen),
+        round: normalizeIndexList(saved.round),
+      };
     } catch {
       return null;
     }

@@ -13,7 +13,16 @@ import {
   recallPiece,
 } from './PiecePuzzle.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
-import { GAME_KEY, PROGRESS_KEY, gameCodec, pieceSessionCodec } from './progress.js';
+import {
+  GALLERY_KEY,
+  GAME_KEY,
+  PROGRESS_KEY,
+  createGallery,
+  galleryCodec,
+  gameCodec,
+  pieceSessionCodec,
+  recordSeenImage,
+} from './progress.js';
 import { PAGE_GUTTER, PAGE_MAX_WIDTH, PAD_GAP, PAD_SIZE, boardLayout } from './layout.js';
 import { shuffle } from '../../shared/random.js';
 import { usePersistentState } from '../../shared/usePersistentState.js';
@@ -129,11 +138,16 @@ export function SoundLabyrinth() {
   );
   const [fx, setFx] = useState(null);
   const [soundOn, setSoundOn] = useState(!isMuted());
+  // Which pictures the child has already assembled survives a page refresh in
+  // its own saved value, and even survives "Start på nytt": that reset clears
+  // the piece session, never the pictures the child has seen (see progress.js).
+  const [gallery, setGallery] = usePersistentState(GALLERY_KEY, createGallery, galleryCodec);
   // The collected pieces and their picture survive a page refresh too (see
-  // progress.js).
+  // progress.js). A fresh run collects a picture from outside the current
+  // rotation, so a picture the child has finished is not dealt again.
   const [pieceSession, setPieceSession] = usePersistentState(
     PROGRESS_KEY,
-    () => createPuzzleSession(PUZZLE_IMAGES.length),
+    () => createPuzzleSession(PUZZLE_IMAGES.length, Math.random, gallery.round),
     pieceSessionCodec,
   );
   const [puzzleOpen, setPuzzleOpen] = useState(false);
@@ -146,6 +160,8 @@ export function SoundLabyrinth() {
   gameRef.current = game;
   const pieceSessionRef = useRef(pieceSession);
   pieceSessionRef.current = pieceSession;
+  const galleryRef = useRef(gallery);
+  galleryRef.current = gallery;
   const genRef = useRef(0);
 
   const { maze, doors, pos, phase, puzzle, runner, pieceJustEarned } = game;
@@ -307,6 +323,13 @@ export function SoundLabyrinth() {
     }
   }, [setPieceSession]);
 
+  // The picture is assembled and on screen: remember it, so the rotation moves
+  // on to a picture the child has not seen yet. Recording the same picture
+  // twice is a no-op, so reopening a solved board changes nothing.
+  const handlePictureSolved = useCallback((imageIndex) => {
+    setGallery((prev) => recordSeenImage(prev, imageIndex, PUZZLE_IMAGES.length));
+  }, [setGallery]);
+
   useEffect(() => {
     const onKeyDown = (event) => {
       // Escape closes whichever panel is on top: the puzzle popup first, then
@@ -364,7 +387,7 @@ export function SoundLabyrinth() {
     setFx(null);
     setPieceReveal(false);
     setPuzzleOpen(false);
-    setPieceSession(createPuzzleSession(PUZZLE_IMAGES.length));
+    setPieceSession(createPuzzleSession(PUZZLE_IMAGES.length, Math.random, galleryRef.current.round));
   }
 
   // "Start på nytt" – the full reset. A first tap arms it and asks for a
@@ -558,6 +581,7 @@ export function SoundLabyrinth() {
           onPlace={handlePlacePiece}
           onRecall={handleRecallPiece}
           onRestart={handleRestart}
+          onSolved={handlePictureSolved}
         />
       )}
 

@@ -146,6 +146,17 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
   `imageIndex`, and the codec accepts any index `>= 0`. A bigger rotation therefore
   keeps every saved game working with no `migrateStorage` step (a smaller one would
   quietly show the first picture for the highest stored indices).
+- Sound Labyrinth also remembers which pictures a child has already assembled, so
+  the rotation moves on to a picture they have not seen instead of dealing one
+  again. That record lives in its own saved value (`soundLabyrinth:gallery`) and
+  holds two lists: `seen` (every picture ever assembled, in the order they were
+  found - the list a future gallery view reads) and `round` (the pictures used in
+  the current rotation, which drives the picking; the round restarts once every
+  picture has had its turn, beginning with the picture just finished). It survives
+  "Start på nytt" on purpose - that reset clears the piece session, never the
+  pictures the child has seen - and it stores indices only, by the same rule as
+  `imageIndex`: the codec accepts any index `>= 0` and the picker ignores indices
+  past the end of the current rotation.
 - Pick subjects a child recognises and keep new artwork in that friendly, everyday
   spirit; see Design direction before adding anything that leans on the former
   military theme.
