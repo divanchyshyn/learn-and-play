@@ -4,6 +4,36 @@
 
 Build a small, friendly collection of browser games for children. Games should be easy to understand, work without accounts or a backend, and support learning through play. The current games practise Norwegian words, but future games may cover reading, counting, maths, or similar skills.
 
+## Naming
+
+- Every name in the codebase is English: game folders and URL slugs, component
+  and file names, exported helpers, data keys (item ids, categories, themes,
+  mode ids), CSS class names, storage keys, comments, test names, and docs.
+- Only what a child sees or hears stays Norwegian: game titles, badges, intro
+  and help text, button and aria labels, the Norwegian word and number banks,
+  and each page's `<title>`. `speakNorwegian`, `pickNorwegianVoice` and
+  `numberToNorwegian` are English identifiers for the *language* a game teaches,
+  so they keep their names.
+- The library title (what the child sees) and the code name (what the code uses)
+  map onto each other as follows:
+
+  | Code: folder, route, component | Library title |
+  | --- | --- |
+  | `shop`, `Shop` | Butikken |
+  | `card-battle`, `CardBattle` | Kortkrig |
+  | `sound-labyrinth`, `SoundLabyrinth` | Lyd-labyrinten |
+  | `word-fishing`, `WordFishing` | Ordfiske |
+  | `snakes-and-ladders`, `SnakesAndLadders` | Slanger og stiger |
+  | `number-line-hop`, `NumberLineHop` | Tierhopp |
+
+- Storage keys are English as well (`soundLabyrinth:game`, `cardBattle:tally`,
+  …). If a key ever has to change again, move the saved value once with
+  `migrateStorage` from `src/shared/persistence.js`, so no child loses progress.
+- The Norwegian slugs that were published before this rule existed were renamed
+  to the English ones above in one deliberate, human-approved change, and the
+  old URLs were retired together with it. From now on, a published slug is never
+  renamed without keeping the old URL working.
+
 ## Stack and deployment
 
 - React with Vite, using JavaScript and CSS.
@@ -62,9 +92,9 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 - Vitest with jsdom and React Testing Library. Configuration lives in the `test` block of `vite.config.js`; shared matchers are loaded by `src/test/setup.js`.
 - Test files sit next to the code they cover as `*.test.js` / `*.test.jsx`. They are never imported by an entry point, so they stay out of the production build in `dist/`.
 - Cover each game's rules as pure-logic tests (board or maze integrity, word banks, option generators, dice and turn flow) plus at least one rendered happy path through the UI.
-- Export existing pure helpers from game components instead of duplicating their logic in tests (see Butikken's `expectedAnswer` or Slangen og stigers `makeWords`).
+- Export existing pure helpers from game components instead of duplicating their logic in tests (see the Shop's `expectedAnswer` or Snakes and ladders' `makeWords`).
 - Keep tests deterministic: pin `Math.random` with `vi.spyOn`, use fake timers for movement/animation locks, and derive expectations from whatever random content a component actually rendered instead of assuming specific items or words.
-- Respect each game's design constraints inside its tests – for example, Lyd-labyrinten keeps no failure states: letters stay freely placeable and reorderable, and a wrong spelling may only shake red and be read back, never punished.
+- Respect each game's design constraints inside its tests – for example, Sound Labyrinth keeps no failure states: letters stay freely placeable and reorderable, and a wrong spelling may only shake red and be read back, never punished.
 
 ## CI
 
@@ -91,7 +121,7 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 - Reuse `src/styles/base.css` only for genuinely shared browser-wide styles; do not put game-specific styling there.
 - Prefer simple React state and small components over adding a state-management library.
 - Preserve existing games while adding new ones. Do not rename a game slug without also preserving or intentionally redirecting its published URL.
-- Hide an unfinished game by commenting out its tile in `src/home/main.jsx` and marking it "(hidden)" in `README.md`. Keep its entry point in the build so the direct URL keeps working (see Kortkrig, Ordfiske and Tierhopp).
+- Hide an unfinished game by commenting out its tile in `src/home/main.jsx` and marking it "(hidden)" in `README.md`. Keep its entry point in the build so the direct URL keeps working (see Card battle, Word fishing and Number-line hop).
 - Build (`npm.cmd run build`), lint (`npm.cmd run lint`), and test (`npm.cmd run test`) before handing off changes. For interactive changes, also verify the relevant game route locally.
 
 ## Definition of done
@@ -103,7 +133,8 @@ A change, whether written by a person or by the coding agent, is finished only w
 - `README.md` is updated when user-visible behaviour, the game list, or a published route changes.
 - A new game also gets its `games/<slug>/index.html`, its `src/games/<slug>/` folder, a tile in `src/home/main.jsx`, and a README entry.
 - The production build still contains every published route (`dist/games/<slug>/index.html`).
-- No published game slug is renamed or removed.
+- No published game slug is renamed or removed (the one-off English rename recorded under Naming is the deliberate exception).
+- New code follows the Naming rules: English identifiers everywhere, Norwegian only in what the child sees or hears.
 - No new runtime dependency is added without a human decision.
 
 ## Agent pipeline

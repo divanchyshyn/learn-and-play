@@ -35,3 +35,17 @@ export function removeStorage(key, store = defaultStore()) {
     // Same best-effort rule as the other two.
   }
 }
+
+// Move a value that used to be saved under an older key to its current home.
+// A game calls this once at startup with the key it used to write, so a rename
+// of the key never costs a child their saved progress: the value is copied to
+// the new key and the old one is dropped, which makes the move happen exactly
+// once. Returns the moved value, or null when there was nothing to move.
+export function migrateStorage(legacyKey, currentKey, store = defaultStore()) {
+  if (legacyKey === currentKey) return null;
+  const legacy = readStorage(legacyKey, store);
+  if (legacy === null) return null;
+  writeStorage(currentKey, legacy, store);
+  removeStorage(legacyKey, store);
+  return legacy;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { readStorage, writeStorage, removeStorage } from './persistence.js';
+import { readStorage, writeStorage, removeStorage, migrateStorage } from './persistence.js';
 
 // A tiny in-memory store shaped like localStorage, for tests that want a store
 // which is not the browser's.
@@ -50,5 +50,33 @@ describe('shared persistence storage helpers', () => {
     };
     expect(() => writeStorage('key', 'value', broken)).not.toThrow();
     expect(() => removeStorage('key', broken)).not.toThrow();
+  });
+
+  it('moves a value saved under an older key to its current key exactly once', () => {
+    const store = memoryStore();
+    writeStorage('oldKey:muted', '1', store);
+
+    expect(migrateStorage('oldKey:muted', 'newKey:muted', store)).toBe('1');
+    expect(readStorage('newKey:muted', store)).toBe('1');
+    expect(readStorage('oldKey:muted', store)).toBeNull();
+
+    // A second call has nothing left to move, so the current value stays put.
+    writeStorage('newKey:muted', '0', store);
+    expect(migrateStorage('oldKey:muted', 'newKey:muted', store)).toBeNull();
+    expect(readStorage('newKey:muted', store)).toBe('0');
+  });
+
+  it('leaves the current key alone when there is no legacy value', () => {
+    const store = memoryStore();
+    writeStorage('currentKey:progress', 'fresh', store);
+    expect(migrateStorage('legacyKey:progress', 'currentKey:progress', store)).toBeNull();
+    expect(readStorage('currentKey:progress', store)).toBe('fresh');
+  });
+
+  it('does nothing when both keys are the same', () => {
+    const store = memoryStore();
+    writeStorage('same:key', 'value', store);
+    expect(migrateStorage('same:key', 'same:key', store)).toBeNull();
+    expect(readStorage('same:key', store)).toBe('value');
   });
 });

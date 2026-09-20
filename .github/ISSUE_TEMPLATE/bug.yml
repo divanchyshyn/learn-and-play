@@ -19,12 +19,12 @@ body:
       label: Area
       options:
         - Home / game library
-        - Butikken
-        - Slangen og stigers
-        - Lyd-labyrinten
-        - Ordfiske (hidden)
-        - Kortkrig (hidden)
-        - Tierhopp (hidden)
+        - Shop (Butikken)
+        - Snakes and ladders (Slanger og stiger)
+        - Sound labyrinth (Lyd-labyrinten)
+        - Word fishing (Ordfiske, hidden)
+        - Card battle (Kortkrig, hidden)
+        - Number-line hop (Tierhopp, hidden)
         - Shared helpers (src/shared)
         - Build, tooling or CI
     validations:
@@ -34,7 +34,7 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Open ./games/butikken/
+        1. Open ./games/shop/
         2. ...
     validations:
       required: true
