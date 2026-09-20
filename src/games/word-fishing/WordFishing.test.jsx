@@ -551,6 +551,34 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(screen.getByText(tripRequest(createTripPlan(2)))).toBeInTheDocument();
   });
 
+  it('re-deals a workless saved trip as the next trip, on the cycle', () => {
+    const natureWords = wordsInCrate('nature').map((entry) => entry.word);
+    window.localStorage.setItem(JOURNAL_KEY, journalCodec.serialize({
+      ...createJournal(),
+      words: natureWords,
+      trips: 4,
+    }));
+    // Trip 4 is the single-crate trip, already dealt to Nature and now full:
+    // the save holds a boat with nothing left to fish for.
+    window.localStorage.setItem(TRIP_KEY, tripCodec.serialize(createTripPlan(4, () => 0.5)));
+
+    const view = render(<WordFishing />);
+
+    // On load a fresh trip is dealt from the journal, so the boat is number 5
+    // and the cycle moves on to free sorting instead of repeating the order
+    // trip – badge, card and the next «Ny tur» can never disagree.
+    expect(screen.getByText('Tur 5')).toBeInTheDocument();
+    expect(view.container.querySelectorAll('.crate')).toHaveLength(4);
+    expect(screen.getByText(tripRequest(createTripPlan(5)))).toBeInTheDocument();
+    expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+    expect(fishElements(view)).toHaveLength(FISH_ON_SCREEN);
+    expect(view.container.querySelector('.trip-done')).toBeNull();
+
+    // The sea is alive, and the words it deals avoid the full Nature crate.
+    const word = catchAndSort(view);
+    expect(categoryOf(word)).not.toBe('nature');
+  });
+
   it('celebrates the very last word with confetti and a fresh start', () => {
     const lastWord = WORD_BANK[WORD_BANK.length - 1].word;
     window.localStorage.setItem(JOURNAL_KEY, journalCodec.serialize({

@@ -78,13 +78,15 @@ export function WordFishing() {
 
   // A saved trip can be out of work – say, its one ordered crate was already
   // filled last visit. The child must never be stuck on a boat that can take
-  // nothing, so a fresh plan with words left is dealt once, on the way in.
+  // nothing, so a fresh plan with words left is dealt once, on the way in. Its
+  // workless turn was already stamped in the journal, so the next number comes
+  // from there – `trip.number` is the boat just left behind.
   const tripChecked = useRef(false);
   useEffect(() => {
     if (tripChecked.current) return;
     tripChecked.current = true;
     if (allWordsCaught(journal) || tripHasWork(trip, journal)) return;
-    const plan = createTripPlan(trip.number, Math.random, openCategoryIds(journal));
+    const plan = createTripPlan(journal.trips + 1, Math.random, openCategoryIds(journal));
     setTrip(plan);
     setSea(createSea(plan, new Set(journal.words)));
   }, [journal, trip, setTrip]);
@@ -153,7 +155,9 @@ export function WordFishing() {
     setLanded(null);
   }
 
-  // The whole book is full: back to a brand-new hunt, with an empty book.
+  // The whole book is full: back to a brand-new hunt, with an empty book. The
+  // seabed collection restarts with it on purpose – the finished journey is
+  // over, so unlike Sound Labyrinth's gallery, nothing is carried over.
   function startOver() {
     sounds.select();
     const fresh = createJournal();
