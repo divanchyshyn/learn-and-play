@@ -1,7 +1,7 @@
 ---
 description: Reviews a pull request for correctness, quality and security. Read-only.
 mode: primary
-model: openrouter/deepseek/deepseek-v4.1-flash
+model: deepseek/deepseek-flash
 permission:
   read: allow
   edit: deny

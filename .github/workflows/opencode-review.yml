@@ -73,7 +73,7 @@ jobs:
 
       - name: Run review
         env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
           opencode run --agent review --variant max "Review this pull request.
           Read pr-context.md at the repository root for its number, base branch,

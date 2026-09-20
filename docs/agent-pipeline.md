@@ -32,15 +32,21 @@ never touched without you.
 
 ## Engine
 
-- **Model:** `openrouter/deepseek/deepseek-v4.1-flash` — DeepSeek's V4.1 family,
-  1M-token context, built for long-horizon agent work. Roughly $0.15 per million
-  input tokens and $0.60 per million output tokens, with very cheap cached reads.
+- **Model:** `deepseek/deepseek-flash` — DeepSeek's V4.1 Flash, called straight on
+  DeepSeek's own API instead of through a gateway. 1M-token context, built for
+  long-horizon agent work. Off-peak it costs about $0.15 per million input tokens
+  and $0.60 per million output tokens, with cache reads at $0.003 per million;
+  peak hours (01:00–04:00 and 06:00–10:00 UTC, Monday to Friday) double all three.
 - **Reasoning effort:** `max` everywhere. Set once in `opencode.json` under
-  `provider.openrouter.models."deepseek/deepseek-v4.1-flash".options`, so the
-  `build` agent, the `review` agent and any subagent all inherit it. The model's
-  provider only accepts `low`, `high` and `max`, so `max` is the ceiling.
-- **Provider lock:** `enabled_providers: ["openrouter"]` means no other provider
+  `provider.deepseek.models."deepseek-flash".options`, so the `build` agent, the
+  `review` agent and any subagent all inherit it. Thinking mode is on by default
+  and `reasoning_effort` accepts `low`, `high` and `max`, so `max` is the ceiling.
+- **Provider lock:** `enabled_providers: ["deepseek"]` means no other provider
   can be loaded even if another key leaks into the environment.
+- **Variant:** the `review` workflow and the GitHub action both pass `variant:
+  max` / `--variant max`. The available variants come from the model's
+  `reasoning_options` on Models.dev (`low`, `high`, `max`), so they survive the
+  move to the direct API.
 
 ## Files that make it work
 
@@ -60,16 +66,23 @@ never touched without you.
 
 These are repository settings, not files, so they have to be done by hand once.
 
-1. **Create a dedicated OpenRouter key.** Do not reuse your IDE key. Make a new
-   key named `learn-and-play CI` and give it a **credit limit** (about $10–$20 is
-   generous for this model, and it is the only real brake — OpenRouter keys are
-   full-access with no scopes). A separate key means you can disable, rotate or
-   delete the CI key without breaking your local setup, and OpenRouter is a
-   GitHub secret-scanning partner, so an exposed key is detected and can be
-   revoked on its own. Pause or disable the key from the dashboard to cut off
-   inference immediately.
+1. **Create a dedicated DeepSeek key.** Sign in at
+   [platform.deepseek.com](https://platform.deepseek.com), open **API keys**, and
+   create a key named `learn-and-play CI`. Do not reuse your IDE key. DeepSeek is
+   prepaid and has no per-key credit limit, so the real brake is the account
+   balance: top up a small amount (about $10–$20 is generous for this model) and
+   check the balance at the dashboard when a run fails unexpectedly. A separate
+   key means you can delete or rotate the CI key without breaking your local
+   setup.
+
+   One regression against OpenRouter: GitHub secret scanning covers DeepSeek keys
+   only on private repositories with Advanced Security, while OpenRouter's key
+   pattern is on the public list. A leaked `DEEPSEEK_API_KEY` in a public
+   repository is therefore **not** detected automatically — treat it as
+   un-scanned and delete the key as soon as it is exposed.
 2. **Add it as a secret.** Settings → Secrets and variables → Actions → new
-   repository secret named `OPENROUTER_API_KEY`.
+   repository secret named `DEEPSEEK_API_KEY`. Then delete the old
+   `OPENROUTER_API_KEY` secret and disable the OpenRouter key itself.
 3. **Protect `main`.** Settings → Branches → add a rule for `main`:
    - require a pull request before merging
    - require at least one approval
@@ -108,11 +121,11 @@ These are repository settings, not files, so they have to be done by hand once.
   a specific line in the pull request's **Files** tab to have the agent work on
   just that spot. Both go through the `comment` job in `opencode.yml`.
 - **Run it locally first:** install the CLI (`npm i -g opencode-ai`), run
-  `opencode auth login` and choose OpenRouter, then `opencode models` to confirm
-  `openrouter/deepseek/deepseek-v4.1-flash` is listed. A dry run:
+  `opencode auth login` and choose DeepSeek, then `opencode models` to confirm
+  `deepseek/deepseek-flash` is listed. A dry run:
 
   ```powershell
-  opencode run --auto --model openrouter/deepseek/deepseek-v4.1-flash "summarise AGENTS.md"
+  opencode run --auto --model deepseek/deepseek-flash "summarise AGENTS.md"
   ```
   On Windows the OpenCode docs recommend WSL for the best experience.
 
@@ -123,11 +136,11 @@ These are repository settings, not files, so they have to be done by hand once.
 | Prompt injection from an issue or diff telling the agent to exfiltrate | `webfetch`, `websearch` and `external_directory` are denied; the bash allowlist has no `curl`, `wget`, `env` or `printenv` |
 | The agent reaching production | Branch protection on `main`; the agent only ever opens a pull request. The Cloudflare deploy job additionally waits on the `cloudflare-production` environment's required reviewers, so even a merged change needs a human approval before it goes live |
 | Adding dependencies behind your back | `npm install` is denied; only `npm ci` is allowed. The agent must stop and ask |
-| Secrets leaking into the agent's shell | `OPENROUTER_API_KEY` is the only secret in the job, and the bash allowlist cannot read the environment |
+| Secrets leaking into the agent's shell | `DEEPSEEK_API_KEY` is the only secret in the job, and the bash allowlist cannot read the environment |
 | The reviewer changing what it reviews | The `review` agent denies `edit`; the workflow's `GITHUB_TOKEN` has `contents: read` plus `pull-requests: write`, which is only good for posting comments |
 | Untrusted forks | The reviewer only runs for pull requests whose head repo is this repository, so forks never see the secrets |
 | An account with no repository permission driving the agent | The `opencode.yml` action refuses any actor without `admin`/`write` permission, so bot-authored comment events can never drive the build agent. The reviewer no longer uses that action — it posts with `GITHUB_TOKEN`, which needs no such assertion, so bot-authored pull requests (the agent's own) still get reviewed |
-| Runaway loops or cost | `timeout-minutes: 30` on both agent jobs, plus an OpenRouter spend limit |
+| Runaway loops or cost | `timeout-minutes: 30` on both agent jobs, plus a prepaid DeepSeek balance kept deliberately small |
 | Supply chain in the action itself | `anomalyco/opencode/github` (the build job) is pinned to `v2.0.3`; the reviewer installs a fixed `opencode` binary (1.18.31) and caches it, so the install only runs on a cache miss |
 
 ### Two honest caveats
@@ -145,9 +158,12 @@ These are repository settings, not files, so they have to be done by hand once.
 ## Costs
 
 Reasoning tokens bill as output. A chatty turn at `max` effort might emit 30k
-output tokens, which is about $0.018; input is mostly cache reads at $0.003 per
-million. A full agent run of ~50 turns typically lands well under a dollar, so
-`max` everywhere is the right default here.
+output tokens, which is about $0.018 off-peak and about $0.036 in peak hours;
+input is mostly cache reads at $0.003 per million off-peak. A full agent run of
+~50 turns typically lands well under a dollar off-peak, so `max` everywhere is
+the right default here. DeepSeek charges the peak rate between 01:00–04:00 and
+06:00–10:00 UTC, Monday to Friday, excluding Chinese public holidays, so a long
+run started in that window costs up to twice as much.
 
 ## Where this goes next
 
@@ -187,6 +203,12 @@ until the current loop feels boring and reliable:
   the pinned action ref. Once the tuned version is committed, restore it with
   `git checkout -- .github/workflows/opencode.yml`. The action itself never
   rewrites the file at run time, so this only happens when you run the installer.
+- **The agent failed with a DeepSeek authentication or balance error.** DeepSeek
+  is prepaid and has no per-key credit limit, so top up the account balance at
+  platform.deepseek.com, and check that `DEEPSEEK_API_KEY` still points at a key
+  that has not been deleted. A `model not found` error means DeepSeek renamed the
+  model: run `opencode models`, then update the id in `opencode.json`, both
+  workflows and `.opencode/agents/review.md`.
 - **Tests fail only in CI.** The local convention is `npm.cmd` on Windows; CI
   uses plain `npm` on Linux. Run `npm.cmd run lint; npm.cmd run test; npm.cmd run build`
   before handing off.

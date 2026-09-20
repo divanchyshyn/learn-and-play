@@ -42,9 +42,10 @@ second, read-only agent reviews every pull request and posts QA and security
 findings as a comment. Nothing merges without passing CI and a human review, and
 merging `main` deploys the site exactly as before.
 
-The agent runs on DeepSeek V4.1 Flash through OpenRouter at maximum reasoning
-effort. Its configuration lives in `opencode.json` and `.opencode/agents/`. The
-wiring, the one-time repository setup, and the guardrails are described in
+The agent runs on DeepSeek V4.1 Flash (`deepseek/deepseek-flash`) through
+DeepSeek's own API at maximum reasoning effort. Its configuration lives in
+`opencode.json` and `.opencode/agents/`. The wiring, the one-time repository
+setup, and the guardrails are described in
 [`docs/agent-pipeline.md`](./docs/agent-pipeline.md).
 
 ## Hosting
