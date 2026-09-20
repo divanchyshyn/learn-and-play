@@ -91,8 +91,8 @@ These are repository settings, not files, so they have to be done by hand once.
 - **Start the agent:** add the `ai-ready` label to an issue. Or comment `/oc`
   (or `/opencode`) on any issue for a one-off run.
 - **Skip the reviewer:** add the `skip-ai-review` label to a pull request.
-  Dependabot pull requests are skipped automatically, because its bot account
-  cannot pass the action's write-permission check.
+  Dependabot pull requests are skipped automatically to save review spend; its
+  dependency bumps are covered by `ci.yml`.
 - **Steer a pull request:** comment on it with `/oc <instruction>`, or comment on
   a specific line in the pull request's **Files** tab to have the agent work on
   just that spot. Both go through the `comment` job in `opencode.yml`.
@@ -113,22 +113,23 @@ These are repository settings, not files, so they have to be done by hand once.
 | The agent reaching production | Branch protection on `main`; the agent only ever opens a pull request |
 | Adding dependencies behind your back | `npm install` is denied; only `npm ci` is allowed. The agent must stop and ask |
 | Secrets leaking into the agent's shell | `OPENROUTER_API_KEY` is the only secret in the job, and the bash allowlist cannot read the environment |
-| The reviewer changing what it reviews | The `review` agent denies `edit`; the review workflow grants `contents: read` |
-| Untrusted forks | The reviewer only runs for pull requests whose head repo is this repository |
-| An account with no repository permission driving the agent | The action refuses any actor without `admin`/`write` permission; `opencode-review.yml` skips Dependabot pull requests, which can never pass that check |
+| The reviewer changing what it reviews | The `review` agent denies `edit`; the workflow's `GITHUB_TOKEN` has `contents: read` plus `pull-requests: write`, which is only good for posting comments |
+| Untrusted forks | The reviewer only runs for pull requests whose head repo is this repository, so forks never see the secrets |
+| An account with no repository permission driving the agent | The `opencode.yml` action refuses any actor without `admin`/`write` permission, so bot-authored comment events can never drive the build agent. The reviewer no longer uses that action — it posts with `GITHUB_TOKEN`, which needs no such assertion, so bot-authored pull requests (the agent's own) still get reviewed |
 | Runaway loops or cost | `timeout-minutes: 30` on both agent jobs, plus an OpenRouter spend limit |
-| Supply chain in the action itself | `anomalyco/opencode/github` is pinned to the release tag `v1.18.30` |
+| Supply chain in the action itself | `anomalyco/opencode/github` (the build job) is pinned to `v2.0.3`; the reviewer installs a fixed `opencode` binary (1.18.31) and caches it, so the install only runs on a cache miss |
 
 ### Two honest caveats
 
-- Pinning the action tag pins the **workflow script**, not the agent. The action
-  boots by downloading the latest `opencode` binary, so the agent version still
-  moves. Pinning fully would mean replacing the action with an explicit
-  `curl | bash` install of a fixed version — worth doing if you want strict
-  reproducibility.
+- Pinning the action tag pins the **workflow script**, not the agent. The
+  `opencode.yml` build job boots by downloading the latest `opencode` binary, so
+  the agent version still moves there. The reviewer is pinned fully instead: it
+  installs `opencode` 1.18.31 directly with `curl | bash` and caches the binary.
+  Pin the build job the same way if you want strict reproducibility.
 - The reviewer's read-only guarantee comes from the `review` agent's `edit: deny`
-  permission, not from the workflow `permissions:` block, because the OpenCode
-  App token (not `GITHUB_TOKEN`) is what performs the API calls.
+  permission, not from the workflow `permissions:` block. The review comment is
+  posted with the workflow's `GITHUB_TOKEN` (`pull-requests: write`), which is
+  the only thing that token is trusted for.
 
 ## Costs
 
@@ -158,14 +159,18 @@ until the current loop feels boring and reliable:
   `GITHUB_TOKEN` instead of the app token.
 - **The reviewer said nothing.** Check the pull request is not from a fork and
   does not carry `skip-ai-review`, and that the agent name is `review`.
-- **The reviewer failed with `User dependabot[bot] does not have write
-  permissions`.** Before it does anything else, the action asserts that the actor
-  who triggered the run has `admin` or `write` permission on the repository, and
-  it reports that assertion as a comment when it fails. Dependabot's bot account
-  has no permission at all, so `opencode-review.yml` now skips Dependabot pull
-  requests. Seeing this again means another bot account opened a pull request —
-  add its login to the job's `if` condition, or label the pull request
-  `skip-ai-review` and re-run.
+- **The reviewer failed with `User opencode-agent[bot] does not have write
+  permissions` (run 35502128859).** The `anomalyco/opencode/github` action
+  asserts, before it does anything else, that the event actor has `admin` or
+  `write` permission on the repository. For a `pull_request` event the actor is
+  the PR author, and the agent's own bot account is never a collaborator, so the
+  reviewer died on the first agent pull request before reviewing anything.
+  Dependabot had already hit the same assertion earlier. The review workflow no
+  longer uses that action: it runs `opencode run` headless and posts the comment
+  with `GITHUB_TOKEN`, which needs no actor assertion. If this error ever shows
+  up again it will come from `opencode.yml` (the build or `/oc` comment job)
+  triggered by a bot account — add that login to the job's `if` condition, or
+  label the pull request `skip-ai-review` and re-run.
 - **`opencode github install` overwrote `opencode.yml`.** The installer writes its
   stock template, which drops the `ai-ready` label trigger, the job timeouts and
   the pinned action ref. Once the tuned version is committed, restore it with

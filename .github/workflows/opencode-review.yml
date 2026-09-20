@@ -4,10 +4,19 @@ on:
   pull_request:
     types: [opened, ready_for_review]
 
+# The reviewer runs as a headless `opencode run` and posts its comment with the
+# workflow's own GITHUB_TOKEN. It deliberately does not use the
+# anomalyco/opencode/github action for the pull_request event: that action
+# asserts, before it does anything else, that the event actor has admin/write
+# access to the repository. For a pull request opened by `opencode-agent[bot]`
+# the actor is the app's bot user, which is never a collaborator, so every
+# agent pull request failed with "User opencode-agent[bot] does not have write
+# permissions" before the reviewer started (run 35502128859). GITHUB_TOKEN needs
+# no such assertion; the read-only guarantee still comes from the review agent's
+# `edit: deny` rule.
 permissions:
   contents: read
   pull-requests: write
-  id-token: write
 
 concurrency:
   group: opencode-review-${{ github.event.pull_request.number }}
@@ -18,16 +27,10 @@ jobs:
     name: Review pull request
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Same-repository pull requests only, so forks never get this runner.
-    # Add the "skip-ai-review" label to opt a pull request out.
-    #
-    # Dependabot is skipped by login on purpose. The action refuses to run for an
-    # actor without admin/write repository permission ("User <actor> does not have
-    # write permissions"), and Dependabot's bot account never has any, so every
-    # Dependabot pull request failed this job before the reviewer started. Its
-    # dependency bumps are covered by `ci.yml`, which is the required check.
-    # Filtering on the login instead of on `user.type == 'Bot'` keeps the reviewer
-    # running for the coding agent's own pull requests, which is the point of it.
+    # Same-repository pull requests only, so forks never get this runner or the
+    # secrets. Add the "skip-ai-review" label to opt a pull request out.
+    # Dependabot is skipped to save review spend; its dependency bumps are
+    # covered by `ci.yml`, which is the required check.
     if: |
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login != 'dependabot[bot]' &&
@@ -37,16 +40,58 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Run OpenCode review
-        uses: anomalyco/opencode/github@v2.0.3
+
+      - name: Cache opencode binary
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.opencode/bin
+          key: opencode-review-1.18.31
+
+      - name: Install opencode
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.31 --no-modify-path
+
+      - name: Add opencode to PATH
+        run: echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+
+      # The pull request title and body go through a file instead of being
+      # interpolated into the shell command, so a hostile description cannot
+      # inject shell commands into this step.
+      - name: Write pull request context
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          {
+            echo "Pull request #${PR_NUMBER} (base branch: ${PR_BASE}): ${PR_TITLE}"
+            echo
+            printf '%s\n' "${PR_BODY-}"
+          } > pr-context.md
+
+      - name: Run review
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        with:
-          model: openrouter/deepseek/deepseek-v4.1-flash
-          agent: review
-          variant: max
-          prompt: |
-            Review this pull request using the "review" agent rules. Post one
-            structured comment covering Summary, Correctness, Tests, Security and
-            Design fit. Do not modify any files, do not push commits, and do not
-            approve or merge the pull request.
+        run: |
+          opencode run --agent review --variant max "Review this pull request.
+          Read pr-context.md at the repository root for its number, base branch,
+          title and description. The working tree is checked out at the pull
+          request's merge commit; use git diff, git log and git show against the
+          base branch to see the changes. Review it using the review agent rules
+          and reply with exactly one structured comment covering Summary,
+          Correctness, Tests, Security and Design fit. Do not modify any files,
+          do not push commits, and do not approve or merge the pull request." \
+            > review.md
+
+      - name: Post review comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ ! -s review.md ]; then
+            echo "The reviewer produced no output." >&2
+            exit 1
+          fi
+          gh pr comment "$PR_NUMBER" --body-file review.md
