@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, within } from '@testing-library/react';
 import { WORDS_BY_THEME } from './words.js';
 import { applyDrop, scrambleLetters } from './SpellPuzzle.jsx';
-import { LydLabyrint, createGame } from './LydLabyrint.jsx';
+import { LydLabyrint, createGame, THEME_BG } from './LydLabyrint.jsx';
 import { PROGRESS_KEY, GAME_KEY, pieceSessionCodec, gameCodec } from './progress.js';
+import { BOARD_BORDER, PAGE_GUTTER, PAGE_MAX_WIDTH, PAD_COLUMN, boardLayout } from './layout.js';
 
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 
@@ -18,6 +19,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   window.localStorage.clear();
 });
 
@@ -263,6 +265,39 @@ describe('lyd-labyrint game', () => {
     }
     // The runner is the forest mascot, not a single global fox.
     expect(view.container.querySelector('.runner').textContent).toBe('🦊');
+  });
+
+  it('sizes the maze to clear the direction pad on wide screens and reflows on resize', () => {
+    vi.stubGlobal('innerWidth', 1167);
+    vi.stubGlobal('innerHeight', 1078);
+    const view = renderGame();
+    const expected = expectedGame();
+
+    const stage = view.container.querySelector('.labyrinth-stage');
+    expect(stage.getAttribute('data-layout')).toBe('row');
+    const board = view.container.querySelector('.board');
+    const cell = Number.parseFloat(board.style.getPropertyValue('--cell'));
+    const layout = boardLayout(1167, 1078, expected.maze.width, expected.maze.height);
+    expect(cell).toBe(layout.cell);
+
+    // The whole board, the pad column and the gap must fit inside the page.
+    const pageWidth = Math.min(1167 - PAGE_GUTTER, PAGE_MAX_WIDTH);
+    const boardWidth = cell * expected.maze.width + BOARD_BORDER;
+    expect(boardWidth + PAD_COLUMN + layout.columnGap).toBeLessThanOrEqual(pageWidth);
+
+    // Narrowing the window stacks the pad under the maze again.
+    act(() => {
+      vi.stubGlobal('innerWidth', 390);
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(stage.getAttribute('data-layout')).toBe('stack');
+  });
+
+  it('paints the whole canvas with the maze theme so no bare strip is left at the bottom', () => {
+    const view = renderGame();
+    expect(document.documentElement.style.getPropertyValue('--page-bg')).toBe(THEME_BG.skog);
+    view.unmount();
+    expect(document.documentElement.style.getPropertyValue('--page-bg')).toBe('');
   });
 
   it('starts with sound off – the muted speaker under the maze – and switches on with one tap', () => {

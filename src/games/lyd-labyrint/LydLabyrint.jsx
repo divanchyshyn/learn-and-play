@@ -14,6 +14,7 @@ import {
 } from './PiecePuzzle.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
 import { GAME_KEY, PROGRESS_KEY, gameCodec, pieceSessionCodec } from './progress.js';
+import { PAGE_GUTTER, PAGE_MAX_WIDTH, PAD_GAP, PAD_SIZE, boardLayout } from './layout.js';
 import { shuffle } from '../../shared/random.js';
 import { usePersistentState } from '../../shared/usePersistentState.js';
 import puzzleCarrier from './puzzle-assets/carrier.webp';
@@ -39,7 +40,7 @@ const THEME_EMOJI = {
   skog: '\u{1F332}', hav: '\u{1F30A}', savanne: '\u{1F33E}',
   ukedager: '\u{1F5D3}', aarstider: '\u{1F4C5}',
 };
-const THEME_BG = {
+export const THEME_BG = {
   skog: '#edf4e0', hav: '#e4f2f7', savanne: '#fcf5df',
   ukedager: '#eef0fa', aarstider: '#f7eef0',
 };
@@ -91,6 +92,16 @@ export function createGame(mazeIndex) {
   };
 }
 
+// Live viewport metrics for the board sizing. `clientWidth` leaves a vertical
+// scrollbar out of the width; jsdom and older engines report 0, so fall back to
+// `innerWidth`. `innerHeight` tracks the dynamic viewport (mobile URL bars).
+function readViewport() {
+  return {
+    width: document.documentElement.clientWidth || window.innerWidth,
+    height: window.innerHeight,
+  };
+}
+
 export function LydLabyrint() {
   // The whole maze session survives a page refresh (see progress.js): the child
   // comes back to the same carved labyrinth, standing on the tile they left,
@@ -112,6 +123,9 @@ export function LydLabyrint() {
   );
   const [puzzleOpen, setPuzzleOpen] = useState(false);
   const [pieceReveal, setPieceReveal] = useState(false);
+  // The live viewport decides how big a maze cell may be (see layout.js): the
+  // board must leave the direction pad's column free on wide screens.
+  const [viewport, setViewport] = useState(readViewport);
   const busyRef = useRef(false);
   const gameRef = useRef(game);
   gameRef.current = game;
@@ -120,6 +134,18 @@ export function LydLabyrint() {
   const genRef = useRef(0);
 
   const { maze, doors, pos, phase, puzzle, runner, pieceJustEarned } = game;
+  const board = boardLayout(viewport.width, viewport.height, maze.width, maze.height);
+
+  // Rotating the device or resizing the window recomputes the maze size. Keep
+  // the previous object when nothing changed so React skips the re-render.
+  useEffect(() => {
+    const onResize = () => {
+      const next = readViewport();
+      setViewport((prev) => (prev.width === next.width && prev.height === next.height ? prev : next));
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // The generation counter lets "Nytt labyrint" cancel any queued movement
   // steps from the previous maze so nothing leaks across games.
@@ -129,9 +155,13 @@ export function LydLabyrint() {
     }, ms);
   }, []);
 
+  // The theme also paints the page canvas. Setting it on the root element (the
+  // one whose background reaches the whole canvas) keeps the area below a short
+  // page themed, instead of ending in a bare strip above the viewport edge.
   useEffect(() => {
-    document.body.style.background = THEME_BG[maze.theme] || '';
-    return () => { document.body.style.background = ''; };
+    const root = document.documentElement;
+    root.style.setProperty('--page-bg', THEME_BG[maze.theme] || '');
+    return () => { root.style.removeProperty('--page-bg'); };
   }, [maze.theme]);
 
   // Reaching the exit earns one puzzle piece and opens the celebrate card. The
@@ -404,7 +434,10 @@ export function LydLabyrint() {
     }
   }
 
-  return <main className={`game-page labyrinth-page theme-${maze.theme}`}>
+  return <main
+    className={`game-page labyrinth-page theme-${maze.theme}`}
+    style={{ '--page-gutter': `${PAGE_GUTTER}px`, '--page-max': `${PAGE_MAX_WIDTH}px` }}
+  >
     <GameHeader title="Lyd-labyrinten">
       <button
         type="button"
@@ -419,13 +452,21 @@ export function LydLabyrint() {
       </button>
     </GameHeader>
 
-    <section className="labyrinth-stage">
+    <section
+      className="labyrinth-stage"
+      data-layout={board.sideBySide ? 'row' : 'stack'}
+      style={{
+        '--pad-size': `${PAD_SIZE}px`,
+        '--pad-gap': `${PAD_GAP}px`,
+        '--stage-column-gap': `${board.columnGap}px`,
+      }}
+    >
       <div className="board-frame">
         <div
           className="board"
           role="application"
           aria-label={`Labyrinten ${maze.name}. Gå til utgangen.`}
-          style={{ '--cw': maze.width, '--ch': maze.height }}
+          style={{ '--cw': maze.width, '--ch': maze.height, '--cell': `${board.cell}px` }}
         >
           {cells}
           <div
