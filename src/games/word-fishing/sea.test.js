@@ -6,6 +6,7 @@ import {
   hookFish, lineTarget, reelFish, slipFish, tickSea,
 } from './sea.js';
 import { acceptsWord, createTripPlan } from './trip.js';
+import { WORD_BANK } from './words.js';
 
 beforeEach(() => {
   vi.spyOn(Math, 'random').mockReturnValue(0);
@@ -346,12 +347,92 @@ describe('word-fishing releasing and delivering', () => {
     expect(after.fishes).toHaveLength(FISH_ON_SCREEN);
   });
 
+  it('sends a replacement in the moment a catch lands in its crate', () => {
+    const sea = createSea(freeSortTrip());
+    const id = sea.fishes[0].id;
+    const delivered = deliverFish(reelIn(sea, id), id, 'animals');
+
+    // The caught fish is still sinking, and the water is already full again.
+    expect(delivered.fishes.filter((fish) => fish.status === 'delivered')).toHaveLength(1);
+    expect(delivered.fishes.filter((fish) => fish.status === 'swim')).toHaveLength(FISH_ON_SCREEN);
+    expect(new Set(words(delivered)).size).toBe(delivered.fishes.length);
+
+    let after = delivered;
+    for (let tick = 0; tick < DELIVER_TICKS; tick += 1) after = tickSea(after);
+    expect(after.fishes).toHaveLength(FISH_ON_SCREEN);
+    expect(after.fishes.every((fish) => fish.status === 'swim')).toBe(true);
+  });
+
   it('only delivers a fish that is really on deck', () => {
     const sea = createSea(freeSortTrip());
     expect(deliverFish(sea, sea.fishes[0].id, 'animals')).toBe(sea);
     expect(deliverFish(sea, 9999, 'animals')).toBe(sea);
     const aboard = reelIn(sea, sea.fishes[0].id);
     expect(deliverFish(aboard, sea.fishes[0].id, 'animals')).not.toBe(aboard);
+  });
+});
+
+describe('word-fishing the fishing book', () => {
+  it('never lets a caught word back into the water', () => {
+    const sea = createSea(freeSortTrip());
+    const first = sea.fishes[0];
+    const caughtWord = fishWord(first);
+    let after = deliverFish(reelIn(sea, first.id), first.id, 'animals');
+
+    // Long enough for several shoals to come and go. The fish sinking into the
+    // crate is the catch itself; no *swimming* fish may ever carry the word.
+    for (let tick = 0; tick < 1200; tick += 1) {
+      after = tickSea(after);
+      expect(after.fishes.some((fish) => fish.status !== 'delivered' && fishWord(fish) === caughtWord)).toBe(false);
+    }
+    expect(after.fishes).toHaveLength(FISH_ON_SCREEN);
+  });
+
+  it('never deals a word the book already has', () => {
+    const unavailable = new Set(WORD_BANK.map((entry) => entry.word).slice(0, 70));
+    let sea = createSea(freeSortTrip(), unavailable);
+    for (let tick = 0; tick < 1200; tick += 1) {
+      sea = tickSea(sea);
+      for (const fish of sea.fishes) expect(unavailable.has(fishWord(fish))).toBe(false);
+    }
+    expect(sea.fishes).toHaveLength(FISH_ON_SCREEN);
+  });
+
+  it('lets the shoal run down when there is no uncaught word left', () => {
+    // Every word is out of play: no fish may be dealt, caught words included.
+    const unavailable = new Set(WORD_BANK.map((entry) => entry.word));
+    let sea = createSea(freeSortTrip(), unavailable);
+    expect(sea.fishes).toHaveLength(0);
+    for (let tick = 0; tick < 200; tick += 1) sea = tickSea(sea);
+    expect(sea.fishes).toHaveLength(0);
+  });
+
+  it('replaces a fish whose word was taken out of play while it swam', () => {
+    const sea = createSea(freeSortTrip());
+    const stale = sea.fishes[0];
+    const blocked = fishWord(stale);
+    const next = tickSea({ ...sea, unavailable: new Set([blocked]) });
+
+    // The stale fish is gone and a fresh, keepable one swims in its place.
+    expect(next.fishes.some((fish) => fishWord(fish) === blocked)).toBe(false);
+    expect(next.fishes).toHaveLength(FISH_ON_SCREEN);
+    expect(new Set(words(next)).size).toBe(FISH_ON_SCREEN);
+  });
+
+  it('takes the words a finished crate leaves behind out of the deal', () => {
+    const sea = createSea(freeSortTrip());
+    const id = sea.fishes[0].id;
+    const leftBehind = ['katt', 'hund'];
+    let after = deliverFish(reelIn(sea, id), id, 'animals', leftBehind);
+    expect(after.unavailable.has('katt')).toBe(true);
+    expect(after.unavailable.has('hund')).toBe(true);
+
+    // The words leaving the water with the catch never come back.
+    for (let tick = 0; tick < 400; tick += 1) {
+      after = tickSea(after);
+      expect(after.fishes.some((fish) => fish.status !== 'delivered' && leftBehind.includes(fishWord(fish)))).toBe(false);
+    }
+    expect(after.fishes).toHaveLength(FISH_ON_SCREEN);
   });
 });
 
@@ -370,7 +451,7 @@ describe('word-fishing invariants', () => {
       expect(new Set(words(sea)).size).toBe(FISH_ON_SCREEN);
       expect(aboardFish(sea)).toBeNull();
       // Nothing in the sea shape ever counts a miss, a mistake or a try.
-      expect(Object.keys(sea).sort()).toEqual(['fishes', 'order', 'orderPos', 'trip']);
+      expect(Object.keys(sea).sort()).toEqual(['fishes', 'order', 'orderPos', 'trip', 'unavailable']);
       for (const fish of sea.fishes) {
         expect(['swim', 'hooked', 'aboard', 'delivered']).toContain(fish.status);
       }

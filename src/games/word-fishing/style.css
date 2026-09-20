@@ -10,6 +10,8 @@
 .game-controls { position: absolute; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
 .chip:hover { transform: translateY(-2px); }
+.chip:disabled { opacity: .55; cursor: default; }
+.chip:disabled:hover { transform: none; }
 .chip-icon { padding: 5px 10px; }
 .chip-badge { padding: 1px 7px; border-radius: 999px; background: #e4f4f9; color: #0b7897; font-size: .78rem; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -75,49 +77,92 @@
 .reef-art { display: block; }
 .reef-item { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
 .reef-item svg { display: block; width: 100%; height: auto; }
-.reef-rock { left: 47%; top: 91%; width: 92px; }
-.reef-anchor { left: 86%; top: 92%; width: 40px; opacity: .9; }
+.reef-rock { left: 47%; top: 91%; width: 104px; }
+.reef-anchor { left: 86%; top: 92%; width: 44px; opacity: .9; }
 
 /* Reef colours – every decoration paints itself from the shared palette. */
 .reef-sand path { fill: #ecdcab; }
 .rock path { fill: #a4b4bb; }
 .rock-light { fill: rgba(255, 253, 243, .5); }
 .kelp-blade { fill: none; stroke: #4f9a6b; stroke-width: 5; stroke-linecap: round; }
+.kelp-bud { fill: #8fd0a2; stroke: #3f7a55; stroke-width: 1.2; }
 .metal, .metal-bar { fill: none; stroke: #94a2ac; stroke-width: 4; stroke-linecap: round; }
 .reward path, .reward circle { filter: drop-shadow(0 2px 0 rgba(20, 63, 78, .16)); }
 
 /* Each unlocked decoration, painted. */
 .reward-starfish path { fill: #e0745a; }
+.reward-starfish .star-belly { fill: #f2a184; }
 .star-dot { fill: rgba(255, 253, 243, .55); }
-.coral-base { fill: #c39a72; }
+.coral-base { fill: #b98a60; }
 .coral-arm { fill: none; stroke: #e2748c; stroke-width: 8; stroke-linecap: round; }
+.coral-tip { fill: #f8b7c8; stroke: #c9546e; stroke-width: 1.2; }
+.reef-bubble { fill: rgba(255, 253, 243, .75); stroke: rgba(255, 253, 243, .95); stroke-width: 1; }
 .reward-shell path { fill: #f4cda4; }
 .shell-rib { fill: none; stroke: rgba(176, 122, 78, .5); stroke-width: 2; }
+.shell-pearl { fill: #fffdf3; stroke: #d9a6b8; stroke-width: 1.4; }
+.reward-shell .shell-gleam { fill: none; stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round; }
 .crab-body { fill: #d3553f; }
-.crab-claw { fill: #e46e4b; }
+.crab-shell { fill: #ef8663; stroke: #b8432f; stroke-width: 1.2; }
+.crab-claw { fill: #e46e4b; stroke: #b8432f; stroke-width: 1.4; }
 .crab-leg { fill: none; stroke: #b8432f; stroke-width: 4; stroke-linecap: round; }
 .crab-eye { fill: #2b3a42; }
-.jelly-dome { fill: rgba(200, 166, 228, .78); }
-.jelly-tentacle { fill: none; stroke: rgba(200, 166, 228, .85); stroke-width: 3.5; stroke-linecap: round; }
-.octo-head { fill: #c2708f; }
+.crab-gleam { fill: #fffdf3; }
+.crab-smile { fill: none; stroke: #7e2a1c; stroke-width: 2; stroke-linecap: round; }
+.jelly-dome { fill: rgba(200, 166, 228, .78); stroke: #9b74c9; stroke-width: 1.4; }
+.jelly-spot { fill: rgba(255, 253, 243, .6); }
+.jelly-tentacle { fill: none; stroke: #b48edd; stroke-width: 3.5; stroke-linecap: round; }
+.octo-head { fill: #c2708f; stroke: #8e4d6a; stroke-width: 1.4; }
 .octo-arm { fill: none; stroke: #c2708f; stroke-width: 7; stroke-linecap: round; }
 .octo-eye { fill: #fffdf3; }
-.sea-head { fill: #e2b165; }
+.octo-pupil { fill: #3a2130; }
+.octo-smile { fill: none; stroke: #7e3f5c; stroke-width: 2; stroke-linecap: round; }
+.octo-sucker { fill: #efb6cb; }
+.sea-head { fill: #e2b165; stroke: #b5823c; stroke-width: 1.2; }
 .sea-body { fill: none; stroke: #d8a24a; stroke-width: 7; stroke-linecap: round; }
+.sea-ridge { fill: none; stroke: #b5823c; stroke-width: 3; stroke-linecap: round; }
 .sea-snout { fill: none; stroke: #d8a24a; stroke-width: 4; stroke-linecap: round; }
-.sea-fin { fill: #e2b165; }
-.sea-eye { fill: #3a2f1c; }
-.wreck-hull { fill: #6b5a49; }
+.sea-fin { fill: #e2b165; stroke: #b5823c; stroke-width: 1.2; }
+.sea-eye { fill: #fffdf3; }
+.sea-pupil { fill: #3a2f1c; }
+.wreck-hull { fill: #6b5a49; stroke: #4a3d31; stroke-width: 2; }
 .wreck-rim { fill: #8a7660; }
 .wreck-mast { fill: none; stroke: #5d4e3f; stroke-width: 5; stroke-linecap: round; }
-.wreck-sail { fill: rgba(233, 227, 210, .6); }
-.wreck-hole { fill: #3d4a52; }
+.wreck-sail { fill: rgba(233, 227, 210, .6); stroke: #8a7660; stroke-width: 1.5; }
+.wreck-flag { fill: #e46e4b; }
+.wreck-hole { fill: #3d4a52; stroke: #8a7660; stroke-width: 2; }
 .wreck-weed { fill: none; stroke: #4f9a6b; stroke-width: 4; stroke-linecap: round; }
-.chest-body { fill: #a9752f; }
-.chest-lid { fill: #c08a3c; }
+.wreck-fish { fill: #f0c33c; stroke: #b57b1e; stroke-width: 1.2; }
+.wreck-fish-tail { fill: #e5ae45; }
+.chest-body { fill: #a9752f; stroke: #7d5518; stroke-width: 1.5; }
+.chest-lid { fill: #c08a3c; stroke: #7d5518; stroke-width: 1.5; }
+.chest-lid-light { fill: rgba(255, 243, 205, .5); }
 .chest-band { fill: none; stroke: #7d5518; stroke-width: 5; }
 .chest-lock { fill: #ffd95c; stroke: #7d5518; stroke-width: 2; }
+.chest-keyhole { fill: #7d5518; }
+.chest-sparkle { fill: #fff3b0; stroke: #f0c33c; stroke-width: 1; }
 .coin { fill: #f0c33c; stroke: #b57b1e; stroke-width: 1.5; }
+
+/* The seabed is the child's collection, so each finished trip adds something
+   that moves: coral sways, the jellyfish drifts, the crab scuttles sideways and
+   the chest twinkles. All of it is still under `prefers-reduced-motion`. */
+.reward .reef-art { transform-origin: 50% 100%; }
+.reward-coral .reef-art, .reward-seagrass .reef-art { animation: reef-sway 5.5s ease-in-out infinite alternate; }
+.reward-seagrass .reef-art { animation-duration: 7s; }
+@keyframes reef-sway { from { rotate: -4deg; } to { rotate: 5deg; } }
+.reward-starfish .reef-art { animation: reef-pulse 2.8s ease-in-out infinite alternate; }
+@keyframes reef-pulse { to { scale: 1.12; rotate: 8deg; } }
+.reward-jellyfish .reef-art { animation: jelly-drift 4.6s ease-in-out infinite alternate; }
+@keyframes jelly-drift { to { translate: 0 -12px; rotate: 5deg; } }
+.reward-crab .reef-art { animation: crab-scuttle 3.4s ease-in-out infinite alternate; }
+@keyframes crab-scuttle { to { translate: 8px 0; rotate: -5deg; } }
+.reward-octopus .reef-art { animation: octo-wave 4.2s ease-in-out infinite alternate; }
+@keyframes octo-wave { to { rotate: 5deg; scale: 1.06; } }
+.reward-seahorse .reef-art { animation: seahorse-bob 3.8s ease-in-out infinite alternate; }
+@keyframes seahorse-bob { to { translate: 0 -10px; rotate: -4deg; } }
+.reward-wreck .reef-art { animation: wreck-settle 7s ease-in-out infinite alternate; }
+@keyframes wreck-settle { to { rotate: 2deg; translate: 0 -3px; } }
+.reward-chest .reef-art { animation: chest-glow 2.6s ease-in-out infinite alternate; }
+@keyframes chest-glow { from { filter: drop-shadow(0 0 0 rgba(255, 217, 92, 0)); } to { filter: drop-shadow(0 0 8px rgba(255, 217, 92, .85)); } }
 
 
 
@@ -303,9 +348,26 @@ button.fish-art:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 4px
 .trip-done p { margin: 0; color: #285362; line-height: 1.4; }
 .trip-done-mascot { font-size: 2.6rem !important; line-height: 1 !important; animation: mascot-hop .7s ease infinite alternate; }
 @keyframes mascot-hop { to { translate: 0 -8px; rotate: -6deg; } }
+.trip-done-full { font-weight: 900; color: #b34a26 !important; }
 .trip-done-reward { font-weight: 900; color: #95661a !important; }
-.trip-done-finale { font-weight: 900; color: #2e8b57 !important; }
 .trip-done-tally { font-size: .88rem; }
+
+/* ---- The grand finale, when every word is in the book -------------------- */
+.finale-done {
+  position: absolute; left: 50%; top: 50%; translate: -50% -50%; z-index: 20;
+  width: min(94%, 420px);
+  display: grid; gap: 10px; justify-items: center; text-align: center;
+  padding: 24px 20px 22px;
+  border: 4px solid #e5ae45; border-radius: 18px;
+  background: linear-gradient(#fffdf3, #fff2cf);
+  box-shadow: 0 12px 0 rgba(20, 63, 78, .2);
+  animation: card-pop .24s ease;
+}
+.finale-done h2 { margin: 0; color: #e26b44; font-size: clamp(1.7rem, 7vw, 2.3rem); }
+.finale-done p { margin: 0; color: #285362; line-height: 1.4; }
+.finale-mascot { font-size: 3.4rem !important; line-height: 1 !important; animation: mascot-hop .7s ease infinite alternate; }
+.finale-message { font-weight: 900; color: #2e8b57 !important; font-size: 1.06rem; }
+.finale-tally { font-size: .92rem; }
 
 
 /* ---- The crates --------------------------------------------------------- */
@@ -400,10 +462,13 @@ button.fish-art:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 4px
 .stamp-row li { padding: 6px 10px; border: 2px dashed #e26b44; border-radius: 8px; background: #fff5ee; color: #b34a26; font-weight: 900; font-size: .82rem; rotate: -3deg; }
 .stamp-row li:nth-child(even) { rotate: 3deg; }
 .stamp-more { border-style: solid !important; }
-.reef-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
-.reef-row li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 2px solid #cfe3ea; border-radius: 10px; background: #fbfdfe; font-size: .86rem; font-weight: 900; color: #285362; }
+.reef-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.reef-row li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 5px 8px; border: 2px solid #cfe3ea; border-radius: 10px; background: #fbfdfe; font-size: .86rem; font-weight: 900; color: #285362; }
 .reef-row li.found { border-color: #63a375; background: #eef8f0; color: #2e8b57; }
 .reef-preview { flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; }
+/* Names like "Blekkspruten" are long: they wrap inside the box instead of
+   spilling out of it on a narrow screen. */
+.reef-name { flex: 1 1 70px; min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
 .reef-preview svg { width: 100%; height: auto; }
 .reef-row li.missing .reef-preview { filter: brightness(0) opacity(.22); }
 .reef-row li.missing .reef-name { color: #9fb3bd; }

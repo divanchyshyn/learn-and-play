@@ -79,6 +79,22 @@ describe('word-fishing trips', () => {
     }
   });
 
+  it('never orders a category the fishing book already filled', () => {
+    const full = CATEGORY_CRATE_IDS[0];
+    const open = CATEGORY_CRATE_IDS.filter((crateId) => crateId !== full);
+    for (let trial = 0; trial < 20; trial += 1) {
+      const trip = createTripPlan(4, () => trial / 20, open);
+      expect(trip.orderCrateId).not.toBe(full);
+      expect(open).toContain(trip.orderCrateId);
+    }
+    // One category left: it is the one the boat asks for.
+    const only = [CATEGORY_CRATE_IDS[2]];
+    expect(createTripPlan(4, () => 0.9, only).orderCrateId).toBe(only[0]);
+    // No restriction (the default) still deals every category.
+    const seen = new Set(CATEGORY_CRATE_IDS.map((_, index) => createTripPlan(4, () => index / 4).orderCrateId));
+    expect(seen).toEqual(new Set(CATEGORY_CRATE_IDS));
+  });
+
   it('counts a catch without ever running past the goal', () => {
     let trip = createTripPlan(1);
     expect(tripComplete(trip)).toBe(false);
