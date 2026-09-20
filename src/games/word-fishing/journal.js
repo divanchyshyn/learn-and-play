@@ -69,46 +69,30 @@ export function allWordsCaught(journal) {
 // What the celebrate card says when the very last word has been caught.
 export const ALL_WORDS_MESSAGE = 'Alle ordene er fanget!';
 
-// How full one crate is. A category crate counts its words in the book against
-// its target of ten, even though the pool behind it holds twenty. The length
-// crates are not goals of their own: they show how many words of each length
-// are in the book, out of all the words of that length.
+// How full one crate is: the words of its category in the book, against its
+// target of ten – even though the pool behind it holds twenty words. An
+// unknown crate has nothing to fill.
 export function crateTally(journal, crateId) {
-  const crate = crateById(crateId);
   const caught = journal.words.filter((word) => crateTakesWord(crateId, word)).length;
-  const total = crate?.kind === 'category'
-    ? crateTarget(crateId)
-    : WORD_BANK.filter((entry) => crateTakesWord(crateId, entry.word)).length;
+  const total = crateTarget(crateId);
   return { caught: Math.min(caught, total), total };
 }
 
-// The words a crate could still take: uncaught, and belonging in it under its
-// own rule (meaning or length). A category crate is done at its target even
-// though its pool holds more words, so it takes nothing more; a word from a
-// finished category has no crate left to go to, so a length crate takes none
-// of those either. An order trip is over when its crate is full – there is
-// nothing left the child could add to it, so nothing to fish for.
+// The words a crate could still take: its own uncaught words, while the crate
+// is not yet full. A crate is done at its target even though its pool holds
+// more words, so it takes nothing more; an order trip is therefore over when
+// its crate is full – there is nothing left the child could add to it, so
+// nothing left to fish for.
 export function uncaughtWordsInCrate(journal, crateId) {
-  const crate = crateById(crateId);
-  if (!crate) return [];
-  if (crate.kind === 'category') {
-    if (crateFull(journal, crateId)) return [];
-    return wordsInCrate(crateId).filter((entry) => !hasWord(journal, entry.word));
-  }
-  return WORD_BANK.filter((entry) =>
-    crateTakesWord(crateId, entry.word)
-    && !hasWord(journal, entry.word)
-    && !crateFull(journal, entry.cat));
+  if (!crateById(crateId)) return [];
+  if (crateFull(journal, crateId)) return [];
+  return wordsInCrate(crateId).filter((entry) => !hasWord(journal, entry.word));
 }
 
 export function crateFull(journal, crateId) {
-  const crate = crateById(crateId);
-  if (!crate) return false;
-  if (crate.kind === 'category') {
-    const { caught, total } = crateTally(journal, crateId);
-    return caught >= total;
-  }
-  return uncaughtWordsInCrate(journal, crateId).length === 0;
+  if (!crateById(crateId)) return false;
+  const { caught, total } = crateTally(journal, crateId);
+  return caught >= total;
 }
 
 // The words the sea must not serve any more: the words already in the book,

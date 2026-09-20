@@ -7,8 +7,8 @@ import {
 } from './journal.js';
 import { createTripPlan, REEF_REWARDS } from './trip.js';
 import {
-  CATEGORY_CRATE_IDS, CRATE_TARGET, LENGTH_CRATE_IDS, SHORT_WORD_MAX, TARGET_WORD_COUNT,
-  WORD_BANK, WORD_COUNT, crateWordCount, wordsInCrate,
+  CATEGORY_CRATE_IDS, CRATE_TARGET, TARGET_WORD_COUNT, WORD_BANK, WORD_COUNT, crateWordCount,
+  wordsInCrate,
 } from './words.js';
 
 describe('word-fishing journal', () => {
@@ -63,11 +63,8 @@ describe('word-fishing journal', () => {
     // The pool behind the target is twice as big as the goal.
     expect(crateWordCount(CATEGORY_CRATE_IDS[0])).toBeGreaterThan(CRATE_TARGET);
 
-    // The length crates count the very same words, just by how long they are.
-    const shortWords = WORD_BANK.filter((entry) => entry.word.length <= SHORT_WORD_MAX);
-    expect(crateTally(journal, LENGTH_CRATE_IDS[0]).total).toBe(shortWords.length);
-    expect(crateTally(journal, LENGTH_CRATE_IDS[1]).total).toBe(WORD_COUNT - shortWords.length);
-    expect(crateTally(createJournal(), LENGTH_CRATE_IDS[0]).caught).toBe(0);
+    // A crate the boat does not carry has nothing in it and no target.
+    expect(crateTally(journal, 'finnesikke')).toEqual({ caught: 0, total: 0 });
   });
 
   it('knows which words a crate could still take', () => {
@@ -97,10 +94,10 @@ describe('word-fishing journal', () => {
     expect(orderTrip.orderCrateId).toBe('nature');
     expect(tripHasWork(orderTrip, full)).toBe(false);
     expect(tripHasWork(orderTrip, { ...full, words: nature.slice(0, -1) })).toBe(true);
-    // Free-sorting and length trips carry every rule, so with only Nature
-    // finished they still have work in the other categories.
+    // A free-sorting trip carries every crate, so with only Nature finished it
+    // still has work in the other categories.
     expect(tripHasWork(createTripPlan(1), full)).toBe(true);
-    expect(tripHasWork(createTripPlan(3), full)).toBe(true);
+    expect(tripHasWork(createTripPlan(2), full)).toBe(true);
     // Only a fully caught book stops every trip.
     expect(tripHasWork(createTripPlan(1), { words: WORD_BANK.map((entry) => entry.word), trips: 0, decorations: [] })).toBe(false);
   });
@@ -189,7 +186,7 @@ describe('word-fishing journal storage', () => {
 describe('word-fishing trip storage', () => {
   it('round-trips every trip kind', () => {
     expect(TRIP_KEY).toBe('wordFishing:trip');
-    for (const number of [1, 3, 4]) {
+    for (const number of [1, 2, 4]) {
       const trip = createTripPlan(number);
       expect(tripCodec.parse(tripCodec.serialize(trip))).toEqual(trip);
     }

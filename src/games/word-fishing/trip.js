@@ -5,8 +5,6 @@
 
 import {
   CATEGORY_CRATE_IDS,
-  LENGTH_CRATE_IDS,
-  SHORT_WORD_MAX,
   crateById,
   categoryForWord,
 } from './words.js';
@@ -16,31 +14,21 @@ import {
 export const CATCHES_PER_TRIP = 4;
 export const ORDER_TRIP_GOAL = 3;
 
-// Trips take turns: the first two let the child sort freely, then a trip asks
-// for short/long words, then one asks for a single category. Then it repeats.
-// A brand-new player therefore meets one rule at a time.
-export const TRIP_CYCLE = ['freeSort', 'freeSort', 'length', 'order'];
+// Trips take turns: three trips let the child sort freely, then one asks for a
+// single category. Then it repeats. A brand-new player therefore meets the
+// ordered rule only once free sorting already feels familiar.
+export const TRIP_CYCLE = ['freeSort', 'freeSort', 'freeSort', 'order'];
 
 export const TRIP_KIND_LABEL = {
   freeSort: 'Sorter fangsten i kassene',
-  length: 'Korte ord og lange ord',
   order: 'Bare én kasse i dag',
 };
 
-// Which crate holds this word under this trip's rule? A word whose length or
-// meaning no crate on board asks for belongs nowhere (`null`) and is gently
-// released again.
-function lengthCrateIdForWord(word) {
-  return word.length <= SHORT_WORD_MAX ? 'short' : 'long';
-}
-
-// Does this crate take this word at all, no matter which trip is going on? The
-// fishing book uses this to count a word group's progress.
+// Does this crate take this word? A word whose meaning no crate on board asks
+// for belongs nowhere (`null`) and is gently released again. The fishing book
+// counts a crate's progress by this very same rule.
 export function crateTakesWord(crateId, word) {
-  const crate = crateById(crateId);
-  if (!crate) return false;
-  if (crate.kind === 'length') return crateId === lengthCrateIdForWord(word);
-  return crateId === categoryForWord(word);
+  return crateById(crateId) !== null && crateId === categoryForWord(word);
 }
 
 export function crateAcceptsWord(trip, crateId, word) {
@@ -71,11 +59,8 @@ export function tripKindForNumber(tripNumber) {
 export function createTripPlan(tripNumber, random = Math.random, availableCategories = CATEGORY_CRATE_IDS) {
   const number = Math.max(1, Math.trunc(tripNumber) || 1);
   const kind = tripKindForNumber(number);
-  if (kind === 'length') {
-    return { number, kind, crates: [...LENGTH_CRATE_IDS], goal: CATCHES_PER_TRIP, collected: 0, orderCrateId: null };
-  }
   if (kind === 'order') {
-    const open = availableCategories.filter((crateId) => crateById(crateId)?.kind === 'category');
+    const open = availableCategories.filter((crateId) => crateById(crateId) !== null);
     const pool = open.length > 0 ? open : CATEGORY_CRATE_IDS;
     const orderCrateId = pool[Math.floor(random() * pool.length)];
     return { number, kind, crates: [orderCrateId], goal: ORDER_TRIP_GOAL, collected: 0, orderCrateId };
@@ -101,7 +86,6 @@ export function tripRequest(trip) {
     const crate = crateById(trip.orderCrateId);
     return `I dag trenger vi ${trip.goal} ${crate.label.toLowerCase()}`;
   }
-  if (trip.kind === 'length') return `I dag sorterer vi ${SHORT_WORD_MAX} bokstaver eller mindre mot lengre ord`;
   return 'Sorter hver fisk i kassen den hører til';
 }
 
@@ -149,16 +133,12 @@ export function unlockedRewards(decorationIndexes) {
 // its own goal. Anything else falls back to a fresh trip instead of a boat with
 // no crates.
 //
-// The crates each kind is dealt with, and the one goal it is dealt with. A
-// length trip with two category crates, an order trip pointing at a length
-// crate, or an order goal on a free-sorting trip is a shape this game never
-// handed out, so it is refused rather than half-understood.
+// The crates each kind is dealt with, and the one goal it is dealt with. An
+// order trip carrying a second crate, an order trip pointing at no crate at
+// all, or a free-sorting trip carrying only some of the four is a shape this
+// game never handed out, so it is refused rather than half-understood.
 function dealtCrates(kind, orderCrateId) {
-  if (kind === 'length') return orderCrateId === null ? [...LENGTH_CRATE_IDS] : null;
-  if (kind === 'order') {
-    const crate = crateById(orderCrateId);
-    return crate && crate.kind === 'category' ? [orderCrateId] : null;
-  }
+  if (kind === 'order') return crateById(orderCrateId) ? [orderCrateId] : null;
   return orderCrateId === null ? [...CATEGORY_CRATE_IDS] : null;
 }
 

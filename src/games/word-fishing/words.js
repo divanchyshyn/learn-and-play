@@ -26,33 +26,16 @@ const CATEGORY_ICONS = {
   home: '🏠',
 };
 
-// Some trips read the words a different way: these two crates sort by how long
-// the word is instead of what it means.
-export const LENGTH_CRATES = {
-  short: { label: 'Korte ord', icon: '🐟' },
-  long: { label: 'Lange ord', icon: '🐳' },
-};
-
-// The longest word that still counts as a "kort ord" (short word).
-export const SHORT_WORD_MAX = 3;
-
 export const CATEGORY_CRATE_IDS = Object.keys(WORD_CATEGORIES);
-export const LENGTH_CRATE_IDS = Object.keys(LENGTH_CRATES);
 
-// Every crate the boat can carry, by id. `kind` says which reading rule decides
-// whether a word belongs in it: its meaning ('category') or its length.
-const CRATE_DEFS = {
-  ...Object.fromEntries(CATEGORY_CRATE_IDS.map((id) => [
-    id,
-    { id, label: WORD_CATEGORIES[id], icon: CATEGORY_ICONS[id], kind: 'category' },
-  ])),
-  ...Object.fromEntries(LENGTH_CRATE_IDS.map((id) => [
-    id,
-    { id, label: LENGTH_CRATES[id].label, icon: LENGTH_CRATES[id].icon, kind: 'length' },
-  ])),
-};
+// Every crate the boat can carry, by id. A crate takes the words whose meaning
+// belongs in it and nothing else (see crateTakesWord in trip.js).
+const CRATE_DEFS = Object.fromEntries(CATEGORY_CRATE_IDS.map((id) => [
+  id,
+  { id, label: WORD_CATEGORIES[id], icon: CATEGORY_ICONS[id] },
+]));
 
-// All crates in display order: the four categories first, then the length pair.
+// Every crate the boat can carry, in display order.
 export const ALL_CRATES = Object.values(CRATE_DEFS);
 
 export function crateById(id) {
@@ -170,8 +153,7 @@ export function crateWordCount(crateId) {
 export const CRATE_TARGET = 10;
 
 export function crateTarget(crateId) {
-  const crate = crateById(crateId);
-  if (!crate || crate.kind !== 'category') return 0;
+  if (!crateById(crateId)) return 0;
   return Math.min(CRATE_TARGET, crateWordCount(crateId));
 }
 
