@@ -1,16 +1,62 @@
-// Simple Norwegian words at 1st-grade level, grouped by theme so sessions
-// stay varied. Words are short and phonetically regular where possible.
+// Simple Norwegian words at 1st-grade level, grouped so a fishing trip can sort
+// its catch into crates. Words are short and phonetically regular where possible.
 //
 // Deliberately no picture hints on the fish: the reading practice should
 // come from decoding, and the optional scaffold is *hearing* the word
-// (tap the word on a surfaced fish), not guessing it from an image.
+// (tap the word on a caught fish), not guessing it from an image.
 
+import { shuffle } from '../../shared/random.js';
+
+// The crate a word belongs to is the game's reading task: every catch has to be
+// decoded and put in the right crate. The four category crates hold exactly the
+// same number of words (see crateWordCount), which keeps "collect them all" a
+// balanced goal.
 export const WORD_CATEGORIES = {
   animals: 'Dyr',
   food: 'Mat',
   nature: 'Natur',
   home: 'Hjemmet',
 };
+
+const CATEGORY_ICONS = {
+  animals: '🐾',
+  food: '🍎',
+  nature: '🌿',
+  home: '🏠',
+};
+
+// Some trips read the words a different way: these two crates sort by how long
+// the word is instead of what it means.
+export const LENGTH_CRATES = {
+  short: { label: 'Korte ord', icon: '🐟' },
+  long: { label: 'Lange ord', icon: '🐳' },
+};
+
+// The longest word that still counts as a "kort ord" (short word).
+export const SHORT_WORD_MAX = 3;
+
+export const CATEGORY_CRATE_IDS = Object.keys(WORD_CATEGORIES);
+export const LENGTH_CRATE_IDS = Object.keys(LENGTH_CRATES);
+
+// Every crate the boat can carry, by id. `kind` says which reading rule decides
+// whether a word belongs in it: its meaning ('category') or its length.
+const CRATE_DEFS = {
+  ...Object.fromEntries(CATEGORY_CRATE_IDS.map((id) => [
+    id,
+    { id, label: WORD_CATEGORIES[id], icon: CATEGORY_ICONS[id], kind: 'category' },
+  ])),
+  ...Object.fromEntries(LENGTH_CRATE_IDS.map((id) => [
+    id,
+    { id, label: LENGTH_CRATES[id].label, icon: LENGTH_CRATES[id].icon, kind: 'length' },
+  ])),
+};
+
+// All crates in display order: the four categories first, then the length pair.
+export const ALL_CRATES = Object.values(CRATE_DEFS);
+
+export function crateById(id) {
+  return CRATE_DEFS[id] ?? null;
+}
 
 export const WORD_BANK = [
   // Animals
@@ -67,7 +113,27 @@ export const WORD_BANK = [
   { word: 'lampe', cat: 'home' },
 ];
 
-import { shuffle } from '../../shared/random.js';
+export const WORD_COUNT = WORD_BANK.length;
+
+// Which crate holds this meaning? Unknown words belong nowhere – a word that was
+// removed from the bank must never be sorted into a crate.
+const WORD_TO_CATEGORY = new Map(WORD_BANK.map((entry) => [entry.word, entry.cat]));
+
+export function categoryForWord(word) {
+  return WORD_TO_CATEGORY.get(word) ?? null;
+}
+
+export function wordsInCrate(crateId) {
+  return WORD_BANK.filter((entry) => entry.cat === crateId);
+}
+
+export function crateWordCount(crateId) {
+  return wordsInCrate(crateId).length;
+}
+
+export function isWordInBank(word) {
+  return WORD_TO_CATEGORY.has(word);
+}
 
 export function pickWordOrder() {
   return shuffle(WORD_BANK.map((_, index) => index));
@@ -78,11 +144,19 @@ export function pickWordOrder() {
 // Wraps around when the bank runs dry mid-session; if every single word is
 // somehow taken it falls back to the next in line rather than getting stuck.
 export function drawWordIndex(order, pos, takenIndexes) {
+  return drawWordIndexWhere(order, pos, takenIndexes, () => true);
+}
+
+// The same walk, but only words that `accepts` waves through may be drawn. A
+// trip that asks for one kind of word uses this, so the child never has to wait
+// for a fish that counts.
+export function drawWordIndexWhere(order, pos, takenIndexes, accepts) {
   const total = order.length;
   for (let step = 0; step < total; step += 1) {
     const candidate = order[pos % total];
-    if (!takenIndexes.has(candidate)) return { index: candidate, nextPos: pos + 1 };
+    if (accepts(candidate) && !takenIndexes.has(candidate)) return { index: candidate, nextPos: pos + 1 };
     pos += 1;
   }
+  // Nothing left to draw: hand out the next in line rather than getting stuck.
   return { index: order[pos % total], nextPos: pos + 1 };
 }

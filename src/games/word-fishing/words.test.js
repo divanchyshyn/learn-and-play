@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { WORD_BANK, WORD_CATEGORIES, pickWordOrder, drawWordIndex } from './words.js';
+import {
+  ALL_CRATES, CATEGORY_CRATE_IDS, LENGTH_CRATE_IDS, SHORT_WORD_MAX, WORD_BANK, WORD_CATEGORIES,
+  WORD_COUNT, categoryForWord, crateById, crateWordCount, drawWordIndex, drawWordIndexWhere,
+  isWordInBank, pickWordOrder, wordsInCrate,
+} from './words.js';
 
 describe('word-fishing word bank', () => {
   it('offers a healthy pile of short words', () => {
@@ -29,6 +33,40 @@ describe('word-fishing word bank', () => {
     for (const category of categories) {
       expect(WORD_BANK.some((entry) => entry.cat === category)).toBe(true);
     }
+    expect(categoryForWord(WORD_BANK[0].word)).toBe(WORD_BANK[0].cat);
+    expect(categoryForWord('finnesikke')).toBeNull();
+    expect(isWordInBank(WORD_BANK[0].word)).toBe(true);
+    expect(isWordInBank('finnesikke')).toBe(false);
+  });
+
+  it('fills all four crates equally, so collecting them all is a balanced goal', () => {
+    expect(CATEGORY_CRATE_IDS).toHaveLength(4);
+    const counts = CATEGORY_CRATE_IDS.map((id) => crateWordCount(id));
+    expect(new Set(counts).size).toBe(1);
+    expect(counts[0] * CATEGORY_CRATE_IDS.length).toBe(WORD_COUNT);
+    expect(wordsInCrate(CATEGORY_CRATE_IDS[0])).toHaveLength(counts[0]);
+  });
+});
+
+describe('word-fishing crates', () => {
+  it('describes every crate the boat can carry', () => {
+    for (const id of [...CATEGORY_CRATE_IDS, ...LENGTH_CRATE_IDS]) {
+      const crate = crateById(id);
+      expect(crate.id).toBe(id);
+      expect(crate.label.length).toBeGreaterThan(1);
+      expect(crate.icon.length).toBeGreaterThan(0);
+      expect(['category', 'length']).toContain(crate.kind);
+    }
+    expect(crateById('finnesikke')).toBeNull();
+    expect(ALL_CRATES).toHaveLength(CATEGORY_CRATE_IDS.length + LENGTH_CRATE_IDS.length);
+  });
+
+  it('gives the length trip two crates that both have words to work with', () => {
+    const short = WORD_BANK.filter((entry) => entry.word.length <= SHORT_WORD_MAX);
+    const long = WORD_BANK.filter((entry) => entry.word.length > SHORT_WORD_MAX);
+    expect(short.length).toBeGreaterThanOrEqual(5);
+    expect(long.length).toBeGreaterThanOrEqual(5);
+    expect(short.length + long.length).toBe(WORD_COUNT);
   });
 });
 
@@ -64,5 +102,19 @@ describe('word-fishing word dealing', () => {
     const draw = drawWordIndex(order, 0, new Set([0, 1, 2]));
     expect(order).toContain(draw.index);
     expect(draw.nextPos).toBe(4);
+  });
+
+  it('draws only words a filter allows, and still avoids duplicates', () => {
+    const order = [0, 1, 2, 3];
+    const allowed = (index) => index % 2 === 0;
+    expect(drawWordIndexWhere(order, 0, new Set([0]), allowed)).toEqual({ index: 2, nextPos: 3 });
+    expect(drawWordIndexWhere(order, 1, new Set(), allowed)).toEqual({ index: 2, nextPos: 3 });
+    expect(drawWordIndexWhere(order, 2, new Set([2]), allowed)).toEqual({ index: 0, nextPos: 5 });
+  });
+
+  it('still hands out a word when a filter allows none of them', () => {
+    const order = [0, 1, 2];
+    const draw = drawWordIndexWhere(order, 0, new Set(), () => false);
+    expect(order).toContain(draw.index);
   });
 });
