@@ -10,16 +10,15 @@ const MAX_STAMPS = 12;
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 // The fishing book: every word the child has caught, the trips they have
-// finished, and the reef they have grown. A category page shows the caught
-// words of its pool first and a "?" for every word still missing from the
-// crate's ten-word target, so the page is always the crate's real goal – never
-// the size of the pool behind it.
+// finished, and the reef they have grown. A crate page shows the caught words
+// of its pool first and a "?" for every word still missing from the crate's
+// ten-word target, so the page is always the crate's real goal – never the size
+// of the pool behind it.
 //
 // It declares itself a modal dialog, so it has to behave like one: the focus
 // moves into the book when it opens, Tab stays inside until it closes, and the
 // button that opened it gets the focus back afterwards.
 export function FishingBook({ journal, onClose }) {
-  const crates = ALL_CRATES.filter((crate) => crate.kind === 'category');
   const complete = allWordsCaught(journal);
   const found = new Set(journal.decorations);
   const panelRef = useRef(null);
@@ -84,7 +83,7 @@ export function FishingBook({ journal, onClose }) {
       </p>
 
       <section className="book-pages" aria-label="Ordene i boka">
-        {crates.map((crate) => {
+        {ALL_CRATES.map((crate) => {
           const { caught, total } = crateTally(journal, crate.id);
           const foundWords = caughtWordsInCrate(journal, crate.id);
           return <div className="book-page" key={crate.id}>
