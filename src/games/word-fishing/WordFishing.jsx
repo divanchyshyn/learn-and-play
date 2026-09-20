@@ -22,19 +22,34 @@ import {
   journalCodec, recordCatch, recordDecoration, recordTrip, tripCodec,
   wordsCaught, wordsLeftToCatch,
 } from './journal.js';
-import { WORD_COUNT } from './words.js';
+import { WORD_COUNT, crateById } from './words.js';
 
 const PAGE_BG = '#dceef4';
 // How long a crate glows after a catch that belongs elsewhere.
 const HINT_MS = 2600;
+// How long the "the fish landed in this crate" pop stays on the crate.
+const LANDED_MS = 1200;
 
 // Kept close to the constants above so tests and CSS stay in step with the
 // component's timing (see sea.js).
-export const TIMING = { TICK_MS, REEL_STEPS, FISH_ON_SCREEN, DELIVER_TICKS };
+export const TIMING = { TICK_MS, REEL_STEPS, FISH_ON_SCREEN, DELIVER_TICKS, LANDED_MS };
+
+// What the dock is waiting for, in plain words. The crates cannot be answered
+// until a catch is really on deck, and this line says why – without it a tap on
+// a crate that has nothing to carry out looks like the game ignoring the child.
+export function dockHint(sea, tripCard = null) {
+  if (tripCard) return 'Trykk «Ny tur» for å fiske videre 🎣';
+  const fish = activeFish(sea);
+  if (!fish) return 'Fang en fisk 🎣';
+  if (fish.status === 'hooked') return 'Sveiv fisken helt inn til dekk!';
+  return 'Hvilken kasse hører ordet til?';
+}
 
 // Neutral narration for screen readers – and a calm map of the flow. The tug on
 // the line is part of the story, so it is spoken too.
 export function statusLine(sea, trip) {
+  // A fish breaking free is the most immediate thing that can happen.
+  if (sea.fishes.some((fish) => fish.escaped)) return 'Fisken slapp unna – den svømmer videre.';
   const fish = activeFish(sea);
   if (!fish) return `${tripRequest(trip)}. ${trip.collected} av ${trip.goal} i dag.`;
   if (fish.status === 'hooked') {
@@ -53,6 +68,7 @@ export function WordFishing() {
   const [notice, setNotice] = useState(null); // { kind: 'notWanted' } while a fish had nowhere to go
   const [tripCard, setTripCard] = useState(null); // { tripNumber, reward }
   const [hintCrateId, setHintCrateId] = useState(null);
+  const [landed, setLanded] = useState(null); // { crateId, word, gain, key } just after a catch lands
 
   const onLine = activeFish(sea);
   const aboard = aboardFish(sea);
@@ -97,6 +113,13 @@ export function WordFishing() {
     return () => window.clearTimeout(timer);
   }, [hintCrateId]);
 
+  // The same goes for the pop on the crate a catch just landed in.
+  useEffect(() => {
+    if (!landed) return undefined;
+    const timer = window.setTimeout(() => setLanded(null), LANDED_MS);
+    return () => window.clearTimeout(timer);
+  }, [landed]);
+
   useEffect(() => {
     if (!bookOpen) return undefined;
     const onKey = (event) => { if (event.key === 'Escape') setBookOpen(false); };
@@ -112,6 +135,7 @@ export function WordFishing() {
     setNotice(null);
     setTripCard(null);
     setHintCrateId(null);
+    setLanded(null);
   }
 
   function tapFish(fish) {
@@ -154,6 +178,9 @@ export function WordFishing() {
     setSea((prev) => deliverFish(prev, fish.id, crateId));
 
     const isNewWord = !hasWord(journal, word);
+    // The crate pops for every catch, but only a word that is new to the book
+    // gets the "+1": the crate's count is a count of different words.
+    setLanded((prev) => ({ crateId, word, gain: isNewWord ? 1 : 0, key: (prev?.key ?? 0) + 1 }));
     let nextJournal = isNewWord ? recordCatch(journal, word) : journal;
     const nextTrip = withDelivery(trip);
 
@@ -275,14 +302,18 @@ export function WordFishing() {
 
         {bookOpen && <Fangstbok journal={journal} onClose={() => setBookOpen(false)} />}
 
-        <p className="visually-hidden" role="status">{statusLine(sea, trip)}</p>
+        <p className="visually-hidden" role="status">{landed
+          ? `Ordet ${landed.word} ligger i kassen ${crateById(landed.crateId).label}.${landed.gain === 1 ? '' : ` ${landed.word} var allerede i fangstboka.`}`
+          : statusLine(sea, trip)}</p>
       </div>
 
+      <p className="dock-hint" aria-hidden="true">{dockHint(sea, tripCard)}</p>
       <CrateDock
         trip={trip}
         journal={journal}
         aboard={Boolean(aboard)}
         hintCrateId={hintCrateId}
+        landed={landed}
         onPut={putInCrate}
       />
       <p className="sea-note">

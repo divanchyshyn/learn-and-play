@@ -66,8 +66,11 @@ function catchWord(view) {
 }
 
 function crateElement(view, crateId) {
-  const wanted = `Legg fisken i kassen ${crateById(crateId).label}`;
-  return [...view.container.querySelectorAll('.crate')].find((element) => element.getAttribute('aria-label') === wanted);
+  // A crate is labelled with what to do while a catch waits on deck, and with
+  // its progress the rest of the time – both start from the crate's own name.
+  const label = crateById(crateId).label;
+  return [...view.container.querySelectorAll('.crate')]
+    .find((element) => (element.getAttribute('aria-label') ?? '').includes(label));
 }
 
 function crateProgress(view, crateId) {
@@ -347,6 +350,70 @@ describe('word-fishing catch and reward', () => {
     expect(view.container.querySelector('.fishing-line')).toBeTruthy();
   });
 
+  it('shows the catch landing in its crate, and a +1 only for a word that is new', () => {
+    const known = firstDealtWord();
+    window.localStorage.setItem(JOURNAL_KEY, journalCodec.serialize({
+      ...createJournal(),
+      words: [known],
+    }));
+
+    const view = render(<WordFishing />);
+    expect(catchAndSort(view)).toBe(known);
+
+    // The fish visibly lands in the crate it was put in…
+    const crateId = categoryOf(known);
+    const crate = crateElement(view, crateId);
+    expect(crate.className).toContain('landed');
+    const landing = crate.querySelector('.crate-landing');
+    expect(landing).toBeTruthy();
+    // …but this word was already in the book, so nothing was gained.
+    expect(landing.querySelector('.crate-gain')).toBeNull();
+    expect(crateProgress(view, crateId)).toBe(`1 av ${crateGoal(crateId)} ord`);
+
+    // The pop is a moment, not a state.
+    ticks(Math.ceil(TIMING.LANDED_MS / TICK_MS) + 1);
+    expect(view.container.querySelector('.crate-landing')).toBeNull();
+    expect(view.container.querySelector('.crate.landed')).toBeNull();
+  });
+
+  it('marks a brand-new word with a +1 on its crate', () => {
+    const view = render(<WordFishing />);
+    const word = catchWord(view);
+    const crateId = categoryOf(word);
+
+    fireEvent.click(crateElement(view, crateId));
+
+    const crate = crateElement(view, crateId);
+    expect(crate.querySelector('.crate-landing .crate-gain').textContent).toBe('+1');
+    expect(crateProgress(view, crateId)).toBe(`1 av ${crateGoal(crateId)} ord`);
+  });
+
+  it('says what the dock is waiting for, and marks the crates live only then', () => {
+    const view = render(<WordFishing />);
+
+    const hint = () => view.container.querySelector('.dock-hint').textContent;
+    expect(hint()).toMatch(/fang en fisk/i);
+    expect(view.container.querySelector('.crate-dock.live')).toBeNull();
+
+    const fish = firstVisibleFish(view);
+    const word = tagWord(fish);
+    fireEvent.click(fish.querySelector('.fish-art'));
+    expect(hint()).toMatch(/sveiv/i);
+    expect(view.container.querySelector('.crate-dock.live')).toBeNull();
+
+    for (let step = 0; step < REEL_STEPS; step += 1) {
+      fireEvent.click(view.container.querySelector('.fish-hooked .fish-art'));
+    }
+    expect(hint()).toMatch(/hvilken kasse/i);
+    expect(view.container.querySelector('.crate-dock.live')).toBeTruthy();
+    for (const crate of view.container.querySelectorAll('.crate')) expect(crate).toBeEnabled();
+
+    // Once the catch is in, the dock goes quiet again.
+    fireEvent.click(crateElement(view, categoryOf(word)));
+    expect(view.container.querySelector('.crate-dock.live')).toBeNull();
+    expect(hint()).toMatch(/fang en fisk/i);
+  });
+
   it('lets the child slip a catch back into the water', () => {
     const view = render(<WordFishing />);
     catchWord(view);
@@ -371,6 +438,8 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(done.textContent).toContain('Tur 1 er ferdig!');
     expect(done.textContent).toContain('Du fant sjøstjernen på sjøbunnen!');
     expect(document.querySelector('.confetti-layer')).toBeTruthy();
+    // The dock says why nothing can be answered until the next trip starts.
+    expect(view.container.querySelector('.dock-hint').textContent).toMatch(/ny tur/i);
     // The reef grew: the first reward is painted on the seabed.
     expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
     expect(view.container.querySelector('.reward-coral')).toBeNull();
