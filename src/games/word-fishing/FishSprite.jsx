@@ -23,9 +23,10 @@ function FishArt() {
   </svg>;
 }
 
-// How far along the reel this fish is: one dot per turn, filled as they go.
-function ReelMeter({ step }) {
-  return <span className="reel-meter" aria-hidden="true">
+// How far along the reel this fish is: one dot per turn, filled as they go. When
+// the line starts to slip the dots pulse – the child can see the fish winning.
+function ReelMeter({ step, slack }) {
+  return <span className={`reel-meter${slack ? ' slack' : ''}`} aria-hidden="true">
     {Array.from({ length: REEL_STEPS }, (_, index) => (
       <span className={`reel-dot${index < step ? ' filled' : ''}`} key={index} />
     ))}
@@ -56,7 +57,8 @@ export function FishSprite({ fish, onTap }) {
       </button>}
 
     {swimming && <span className="fish-tag" aria-hidden="true">{word}</span>}
-    {onLine && <ReelMeter step={fish.reelStep} />}
+    {onLine && <ReelMeter step={fish.reelStep} slack={fish.grip < 0.45} />}
     {aboard && <span className="aboard-mark" aria-hidden="true">🎣</span>}
+    {fish.escaped && <span className="fish-splash" aria-hidden="true" />}
   </div>;
 }

@@ -32,12 +32,14 @@ const HINT_MS = 2600;
 // component's timing (see sea.js).
 export const TIMING = { TICK_MS, REEL_STEPS, FISH_ON_SCREEN, DELIVER_TICKS };
 
-// Neutral narration for screen readers – and a calm map of the flow.
+// Neutral narration for screen readers – and a calm map of the flow. The tug on
+// the line is part of the story, so it is spoken too.
 export function statusLine(sea, trip) {
   const fish = activeFish(sea);
   if (!fish) return `${tripRequest(trip)}. ${trip.collected} av ${trip.goal} i dag.`;
   if (fish.status === 'hooked') {
-    return `${fishWord(fish)} – sveiv inn fisken, ${fish.reelStep} av ${REEL_STEPS}.`;
+    const tug = fish.grip < 0.5 ? ' Den drar i snøret!' : '';
+    return `${fishWord(fish)} – sveiv inn fisken, ${fish.reelStep} av ${REEL_STEPS}.${tug}`;
   }
   return `${fishWord(fish)} ligger på dekk. Hvilken kasse hører ordet til?`;
 }
@@ -78,6 +80,14 @@ export function WordFishing() {
     const landed = Boolean(aboardFish(sea));
     if (landed && !hadFish.current) sounds.plop();
     hadFish.current = landed;
+  }, [sea]);
+
+  // A fish breaking free is a moment, not a state: the sea marks it for exactly
+  // one tick (see `escaped` in sea.js), and we answer with the sound of the line
+  // coming loose. It simply swims on – nothing is lost, and it can be hooked
+  // again at once.
+  useEffect(() => {
+    if (sea.fishes.some((fish) => fish.escaped)) sounds.escape();
   }, [sea]);
 
   // The "try another crate" glow is a moment, not a state: it fades by itself.
@@ -189,9 +199,9 @@ export function WordFishing() {
   return <main className="game-page fishing-page">
     <GameHeader title="Ordfiske">
       <p className="fishing-intro">
-        Fiskene svømmer rundt med hvert sitt ord. Trykk på en fisk for å feste kroken, sveiv den inn
-        og legg den i kassen ordet hører til. Får en fisk svømme videre, er det helt greit –
-        ingenting går tapt, og det er ingen klokke som tikker.
+        Fiskene svømmer rundt med hvert sitt ord. Trykk på en fisk for å feste kroken, og sveiv den
+        inn med jevne tak – stopper du opp, drar fisken seg løs og svømmer videre. Legg fangsten i
+        kassen ordet hører til, og fyll fangstboka di.
       </p>
       <div className="game-controls">
         <button className="chip" type="button" onClick={() => { sounds.select(); setBookOpen(true); }}>
@@ -218,6 +228,7 @@ export function WordFishing() {
           lineTo={lineTarget(sea)}
           tripNumber={trip.number}
           onLine={Boolean(onLine)}
+          slack={onLine && onLine.status === 'hooked' ? 1 - onLine.grip : 0}
         >
           {sea.fishes.map((fish) => <FishSprite key={fish.id} fish={fish} onTap={tapFish} />)}
         </SeaScene>

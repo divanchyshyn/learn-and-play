@@ -27,6 +27,7 @@ describe('word-fishing sound settings', () => {
       sounds.reel();
       sounds.plop();
       sounds.crate();
+      sounds.escape();
       sounds.newWord();
       sounds.blub();
       sounds.select();

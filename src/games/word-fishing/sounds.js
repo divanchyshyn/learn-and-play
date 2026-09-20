@@ -35,6 +35,12 @@ export const sounds = {
   newWord() {
     [880, 1174, 1568].forEach((freq, index) => tone({ freq, delay: index * 0.07, duration: 0.16, type: 'triangle', volume: 0.11 }));
   },
+  // The hook comes loose and the fish gets away – a quick downward flick, soft
+  // and playful rather than sad. It only means the fish swims on.
+  escape() {
+    tone({ freq: 540, freqEnd: 190, duration: 0.18, type: 'triangle', volume: 0.14 });
+    tone({ freq: 900, freqEnd: 330, delay: 0.06, duration: 0.13, type: 'sine', volume: 0.08 });
+  },
   // Neutral little blub for "the fish swims on" – deliberately tiny and soft.
   blub() {
     tone({ freq: 230, duration: 0.08, type: 'sine', volume: 0.07 });

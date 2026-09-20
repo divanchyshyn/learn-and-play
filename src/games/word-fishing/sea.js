@@ -24,6 +24,19 @@ export const DELIVER_MS = 620;
 export const DELIVER_TICKS = Math.max(1, Math.round(DELIVER_MS / TICK_MS));
 // Taps needed to wind a hooked fish up to the boat.
 export const REEL_STEPS = 4;
+// A hooked fish is not a parcel: it fights. `grip` is how well the line still
+// holds it, and it drains away tick by tick – every turn of the reel wins it
+// back. Twenty ticks is about 2.4 seconds, so a child who keeps tapping always
+// lands the fish while one who stops to think about something else can really
+// lose it. Deliberately tuned to be a real possibility, never a punishment: a
+// fish that gets away simply swims on, and can be hooked again at once.
+export const GRIP_TICKS = 20;
+export const SLACK_PER_TICK = 1 / GRIP_TICKS;
+// While it is hauled in, the fish thrashes about – and the less grip it has, the
+// wider it swings. Both are percentages of the sea box.
+export const STRUGGLE_SWING = 1.7;
+// How far back towards open water a fish slips while the line goes slack.
+export const SAG_MAX = 0.42;
 
 // Percent of the sea box per tick – roughly one crossing every 30 seconds.
 export const SPEED_MIN = 0.3;
@@ -49,15 +62,31 @@ export function fishWord(fish) {
   return WORD_BANK[fish.wordIndex].word;
 }
 
+function reach(from, to, t) {
+  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+}
+
 // Percent coordinates for painting one fish. A swimming fish is simply where it
-// swims; a fish on the line is interpolated along the line from where it was
-// hooked up to where it lands on deck, so `reelStep` is the whole animation.
+// swims. A fish on the line is hauled from the spot where it was hooked towards
+// the boat – and it fights the whole way: the less grip the line has, the further
+// it slips back towards open water, and while it hangs on it thrashes about, so
+// it is never a parcel sliding quietly up a wire. `reelStep` is how far the haul
+// has come, `grip` is how hard the line still holds, and `struggle` ticks on so
+// the thrashing keeps moving.
 export function fishPosition(fish) {
   if (fish.status === 'swim') return { x: fish.x, y: fish.lane };
-  const progress = Math.min(1, fish.reelStep / REEL_STEPS);
+  const hooked = { x: fish.hookX, y: fish.hookY };
+  const haul = Math.min(1, fish.reelStep / REEL_STEPS);
+  const sag = SAG_MAX * (1 - Math.min(1, Math.max(0, fish.grip)));
+  const pulled = reach(reach(hooked, HOOK_LANDING, haul), hooked, sag);
+  if (fish.status !== 'hooked') return pulled;
+  // Thrashing is widest in the moment the line is almost lost. Both offsets are
+  // sine waves, so the very moment the hook bites the fish is exactly where it
+  // was swimming – it never jumps.
+  const swing = STRUGGLE_SWING * (1 - 0.45 * (1 - fish.grip));
   return {
-    x: fish.hookX + (HOOK_LANDING.x - fish.hookX) * progress,
-    y: fish.hookY + (HOOK_LANDING.y - fish.hookY) * progress,
+    x: pulled.x + swing * Math.sin(fish.struggle * 0.8),
+    y: pulled.y + swing * 0.7 * Math.sin(fish.struggle * 1.25),
   };
 }
 
@@ -85,6 +114,9 @@ function spawnFrom(fishes, order, orderPos, trip, entryOffset = 0) {
       status: 'swim',
       ticksLeft: 0,
       reelStep: 0,
+      grip: 0,
+      struggle: 0,
+      escaped: false,
       hookX: 0,
       hookY: 0,
       crateId: null,
@@ -129,10 +161,21 @@ export function lineTarget(sea) {
 }
 
 function stepFish(fish) {
-  if (fish.status === 'swim') return { ...fish, x: fish.x + fish.dir * fish.speed };
+  if (fish.status === 'swim') return { ...fish, x: fish.x + fish.dir * fish.speed, escaped: false };
+  if (fish.status === 'hooked') {
+    // The line slowly loses its hold, and the fish keeps thrashing.
+    return { ...fish, grip: Math.max(0, fish.grip - SLACK_PER_TICK), struggle: fish.struggle + 1 };
+  }
   if (fish.status === 'delivered') return { ...fish, ticksLeft: fish.ticksLeft - 1 };
-  // A hooked or on-deck fish waits for the child and never drifts away.
+  // A catch waiting on deck never drifts away.
   return fish;
+}
+
+// The line has lost its hold: the hook comes loose and the fish is free again.
+// It keeps the exact spot it was hooked in, so it slips back into the water
+// where it came from instead of teleporting.
+function breakFree(fish) {
+  return freeSwimmer({ ...fish, grip: 0, struggle: 0 }, true);
 }
 
 function isGone(fish) {
@@ -148,7 +191,10 @@ export function tickSea(sea) {
 
   for (const fish of sea.fishes) {
     const stepped = stepFish(fish);
-    if (stepped.status === 'swim') {
+    if (stepped.status === 'hooked' && stepped.grip <= 0) {
+      // Nobody kept the line taut, so the fish wins this round and swims on.
+      survivors.push(breakFree(stepped));
+    } else if (stepped.status === 'swim') {
       if (isGone(stepped)) { departures += 1; continue; }
       survivors.push(stepped);
     } else if (stepped.status === 'delivered' && stepped.ticksLeft <= 0) {
@@ -169,8 +215,19 @@ export function tickSea(sea) {
   return { ...sea, fishes, orderPos };
 }
 
-function freeSwimmer(fish) {
-  return { ...fish, status: 'swim', ticksLeft: 0, reelStep: 0, hookX: 0, hookY: 0, crateId: null };
+function freeSwimmer(fish, escaped = false) {
+  return {
+    ...fish,
+    status: 'swim',
+    ticksLeft: 0,
+    reelStep: 0,
+    grip: 0,
+    struggle: 0,
+    escaped,
+    hookX: 0,
+    hookY: 0,
+    crateId: null,
+  };
 }
 
 function mapFish(sea, fishId, mapEntry) {
@@ -187,12 +244,13 @@ export function hookFish(sea, fishId) {
   const fishes = sea.fishes.map((fish) => {
     if (fish.status === 'hooked') return freeSwimmer(fish);
     if (fish.id !== fishId) return fish;
-    return { ...fish, status: 'hooked', reelStep: 0, hookX: fish.x, hookY: fish.lane };
+    return { ...fish, status: 'hooked', reelStep: 0, grip: 1, struggle: 0, escaped: false, hookX: fish.x, hookY: fish.lane };
   });
   return { ...sea, fishes };
 }
 
-// One turn of the reel. The fish lands on deck on the last one.
+// One turn of the reel: the fish comes a step closer, and the line bites again.
+// It lands on deck on the last one.
 export function reelFish(sea, fishId) {
   const fish = sea.fishes.find((entry) => entry.id === fishId);
   if (!fish || fish.status !== 'hooked') return sea;
@@ -200,6 +258,7 @@ export function reelFish(sea, fishId) {
   return mapFish(sea, fishId, (entry) => ({
     ...entry,
     reelStep,
+    grip: 1,
     status: reelStep >= REEL_STEPS ? 'aboard' : 'hooked',
   }));
 }

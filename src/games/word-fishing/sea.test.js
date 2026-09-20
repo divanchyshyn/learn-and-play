@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  DELIVER_TICKS, FISH_ON_SCREEN, FLOAT_POINT, LANES, REEL_STEPS, SPEED_MAX, SPEED_MIN,
+  DELIVER_TICKS, FISH_ON_SCREEN, FLOAT_POINT, GRIP_TICKS, HOOK_LANDING, LANES, REEL_STEPS,
+  SAG_MAX, SPEED_MAX, SPEED_MIN, STRUGGLE_SWING,
   aboardFish, activeFish, createSea, deliverFish, fishPosition, fishWord, hookedFish,
   hookFish, lineTarget, reelFish, slipFish, tickSea,
 } from './sea.js';
@@ -79,13 +80,22 @@ describe('word-fishing movement', () => {
     expect(fishPosition(moved).y).toBe(fish.lane);
   });
 
-  it('holds a hooked fish still instead of letting it swim off', () => {
+  it('keeps a hooked fish from drifting off, but lets it fight in place', () => {
     const sea = hookFish(createSea(freeSortTrip()), 1);
     const hooked = hookedFish(sea);
     expect(hooked.id).toBe(1);
+    expect(hooked.reelStep).toBe(0);
+    expect(hooked.grip).toBe(1);
+
     const after = tickSea(sea);
-    expect(fishPosition(hookedFish(after))).toEqual(fishPosition(hooked));
-    expect(hookedFish(after).status).toBe('hooked');
+    const stillHooked = hookedFish(after);
+    // It never drifts off along its lane while it is on the line…
+    expect(stillHooked.status).toBe('hooked');
+    expect(stillHooked.x).toBe(hooked.x);
+    // …but it is not a parcel either: the line loosens and it thrashes about.
+    expect(stillHooked.grip).toBeLessThan(hooked.grip);
+    expect(stillHooked.struggle).toBe(hooked.struggle + 1);
+    expect(fishPosition(stillHooked)).not.toEqual(fishPosition(hooked));
   });
 
   it('replaces every fish that swims away – nothing bad ever happens to it', () => {
@@ -179,6 +189,106 @@ describe('word-fishing hooking and reeling', () => {
     expect(lineTarget(sea)).toEqual(FLOAT_POINT);
     const hooked = hookFish(sea, sea.fishes[0].id);
     expect(lineTarget(hooked)).toEqual(fishPosition(hookedFish(hooked)));
+  });
+});
+
+describe('word-fishing the fight on the line', () => {
+  it('loses its hold tick by tick, and every turn of the reel wins it back', () => {
+    const sea = hookFish(createSea(freeSortTrip()), 1);
+    let reeled = sea;
+    for (let tick = 0; tick < 8; tick += 1) reeled = tickSea(reeled);
+    const drained = hookedFish(reeled).grip;
+    expect(drained).toBeLessThan(1);
+    expect(drained).toBeCloseTo(1 - 8 / GRIP_TICKS, 5);
+
+    // One tap and the line bites again.
+    const gripped = reelFish(reeled, 1);
+    expect(hookedFish(gripped).grip).toBe(1);
+    expect(hookedFish(gripped).reelStep).toBe(1);
+  });
+
+  it('slips further back towards open water the less hold the line has', () => {
+    const sea = hookFish(createSea(freeSortTrip()), 1);
+    const spot = { x: sea.fishes[0].x, y: sea.fishes[0].lane };
+    // Two turns in, so the fish has something to lose.
+    let reeled = reelFish(reelFish(sea, 1), 1);
+    const taut = fishPosition(hookedFish(reeled));
+
+    for (let tick = 0; tick < GRIP_TICKS - 1; tick += 1) reeled = tickSea(reeled);
+    const loose = fishPosition(hookedFish(reeled));
+
+    // Both positions slide back towards the very spot it was hooked in.
+    expect(loose.x).toBeGreaterThan(taut.x);
+    expect(loose.x).toBeLessThanOrEqual(spot.x);
+    expect(Math.abs(loose.x - spot.x)).toBeLessThan(Math.abs(taut.x - spot.x));
+    // A fish slips back at most SAG_MAX of the way, never past the hook point.
+    expect(spot.x - loose.x).toBeLessThanOrEqual(SAG_MAX * (spot.x - HOOK_LANDING.x) + STRUGGLE_SWING);
+  });
+
+  it('thrashes about while it hangs on the line, and stops once it is on deck', () => {
+    const sea = hookFish(createSea(freeSortTrip()), 1);
+    const seen = new Set();
+    let reeled = sea;
+    for (let tick = 0; tick < 6; tick += 1) {
+      reeled = tickSea(reeled);
+      const spot = fishPosition(hookedFish(reeled));
+      seen.add(`${spot.x.toFixed(2)},${spot.y.toFixed(2)}`);
+    }
+    // Every tick puts it somewhere new – it is alive, not parked.
+    expect(seen.size).toBe(6);
+
+    const landed = fishPosition(aboardFish(reelIn(sea, 1)));
+    expect(landed.x).toBeCloseTo(HOOK_LANDING.x);
+    expect(landed.y).toBeCloseTo(HOOK_LANDING.y);
+  });
+
+  it('lets a fish break free when nobody keeps the line taut', () => {
+    const sea = hookFish(createSea(freeSortTrip()), 1);
+    expect(hookedFish(sea).reelStep).toBe(0);
+
+    let sea2 = sea;
+    for (let tick = 0; tick < GRIP_TICKS; tick += 1) sea2 = tickSea(sea2);
+
+    // A real possibility, deliberately: the hook came loose on its own.
+    expect(hookedFish(sea2)).toBeNull();
+    const escaped = sea2.fishes.find((fish) => fish.id === 1);
+    expect(escaped.status).toBe('swim');
+    expect(escaped.escaped).toBe(true);
+    expect(escaped.reelStep).toBe(0);
+    // It slips back into the water at the very spot it was hooked in.
+    expect(fishPosition(escaped)).toEqual({ x: sea.fishes[0].x, y: sea.fishes[0].lane });
+    // The splash lasts exactly one tick, and the fish swims on afterwards.
+    const later = tickSea(sea2);
+    expect(later.fishes.find((fish) => fish.id === 1).escaped).toBe(false);
+    expect(later.fishes).toHaveLength(FISH_ON_SCREEN);
+  });
+
+  it('always lands a fish for a child who keeps tapping in time', () => {
+    const sea = createSea(freeSortTrip());
+    const id = sea.fishes[0].id;
+    let reeled = hookFish(sea, id);
+    // Keep tapping with a short pause between turns – the child never loses it.
+    for (let step = 0; step < REEL_STEPS; step += 1) {
+      for (let tick = 0; tick < Math.floor(GRIP_TICKS / 2); tick += 1) {
+        reeled = tickSea(reeled);
+        expect(hookedFish(reeled)).not.toBeNull();
+      }
+      reeled = reelFish(reeled, id);
+    }
+    expect(aboardFish(reeled).id).toBe(id);
+  });
+
+  it('never lets go of a fish that is already on deck or in a crate', () => {
+    const sea = createSea(freeSortTrip());
+    const id = sea.fishes[0].id;
+    const onDeck = reelIn(sea, id);
+    let after = onDeck;
+    for (let tick = 0; tick < GRIP_TICKS * 3; tick += 1) after = tickSea(after);
+    expect(aboardFish(after).id).toBe(id);
+
+    let delivered = deliverFish(onDeck, id, 'animals');
+    for (let tick = 0; tick < DELIVER_TICKS; tick += 1) delivered = tickSea(delivered);
+    expect(delivered.fishes.some((fish) => fish.escaped)).toBe(false);
   });
 });
 

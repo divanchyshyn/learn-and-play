@@ -79,26 +79,28 @@ function Boat({ tripNumber }) {
   </div>;
 }
 
-function LineLayer({ target, onLine }) {
+function LineLayer({ target, onLine, slack }) {
   const midX = (ROD_TIP.x + target.x) / 2 + 1.5;
-  const midY = (ROD_TIP.y + target.y) / 2;
+  // A slack line sags: the less grip the rod has on the fish, the deeper the
+  // curve, which is the child's first sign that the fish is about to get away.
+  const midY = (ROD_TIP.y + target.y) / 2 + 4.5 * slack;
   return <svg className="line-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
     <line className="rod-line" x1={ROD_BASE.x} y1={ROD_BASE.y} x2={ROD_TIP.x} y2={ROD_TIP.y} />
     <path
-      className={`fishing-line${onLine ? ' taut' : ''}`}
+      className={`fishing-line${onLine && slack < 0.5 ? ' taut' : ''}`}
       d={`M ${ROD_TIP.x} ${ROD_TIP.y} Q ${midX} ${midY} ${target.x} ${target.y}`}
     />
   </svg>;
 }
 
-export function SeaScene({ decorations, lineTo, tripNumber, onLine, children }) {
+export function SeaScene({ decorations, lineTo, tripNumber, onLine, slack = 0, children }) {
   return <>
     <Sky />
     <Water />
     <SeaBed decorations={decorations} />
     <Boat tripNumber={tripNumber} />
     {!onLine && <span className="fishing-float" style={{ left: `${FLOAT_POINT.x}%`, top: `${FLOAT_POINT.y}%` }} aria-hidden="true" />}
-    <LineLayer target={lineTo} onLine={onLine} />
+    <LineLayer target={lineTo} onLine={onLine} slack={slack} />
     {children}
   </>;
 }

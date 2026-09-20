@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, cleanup, within } from '@testing-library/react';
 import { TIMING, WordFishing } from './WordFishing.jsx';
-import { DELIVER_TICKS, FISH_ON_SCREEN, REEL_STEPS, TICK_MS, createSea, fishWord } from './sea.js';
+import { DELIVER_TICKS, FISH_ON_SCREEN, GRIP_TICKS, REEL_STEPS, TICK_MS, createSea, fishWord } from './sea.js';
 import { JOURNAL_KEY, TRIP_KEY, createJournal, journalCodec, tripCodec } from './journal.js';
 import { createTripPlan, crateForWord, tripRequest } from './trip.js';
+import { sounds } from './sounds.js';
 import { CATEGORY_CRATE_IDS, WORD_BANK, WORD_COUNT, crateById, crateWordCount } from './words.js';
 
 // Math.random is pinned so the shoal is deterministic: every fish enters from
@@ -280,6 +281,70 @@ describe('word-fishing catch and reward', () => {
 
     fireEvent.click(notice);
     expect(view.container.querySelector('.notice-card')).toBeNull();
+  });
+
+  it('lets a fish pull itself free when the child stops reeling', () => {
+    const escapeSound = vi.spyOn(sounds, 'escape');
+    const view = render(<WordFishing />);
+    const fish = firstVisibleFish(view);
+    const word = tagWord(fish);
+
+    fireEvent.click(fish.querySelector('.fish-art')); // the hook bites
+    expect(view.container.querySelector('.fish-hooked')).toBeTruthy();
+
+    // The line is left alone for the whole grip window.
+    ticks(GRIP_TICKS);
+
+    // A real possibility, and a real splash to go with it.
+    expect(view.container.querySelector('.fish-hooked')).toBeNull();
+    expect(view.container.querySelector('.fish-splash')).toBeTruthy();
+    expect(escapeSound).toHaveBeenCalled();
+    expect(view.container.querySelector('.catch-card')).toBeNull();
+    expect(view.container.querySelector('.fish-aboard')).toBeNull();
+    // Nothing is counted, nothing is scolded, nothing is lost.
+    expect(screen.getByText(`0 av ${WORD_COUNT} ord i fangstboka – ${WORD_COUNT} igjen.`)).toBeInTheDocument();
+    expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+    expect(screen.queryByText(/feil|galt|straff|mistet|stakk av/i)).not.toBeInTheDocument();
+
+    // The splash is a moment; then the fish simply swims on…
+    ticks(1);
+    expect(view.container.querySelector('.fish-splash')).toBeNull();
+
+    // …and can be hooked again straight away.
+    const again = [...view.container.querySelectorAll('.fish')]
+      .find((element) => element.querySelector('.fish-tag')?.textContent === word);
+    expect(again).toBeTruthy();
+    fireEvent.click(again.querySelector('.fish-art'));
+    expect(view.container.querySelector('.fish-hooked')).toBeTruthy();
+  });
+
+  it('keeps a fish on the line for a child who keeps tapping', () => {
+    const view = render(<WordFishing />);
+    const fish = firstVisibleFish(view);
+    fireEvent.click(fish.querySelector('.fish-art'));
+
+    // Tapping along, with a pause between turns, always lands the fish.
+    for (let step = 1; step <= REEL_STEPS; step += 1) {
+      ticks(Math.floor(GRIP_TICKS / 2));
+      fireEvent.click(view.container.querySelector('.fish-hooked .fish-art'));
+      if (step < REEL_STEPS) expect(view.container.querySelector('.fish-hooked')).toBeTruthy();
+    }
+
+    expect(view.container.querySelector('.catch-card')).toBeTruthy();
+    expect(view.container.querySelector('.fish-aboard')).toBeTruthy();
+  });
+
+  it('shows the line losing its hold before the fish gets away', () => {
+    const view = render(<WordFishing />);
+    const fish = firstVisibleFish(view);
+    fireEvent.click(fish.querySelector('.fish-art'));
+
+    // Most of the grip spent: the dots flare and the line sags.
+    ticks(GRIP_TICKS - 4);
+
+    expect(view.container.querySelector('.reel-meter.slack')).toBeTruthy();
+    expect(view.container.querySelector('.fishing-line.taut')).toBeNull();
+    expect(view.container.querySelector('.fishing-line')).toBeTruthy();
   });
 
   it('lets the child slip a catch back into the water', () => {

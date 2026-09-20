@@ -211,6 +211,18 @@ button.fish-art:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 4px
 .reel-meter { position: absolute; left: 50%; top: calc(100% - 2px); translate: -50% 0; display: flex; gap: 4px; }
 .reel-dot { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 253, 243, .55); border: 2px solid rgba(20, 63, 78, .3); }
 .reel-dot.filled { background: #ffd95c; border-color: #b57b1e; }
+/* The line is losing its hold: the dots flare so the child can see the fish
+   winning before it breaks free. */
+.reel-meter.slack .reel-dot { animation: reel-slip .45s ease-in-out infinite alternate; }
+@keyframes reel-slip { from { opacity: 1; } to { opacity: .35; } }
+
+/* A fish that just broke free splashes, then swims on. */
+.fish-splash {
+  position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+  border: 3px solid rgba(255, 253, 243, .9); border-radius: 50%;
+  animation: splash-out .55s ease-out forwards;
+}
+@keyframes splash-out { from { transform: scale(.5); opacity: .95; } to { transform: scale(4.4); opacity: 0; } }
 
 /* A fish on deck waits beside the angler. */
 .fish-aboard { z-index: 10; }
