@@ -53,6 +53,7 @@ src/games/<game-slug>/main.jsx          React entry point for one game
 src/games/<game-slug>/<Game>.jsx        Game component and game logic
 src/games/<game-slug>/*.test.js(x)      Tests for one game (logic + rendered behaviour)
 src/games/<game-slug>/style.css         Game-specific styles
+src/games/<game-slug>/puzzle-assets/    Committed game artwork imported by the component (Sound Labyrinth's puzzle pictures)
 src/styles/base.css                     Shared reset and base styles
 src/test/setup.js                       Vitest setup (jest-dom matchers)
 vite.config.js                          Multi-page build entry points and test config
@@ -86,6 +87,68 @@ For a new game with the slug `word-match`:
 The trailing slash in a game URL is intentional: it lets the static host load that game's `index.html` directly (Cloudflare Workers redirects `/games/<slug>` to `/games/<slug>/` and serves `index.html` there, exactly as GitHub Pages does).
 
 Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`pickOne`, the audio engine (`tone`, mute state), `speakNorwegian`, `ConfettiLayer`, and `GameHeader`. Sound *definitions* stay per game in its local `sounds.js`, built on the shared engine.
+
+## Game artwork
+
+- Artwork that a game ships is committed inside that game's own folder, next to
+  the code that imports it: `src/games/<game-slug>/puzzle-assets/*.webp` holds
+  Sound Labyrinth's puzzle pictures. A Vite import such as
+  `import picture from './puzzle-assets/chipmunk.webp'` fails the build when the
+  file is missing, so a missing picture can never ship - when a game route
+  suddenly stops building, check `git status` for deleted asset files first.
+- Asset filenames are English kebab-case and describe the subject
+  (`submarine-yard.webp`, `red-squirrel.webp`), even inside a Norwegian game: the
+  Naming rules cover filenames too. Unlike game slugs, asset filenames are not
+  routes, so they may be renamed, replaced or added freely as long as every
+  import and test moves with them.
+- Every picture belonging to the same feature keeps the same shipped contract, so
+  the pictures stay interchangeable. Sound Labyrinth's puzzle pictures are
+  **1024 x 1024 px, WebP lossy VP8 (the `VP8 ` chunk, not `VP8L`/`VP8X`), RGB with
+  no alpha, 45-205 KB each**. Keep a new picture inside that range; the busier the
+  photo, the lower the quality it needs (the battleship wanted q74 where the
+  others were happy at q82).
+- A picture is sliced into its four quadrants in CSS (`--puzzle-image`,
+  `background-size: 200% 200%`), so the source must be square and the subject must
+  not fall across the middle lines. Always convert a square crop of the original,
+  never a stretched one, and check the framing on a small preview before
+  installing it.
+- Convert and check artwork outside the repository. Pillow is *not* a project
+  dependency and must not be added to `package.json`; install it in a throwaway
+  environment in a temp folder outside the repo, and copy only the finished
+  `.webp` files in. This is the recipe the current pictures were made with:
+
+  ```python
+  side = min(image.size)                    # centre square crop, never a stretch
+  left, top = (image.width - side) // 2, (image.height - side) // 2
+  square = image.convert("RGBA").crop((left, top, left + side, top + side))
+  flat = Image.new("RGB", square.size, (255, 255, 255))  # flatten alpha on white
+  flat.paste(square, mask=square.getchannel("A"))
+  flat.resize((1024, 1024), Image.LANCZOS).save(
+      target, "WEBP", quality=82, method=6, lossless=False)
+  ```
+
+  Then re-open the result and print `size`, `format`, `mode` and the four bytes
+  after `RIFF....WEBP` (the expected chunk is `VP8 `). A file that comes back as
+  `VP8X` or `RGBA` is off contract, and one above ~205 KB is worth saving again at
+  a lower quality.
+- Adding, replacing or removing a picture is a four-step change:
+  1. copy the converted `.webp` into the game's asset folder with `Copy-Item` (or
+     `cmd /c copy`). Never move binary files through PowerShell redirection
+     (`>`, `|`): it re-encodes the bytes and corrupts the image;
+  2. import it in the game component and add it to the picture rotation
+     (`PUZZLE_IMAGES` in `SoundLabyrinth.jsx` - one picture per full run, in a
+     mixed order so consecutive runs look different);
+  3. extend the rotation assertion in the game's test (`SoundLabyrinth.test.jsx`
+     checks the rotation is complete and repeat-free);
+  4. run `npm.cmd run lint`, `npm.cmd run test` and `npm.cmd run build`, then
+     confirm every picture is emitted to `dist/assets/*.webp`.
+- Pictures are not stored in saved progress: a piece session keeps only
+  `imageIndex`, and the codec accepts any index `>= 0`. A bigger rotation therefore
+  keeps every saved game working with no `migrateStorage` step (a smaller one would
+  quietly show the first picture for the highest stored indices).
+- Pick subjects a child recognises and keep new artwork in that friendly, everyday
+  spirit; see Design direction before adding anything that leans on the former
+  military theme.
 
 ## Testing
 
@@ -130,6 +193,7 @@ A change, whether written by a person or by the coding agent, is finished only w
 
 - `npm run lint`, `npm run test` and `npm run build` all pass (use `npm.cmd` in PowerShell on this machine).
 - New pure logic is exported from the component or module and covered by a unit test; new UI has at least one rendered happy path.
+- New or replaced artwork follows the contract under Game artwork (same dimensions, format, colour mode and rough byte size as the pictures it joins), is imported by the component, is covered by the rotation test, and is present in `dist/assets/`.
 - `README.md` is updated when user-visible behaviour, the game list, or a published route changes.
 - A new game also gets its `games/<slug>/index.html`, its `src/games/<slug>/` folder, a tile in `src/home/main.jsx`, and a README entry.
 - The production build still contains every published route (`dist/games/<slug>/index.html`).
