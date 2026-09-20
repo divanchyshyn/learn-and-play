@@ -43,7 +43,10 @@ describe('word-fishing word bank', () => {
     expect(CATEGORY_CRATE_IDS).toHaveLength(4);
     const counts = CATEGORY_CRATE_IDS.map((id) => crateWordCount(id));
     expect(new Set(counts).size).toBe(1);
-    expect(counts[0] * CATEGORY_CRATE_IDS.length).toBe(WORD_COUNT);
+    // Ten words in every crate: forty words to collect in all – a goal a child
+    // can actually finish, with the same work behind every crate.
+    expect(counts).toEqual([10, 10, 10, 10]);
+    expect(WORD_COUNT).toBe(40);
     expect(wordsInCrate(CATEGORY_CRATE_IDS[0])).toHaveLength(counts[0]);
   });
 });

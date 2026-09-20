@@ -9,8 +9,9 @@ import { shuffle } from '../../shared/random.js';
 
 // The crate a word belongs to is the game's reading task: every catch has to be
 // decoded and put in the right crate. The four category crates hold exactly the
-// same number of words (see crateWordCount), which keeps "collect them all" a
-// balanced goal.
+// same number of words – ten each, forty in all – so "collect them all" is a
+// balanced goal a child can finish. crateWordCount always tells the truth, so
+// the crates, the fishing book and the finale follow the bank on their own.
 export const WORD_CATEGORIES = {
   animals: 'Dyr',
   food: 'Mat',
@@ -70,8 +71,6 @@ export const WORD_BANK = [
   { word: 'hest', cat: 'animals' },
   { word: 'rev', cat: 'animals' },
   { word: 'fugl', cat: 'animals' },
-  { word: 'and', cat: 'animals' },
-  { word: 'bie', cat: 'animals' },
   // Food
   { word: 'is', cat: 'food' },
   { word: 'ost', cat: 'food' },
@@ -82,8 +81,6 @@ export const WORD_BANK = [
   { word: 'eple', cat: 'food' },
   { word: 'pære', cat: 'food' },
   { word: 'banan', cat: 'food' },
-  { word: 'ris', cat: 'food' },
-  { word: 'smør', cat: 'food' },
   { word: 'suppe', cat: 'food' },
   // Nature
   { word: 'sol', cat: 'nature' },
@@ -91,24 +88,20 @@ export const WORD_BANK = [
   { word: 'snø', cat: 'nature' },
   { word: 'regn', cat: 'nature' },
   { word: 'sky', cat: 'nature' },
-  { word: 'vind', cat: 'nature' },
   { word: 'skog', cat: 'nature' },
   { word: 'tre', cat: 'nature' },
   { word: 'blad', cat: 'nature' },
   { word: 'stein', cat: 'nature' },
   { word: 'hav', cat: 'nature' },
-  { word: 'elv', cat: 'nature' },
   // The home
   { word: 'hus', cat: 'home' },
   { word: 'bok', cat: 'home' },
-  { word: 'penn', cat: 'home' },
   { word: 'stol', cat: 'home' },
   { word: 'seng', cat: 'home' },
   { word: 'bord', cat: 'home' },
   { word: 'dør', cat: 'home' },
   { word: 'sko', cat: 'home' },
   { word: 'lue', cat: 'home' },
-  { word: 'vott', cat: 'home' },
   { word: 'kopp', cat: 'home' },
   { word: 'lampe', cat: 'home' },
 ];
