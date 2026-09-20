@@ -10,8 +10,7 @@ const GAMES = [
   { title: 'Slanger og stiger', description: 'Les norske ord, klatre opp stiger og pass på slangene.', href: './games/snakes-and-ladders/', badge: 'Ordspill', art: 'snake' },
   // Card battle is hidden from the library while the game is still in development – it keeps building and is reachable at ./games/card-battle/
   // { title: 'Kortkrig', description: 'Kortduell mot Rex – snu kortene, sammenlign tall og se hvem som slår hardest.', href: './games/card-battle/', badge: 'Regnespill', art: 'cards' },
-  // Word fishing is hidden from the library while the game is still in development – it keeps building and is reachable at ./games/word-fishing/
-  // { title: 'Ordfiske', description: 'Fisk ord-fisker opp av vatnet i rolig tempo og fyll bøtta di – helt i eget tempo.', href: './games/word-fishing/', badge: 'Lesespill', art: 'fishing' },
+  { title: 'Ordfiske', description: 'Fisk ord med fiskebåten, sveiv dem inn og legg dem i rett kasse. Fyll fangstboka og pynt sjøbunnen.', href: './games/word-fishing/', badge: 'Lesespill', art: 'fishing' },
   { title: 'Butikken', description: 'Handle i butikken: kjøp varer, trekk prisen fra lommeboka di og skriv svaret selv – eller lever tilbake det du angrer på.', href: './games/shop/', badge: 'Regnespill', art: 'shop' },
 ];
 
@@ -22,7 +21,7 @@ const TILE_ART = {
   maze: () => <><span className="tile-hedge hedge-a" /><span className="tile-hedge hedge-b" /><span className="tile-doorway">🚪</span><span className="tile-fox">🦊</span></>,
   cards: () => <><span className="tile-card card-a">7</span><span className="tile-card card-b">12</span><span className="tile-boom">💥</span></>,
   shop: () => <><span className="tile-awning" /><span className="tile-cart">🛒</span><span className="tile-tag">tilbud!</span></>,
-  fishing: () => <><span className="tile-wave" /><span className="tile-trout">🐟</span><span className="tile-hook">🎣</span></>,
+  fishing: () => <><span className="tile-sun" /><span className="tile-wave" /><span className="tile-boat">⛵</span><span className="tile-trout">🐠</span><span className="tile-hook">🎣</span></>,
   jump: () => <><span className="tile-ground" /><span className="tile-arc" /><span className="tile-hopper">🐸</span></>,
 };
 

@@ -23,10 +23,12 @@
 .tile-awning { position: absolute; top: -2px; left: -2px; right: -2px; height: 52px; background: repeating-linear-gradient(90deg, #e46e4b 0 36px, #fff6df 36px 72px); box-shadow: inset 0 -6px 0 rgba(20, 63, 78, .18); }
 .tile-cart { position: absolute; left: 50%; top: 62%; transform: translate(-50%, -50%); font-size: 76px; line-height: 1; filter: drop-shadow(0 5px 0 rgba(20, 63, 78, .22)); }
 .tile-tag { position: absolute; right: 16px; top: 68px; padding: 5px 11px; border: 3px solid #b57b1e; border-radius: 9px; background: #ffd95c; color: #7a4c08; font-size: .82rem; font-weight: 900; transform: rotate(10deg); box-shadow: 0 4px 0 rgba(20, 63, 78, .15); }
-.tile-art-fishing { background: linear-gradient(#bfe6f2 0 46%, #58aec9 46% 100%); }
-.tile-wave { position: absolute; left: -2px; right: -2px; top: 43%; height: 7px; background: repeating-linear-gradient(90deg, #fffdf3 0 18px, transparent 18px 38px); border-radius: 4px; opacity: .65; }
-.tile-trout { position: absolute; left: 46%; top: 66%; transform: translate(-50%, -50%) rotate(-8deg); font-size: 62px; line-height: 1; filter: drop-shadow(0 5px 0 rgba(20, 63, 78, .22)); }
-.tile-hook { position: absolute; right: 14%; top: 8px; font-size: 42px; line-height: 1; transform: rotate(16deg); filter: drop-shadow(0 4px 0 rgba(20, 63, 78, .2)); }
+.tile-art-fishing { background: linear-gradient(#bfe6f2 0 44%, #7cc9de 44% 56%, #2f8fb6 56% 100%); }
+.tile-sun { position: absolute; right: 20px; top: 10px; width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #ffe9a8, #f7c948 62%, #eeab2f); box-shadow: 0 0 16px rgba(247, 201, 72, .6); }
+.tile-wave { position: absolute; left: -2px; right: -2px; top: 40%; height: 7px; background: repeating-linear-gradient(90deg, #fffdf3 0 18px, transparent 18px 38px); border-radius: 4px; opacity: .65; }
+.tile-boat { position: absolute; left: 12%; top: 12%; font-size: 46px; line-height: 1; transform: rotate(-3deg); filter: drop-shadow(0 4px 0 rgba(20, 63, 78, .2)); }
+.tile-trout { position: absolute; left: 44%; top: 70%; transform: translate(-50%, -50%) rotate(-8deg); font-size: 56px; line-height: 1; filter: drop-shadow(0 5px 0 rgba(20, 63, 78, .22)); }
+.tile-hook { position: absolute; right: 12%; top: 6px; font-size: 40px; line-height: 1; transform: rotate(16deg); filter: drop-shadow(0 4px 0 rgba(20, 63, 78, .2)); }
 .tile-art-jump { background: #8fbf6f; }
 .tile-ground { position: absolute; left: -2px; right: -2px; bottom: 30px; height: 7px; border-radius: 3px; background: #25333a; box-shadow: inset 0 3px 0 rgba(255, 255, 255, .18); }
 .tile-arc { position: absolute; left: 16%; bottom: 37px; width: 46%; height: 64px; border: 6px dotted transparent; border-top-color: #fffdf3; border-radius: 50%; }
