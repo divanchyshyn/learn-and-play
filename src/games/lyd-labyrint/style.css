@@ -1,4 +1,20 @@
-.game-page.labyrinth-page { width: min(100% - 28px, 900px); margin: 0 auto; padding: 18px 0 38px; }
+/* The maze theme also paints the page canvas - the component sets --page-bg on
+   the root element - so the space below a short page is never left as a bare
+   strip. (The root element's background is the one that covers the canvas.) */
+:root { background: var(--page-bg, #e4f1ef); }
+
+/* A column so the play surface can centre itself in the height that is left
+   over: on a tall desktop the maze sits in the middle of the themed canvas
+   instead of clinging to the header. */
+.game-page.labyrinth-page {
+  width: min(100% - var(--page-gutter, 28px), var(--page-max, 900px));
+  margin: 0 auto;
+  padding: 18px 0 38px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
 
 
 .title-strip { background: #e46e4b; box-shadow: inset 0 -3px 0 rgba(114, 43, 30, .28); }
@@ -23,14 +39,14 @@
 .theme-aarstider { --wall: #cf7d8a; --wall-dark: rgba(96, 45, 58, .22); --frame: #b06270; }
 
 /* ---- Board ------------------------------------------------------------ */
-.labyrinth-stage { display: grid; gap: 18px; justify-items: center; padding-bottom: 26px; }
+/* `margin-block: auto` centres the whole stage in the leftover height; when the
+   content is taller than the viewport the auto margins collapse to zero and
+   the page simply scrolls. */
+.labyrinth-stage { display: grid; gap: 18px; justify-items: center; padding-bottom: 26px; margin-block: auto; }
 .board-frame { position: relative; }
-/* Cell size = min(width budget, height budget, cap). The -250px height budget
-   covers the compact header pill, control chips, d-pad and page padding now
-   that the tall title banner is gone, so the maze grows into the freed space
-   while still fitting a tablet screen. */
+/* Cell size is computed from the live viewport in layout.js and handed over as
+   an inline `--cell`, so the board always leaves the d-pad's column free. */
 .board {
-  --cell: max(21px, min(66px, calc((100vw - 46px) / var(--cw)), calc((100vh - 250px) / var(--ch))));
   position: relative;
   display: grid;
   grid-template-columns: repeat(var(--cw), var(--cell));
@@ -116,14 +132,16 @@
 
 
 /* ---- On-screen direction pad ------------------------------------------ */
+/* The key size and gap come from layout.js as custom properties, so the board
+   sizing and the pad it shares its row with can never drift apart. */
 .dpad {
   display: grid;
   grid-template-areas: ". up ." "left paw right" ". down .";
-  gap: 9px;
+  gap: var(--pad-gap, 9px);
   user-select: none; -webkit-user-select: none;
 }
 .pad {
-  width: 64px; height: 64px;
+  width: var(--pad-size, 64px); height: var(--pad-size, 64px);
   display: grid; place-items: center;
   border: 3px solid #0c8fb6; border-radius: 14px;
   background: #fffdf3; color: #0b7897;
@@ -140,21 +158,17 @@
 .pad-center { grid-area: paw; display: grid; place-items: center; font-size: 1.25rem; opacity: .5; }
 
 /* From tablets and up the direction pad sits beside the maze instead of under
-   it. The board shrinks just enough to make room, so both the maze and the
-   controls stay on screen without scrolling. Below 700px they stack again. */
-@media (min-width: 700px) {
-  .labyrinth-stage {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: 'board pad';
-    align-items: center;
-    column-gap: clamp(16px, 3vw, 28px);
-  }
-  .board-frame { grid-area: board; }
-  .dpad { grid-area: pad; }
-  .board {
-    --cell: max(21px, min(66px, calc((min(100vw - 28px, 900px) - 170px) / var(--cw)), calc((100vh - 250px) / var(--ch))));
-  }
+   it. The component switches the stage to this layout and sizes the cells from
+   the pad's real metrics (layout.js), so both the maze and the controls stay on
+   screen without scrolling. Below 700px they stack again. */
+.labyrinth-stage[data-layout='row'] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'board pad';
+  align-items: center;
+  column-gap: var(--stage-column-gap, clamp(16px, 3vw, 28px));
 }
+.labyrinth-stage[data-layout='row'] .board-frame { grid-area: board; }
+.labyrinth-stage[data-layout='row'] .dpad { grid-area: pad; }
 
 /* ---- Spelling lock -------------------------------------------------- */
 .spell-backdrop {
