@@ -23,11 +23,12 @@ Issue labelled `ai-ready`  (or a `/oc` comment)
         └─ .github/workflows/opencode-review.yml read-only review comment
         │
         ▼
-   HUMAN REVIEW  →  merge  →  deploy-cloudflare.yml  →  issue closes
+   HUMAN REVIEW  →  merge  →  deploy-cloudflare.yml: verify  →  APPROVE  →  live
 ```
 
-The only human step is reviewing the pull request. Merging is the same as it has
-always been, so the published site is never touched without you.
+The human steps are reviewing the pull request and approving the production
+deploy. Merging is the same as it has always been, and the live site is still
+never touched without you.
 
 ## Engine
 
@@ -85,6 +86,16 @@ These are repository settings, not files, so they have to be done by hand once.
    `ai-blocked`, `skip-ai-review`, and optionally `risk:low` / `risk:high`.
 6. **Enable CodeQL.** Settings → Code scanning. CodeQL is free for public
    repositories; it uses the workflow in `codeql.yml`.
+7. **Gate the production deploy.** Settings → Environments → new environment
+   named `cloudflare-production`, with yourself under **Required reviewers**
+   (optionally restricted to the `main` branch). The `deploy-cloudflare.yml`
+   deploy job references that environment, so it waits for your approval before
+   it can reach the live site, while `deploy-pages.yml` keeps publishing
+   automatically. Create the environment *before* merging a change to that
+   workflow: an environment that is referenced but not yet configured is created
+   empty, so that first deploy would run unreviewed. If a required-reviewer rule
+   ever appears on the `github-pages` environment, Pages starts waiting for
+   approval too – remove the rule there to keep Pages hands-free.
 
 ## Day to day
 
@@ -110,7 +121,7 @@ These are repository settings, not files, so they have to be done by hand once.
 | Threat | What stops it |
 | --- | --- |
 | Prompt injection from an issue or diff telling the agent to exfiltrate | `webfetch`, `websearch` and `external_directory` are denied; the bash allowlist has no `curl`, `wget`, `env` or `printenv` |
-| The agent reaching production | Branch protection on `main`; the agent only ever opens a pull request |
+| The agent reaching production | Branch protection on `main`; the agent only ever opens a pull request. The Cloudflare deploy job additionally waits on the `cloudflare-production` environment's required reviewers, so even a merged change needs a human approval before it goes live |
 | Adding dependencies behind your back | `npm install` is denied; only `npm ci` is allowed. The agent must stop and ask |
 | Secrets leaking into the agent's shell | `OPENROUTER_API_KEY` is the only secret in the job, and the bash allowlist cannot read the environment |
 | The reviewer changing what it reviews | The `review` agent denies `edit`; the workflow's `GITHUB_TOKEN` has `contents: read` plus `pull-requests: write`, which is only good for posting comments |

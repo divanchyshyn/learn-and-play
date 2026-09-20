@@ -63,8 +63,8 @@ The build writes every published page into `dist/`:
 - `/games/ordfiske/` - Ordfiske (the word-fishing pond)
 - `/games/tierhopp/` - Tierhopp (the number-line jumper)
 
-`.github/workflows/deploy-cloudflare.yml` runs lint, the whole test suite and the build on every push to `main`, then deploys `dist/` to Cloudflare Workers static assets, so failing checks can never reach the live site. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
+`.github/workflows/deploy-cloudflare.yml` runs lint, the whole test suite and the build on every push to `main`; the verified build is then handed to Cloudflare Workers static assets - but only after a human approves it. The deploy job sits behind the `cloudflare-production` environment's required reviewer, so you approve each production deploy in the workflow run. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
 
 The library lives at <https://play2learn.divanchyshyn.com/>, and each game sits at `/games/<slug>/` - for example <https://play2learn.divanchyshyn.com/games/lyd-labyrint/>.
 
-GitHub Pages keeps publishing the same build through `.github/workflows/deploy-pages.yml` while the custom domain settles, so the old `https://<user>.github.io/learn-and-play/` URLs keep working. Retire that workflow in its own change once the new domain has been verified. Progress saved in `localStorage` belongs to the origin it was saved on, so the new domain starts with fresh saves.
+GitHub Pages keeps publishing the same build through `.github/workflows/deploy-pages.yml` automatically, with no approval step, so the old `https://<user>.github.io/learn-and-play/` URLs keep working. Retire that workflow in its own change once the new domain has been verified. Progress saved in `localStorage` belongs to the origin it was saved on, so the new domain starts with fresh saves.

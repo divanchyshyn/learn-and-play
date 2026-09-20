@@ -5,8 +5,10 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 // Flat config for ESLint 9. Run with `npm.cmd run lint`.
 export default [
-  // Build output and dependencies are never linted.
-  { ignores: ['dist/', 'node_modules/'] },
+  // Build output, dependencies and Wrangler's local scratch directory are never
+  // linted. `.wrangler/` is created by `npx wrangler dev` / `wrangler deploy`
+  // and holds generated bundling code that is not ours to fix.
+  { ignores: ['dist/', 'node_modules/', '.wrangler/'] },
 
   // Core recommended rules for every JS file, including the Node-side configs.
   js.configs.recommended,

@@ -15,7 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  # Lint, tests and build always run, so a human never has to approve a broken
+  # change. The build is uploaded as an artifact so the deploy publishes exactly
+  # the bytes that were verified, not a second, separate build.
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -30,6 +33,35 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
+      - name: Store the verified build
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  # The deploy is the only step that can touch the live site, so it waits for a
+  # human: the `cloudflare-production` environment carries a required reviewer
+  # rule, and the job stays pending until someone approves it in the workflow
+  # run. Configure that environment (Settings -> Environments) before merging a
+  # change to this file: a referenced environment that does not exist yet is
+  # created without protection rules, and that first deploy would run unreviewed.
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: cloudflare-production
+      url: https://play2learn.divanchyshyn.com/
+    steps:
+      # wrangler.jsonc comes from the repository; dist/ comes from the verify job.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Fetch the verified build
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
       # wrangler-action installs its own Wrangler, so this adds no dependency to
       # package.json. The Worker name comes from wrangler.jsonc.
       - name: Deploy to Cloudflare

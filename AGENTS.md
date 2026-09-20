@@ -8,7 +8,7 @@ Build a small, friendly collection of browser games for children. Games should b
 
 - React with Vite, using JavaScript and CSS.
 - This is a multi-page application, not a single-page router.
-- Cloudflare Workers serves the generated `dist/` directory as static assets, deployed by `.github/workflows/deploy-cloudflare.yml` (Worker configuration in `wrangler.jsonc`).
+- Cloudflare Workers serves the generated `dist/` directory as static assets, deployed by `.github/workflows/deploy-cloudflare.yml` behind the `cloudflare-production` environment's required reviewers (Worker configuration in `wrangler.jsonc`).
 - Keep the app fully static: no server-side rendering, no API dependencies, no runtime secrets. Adding an `/api/*` route, a datastore binding, or anything the browser needs at runtime is an amendment to this rule, agreed deliberately, never an implementation detail.
 - Use relative asset paths or Vite imports so the site works at `https://play2learn.divanchyshyn.com/` and, while the GitHub Pages workflow remains, at `https://<user>.github.io/<repository>/`.
 
@@ -28,7 +28,7 @@ src/test/setup.js                       Vitest setup (jest-dom matchers)
 vite.config.js                          Multi-page build entry points and test config
 eslint.config.js                        ESLint flat config (core, react, react-hooks rules)
 .github/workflows/ci.yml                Runs lint, tests and the build on pushes and pull requests
-.github/workflows/deploy-cloudflare.yml Cloudflare Workers build and deploy (lint and tests gate the deploy)
+.github/workflows/deploy-cloudflare.yml Cloudflare Workers deploy: verify, then a deploy job behind the cloudflare-production environment's required reviewers
 .github/workflows/deploy-pages.yml      GitHub Pages build and deployment, kept until the custom domain is verified
 wrangler.jsonc                          Cloudflare Workers config: serves dist/ as static assets
 .github/workflows/codeql.yml            CodeQL security analysis on pull requests and weekly
@@ -68,7 +68,7 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 
 ## CI
 
-`.github/workflows/ci.yml` runs lint and the whole test suite on every push and pull request. `.github/workflows/deploy-cloudflare.yml` and `.github/workflows/deploy-pages.yml` both run the same checks before building, so failing checks can never reach the live site or the GitHub Pages copy. Keep all three green before handing off changes.
+`.github/workflows/ci.yml` runs lint and the whole test suite on every push and pull request. `.github/workflows/deploy-cloudflare.yml` runs the same checks on `main` and then waits, behind the `cloudflare-production` environment's required reviewers, for a human to approve the deploy. `.github/workflows/deploy-pages.yml` publishes the same build automatically. Failing checks can therefore never reach either host, and nothing reaches the live site without approval. Keep all three green before handing off changes.
 
 ## Linting
 
