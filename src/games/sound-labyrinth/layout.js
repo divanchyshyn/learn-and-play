@@ -1,4 +1,4 @@
-// Board sizing for Lyd-labyrinten. The component hands these numbers to the
+// Board sizing for Sound Labyrinth. The component hands these numbers to the
 // stylesheet as custom properties and computes the maze cell size from the
 // live viewport, so the board always fits the space it actually has:
 //

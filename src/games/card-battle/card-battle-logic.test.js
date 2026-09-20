@@ -4,7 +4,7 @@ import {
   numberToNorwegian, spokenMath,
   todayKey, loadTally, saveTally, bumpTally,
   HEADLINES, REX_QUIPS, MODES,
-} from './Kortkrig.jsx';
+} from './CardBattle.jsx';
 
 function memoryStore() {
   const map = new Map();
@@ -14,7 +14,7 @@ function memoryStore() {
   };
 }
 
-describe('kortkrig deck', () => {
+describe('card-battle deck', () => {
   it('holds every value from 1 to 20 exactly once', () => {
     for (let trial = 0; trial < 20; trial += 1) {
       const deck = createDeck();
@@ -43,7 +43,7 @@ describe('kortkrig deck', () => {
   });
 });
 
-describe('kortkrig round outcome', () => {
+describe('card-battle round outcome', () => {
   it('gives the round to the bigger card', () => {
     expect(roundOutcome(14, 7)).toBe('player');
     expect(roundOutcome(3, 19)).toBe('opponent');
@@ -64,10 +64,10 @@ describe('kortkrig round outcome', () => {
   });
 });
 
-describe('kortkrig math lines', () => {
-  it('adds the two cards in pluss mode', () => {
-    expect(mathLine('pluss', 14, 7)).toBe('14 + 7 = 21');
-    expect(mathLine('pluss', 5, 5)).toBe('5 + 5 = 10');
+describe('card-battle math lines', () => {
+  it('adds the two cards in plus mode', () => {
+    expect(mathLine('plus', 14, 7)).toBe('14 + 7 = 21');
+    expect(mathLine('plus', 5, 5)).toBe('5 + 5 = 10');
   });
 
   it('always subtracts the smaller card from the bigger one in minus mode', () => {
@@ -76,14 +76,14 @@ describe('kortkrig math lines', () => {
     expect(mathLine('minus', 9, 9)).toBe('9 − 9 = 0');
   });
 
-  it('shows no arithmetic at all in storst mode', () => {
-    expect(mathLine('storst', 12, 3)).toBeNull();
+  it('shows no arithmetic at all in largest mode', () => {
+    expect(mathLine('largest', 12, 3)).toBeNull();
   });
 
   it('keeps sums and differences inside the 0–100 range of the level', () => {
     for (const a of [1, 2, 10, 11, 19, 20]) {
       for (const b of [1, 2, 10, 11, 19, 20]) {
-        const parsed = Number(mathLine('pluss', a, b).split('= ')[1]);
+        const parsed = Number(mathLine('plus', a, b).split('= ')[1]);
         expect(parsed).toBeGreaterThanOrEqual(0);
         expect(parsed).toBeLessThanOrEqual(100);
         const diff = Number(mathLine('minus', a, b).split('= ')[1]);
@@ -118,9 +118,9 @@ describe('norwegian number words', () => {
   });
 
   it('speaks whole sentences without digits', () => {
-    expect(spokenMath('pluss', 14, 7)).toBe('fjorten pluss sju er tjueen');
+    expect(spokenMath('plus', 14, 7)).toBe('fjorten pluss sju er tjueen');
     expect(spokenMath('minus', 4, 18)).toBe('atten minus fire er fjorten');
-    expect(spokenMath('storst', 12, 3)).toBe('tolv mot tre');
+    expect(spokenMath('largest', 12, 3)).toBe('tolv mot tre');
   });
 });
 
@@ -159,15 +159,27 @@ describe('daily tally', () => {
     saveTally(tally, store);
     expect(loadTally(store)).toEqual(tally);
 
-    store.setItem('kortkrig-tally', '{not json');
+    store.setItem('cardBattle:tally', '{not json');
     expect(loadTally(store)).toBeNull();
 
     saveTally({ date: '2000-01-01', rounds: 50 }, store);
     expect(loadTally(store)).toBeNull(); // stale day – not today's business
   });
 
+  it('still finds a tally left under the legacy key', () => {
+    const store = memoryStore();
+    // The key the game wrote before its English rename; today's round count
+    // must not be lost to that rename.
+    store.setItem('kortkrig-tally', JSON.stringify({ date: todayKey(), rounds: 6 }));
+    expect(loadTally(store)).toEqual({ date: todayKey(), rounds: 6 });
+
+    // The next save writes the current key, which is also the one read first.
+    saveTally({ date: todayKey(), rounds: 7 }, store);
+    expect(JSON.parse(store.getItem('cardBattle:tally')).rounds).toBe(7);
+  });
+
   it('exposes all three modes with unique ids', () => {
-    expect(MODES.map((mode) => mode.id)).toEqual(['pluss', 'minus', 'storst']);
+    expect(MODES.map((mode) => mode.id)).toEqual(['plus', 'minus', 'largest']);
     expect(new Set(MODES.map((mode) => mode.id)).size).toBe(MODES.length);
   });
 });

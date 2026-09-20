@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { LANDING_TOLERANCE, LINE_MAX, LINE_MIN, clampToLine, needsAdjust, tapToValue } from './line.js';
 
-describe('tierhopp number line helpers', () => {
+describe('number-line-hop number line helpers', () => {
   it('clamps anything a player can produce back onto the line', () => {
     expect(clampToLine(-20)).toBe(LINE_MIN);
     expect(clampToLine(42)).toBe(42);

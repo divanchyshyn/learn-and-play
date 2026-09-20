@@ -6,13 +6,13 @@ import './style.css';
 // marked "(hidden)" in README.md) but keep building, so their direct URLs
 // under ./games/<slug>/ keep working.
 const GAMES = [
-  { title: 'Lyd-labyrinten', description: 'Utforsk en stor labyrint, hør dyrene og stav ordene riktig for å åpne dørene.', href: './games/lyd-labyrint/', badge: 'Lesespill', art: 'maze' },
-  { title: 'Slanger og stiger', description: 'Les norske ord, klatre opp stiger og pass på slangene.', href: './games/slangen-en-ladders/', badge: 'Ordspill', art: 'snake' },
-  // Kortkrig er skjult fra biblioteket mens spillet videreutvikles – det bygges fortsatt og nås via ./games/kortkrig/
-  // { title: 'Kortkrig', description: 'Kortduell mot Rex – snu kortene, sammenlign tall og se hvem som slår hardest.', href: './games/kortkrig/', badge: 'Regnespill', art: 'cards' },
-  // Ordfiske er skjult fra biblioteket mens spillet videreutvikles – det bygges fortsatt og nås via ./games/ordfiske/
-  // { title: 'Ordfiske', description: 'Fisk ord-fisker opp av vatnet i rolig tempo og fyll bøtta di – helt i eget tempo.', href: './games/ordfiske/', badge: 'Lesespill', art: 'fishing' },
-  { title: 'Butikken', description: 'Handle i butikken: kjøp varer, trekk prisen fra lommeboka di og skriv svaret selv – eller lever tilbake det du angrer på.', href: './games/butikken/', badge: 'Regnespill', art: 'shop' },
+  { title: 'Lyd-labyrinten', description: 'Utforsk en stor labyrint, hør dyrene og stav ordene riktig for å åpne dørene.', href: './games/sound-labyrinth/', badge: 'Lesespill', art: 'maze' },
+  { title: 'Slanger og stiger', description: 'Les norske ord, klatre opp stiger og pass på slangene.', href: './games/snakes-and-ladders/', badge: 'Ordspill', art: 'snake' },
+  // Card battle is hidden from the library while the game is still in development – it keeps building and is reachable at ./games/card-battle/
+  // { title: 'Kortkrig', description: 'Kortduell mot Rex – snu kortene, sammenlign tall og se hvem som slår hardest.', href: './games/card-battle/', badge: 'Regnespill', art: 'cards' },
+  // Word fishing is hidden from the library while the game is still in development – it keeps building and is reachable at ./games/word-fishing/
+  // { title: 'Ordfiske', description: 'Fisk ord-fisker opp av vatnet i rolig tempo og fyll bøtta di – helt i eget tempo.', href: './games/word-fishing/', badge: 'Lesespill', art: 'fishing' },
+  { title: 'Butikken', description: 'Handle i butikken: kjøp varer, trekk prisen fra lommeboka di og skriv svaret selv – eller lever tilbake det du angrer på.', href: './games/shop/', badge: 'Regnespill', art: 'shop' },
 ];
 
 // Decorative tile artwork, one small drawing per game. A new game either

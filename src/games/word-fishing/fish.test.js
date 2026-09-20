@@ -18,7 +18,7 @@ function activeWords(world) {
   return world.fishes.map((fish) => fish.wordIndex).sort((a, b) => a - b);
 }
 
-describe('ordfiske pond setup', () => {
+describe('word-fishing pond setup', () => {
   it('opens with a small shoal of calm, off-stage fish', () => {
     const world = createWorld();
     expect(world.fishes).toHaveLength(FISH_ON_SCREEN);
@@ -59,7 +59,7 @@ describe('ordfiske pond setup', () => {
   });
 });
 
-describe('ordfiske movement', () => {
+describe('word-fishing movement', () => {
   it('moves swimming fish in their own direction and speed', () => {
     const fish = { id: 1, wordIndex: 0, lane: LANES[0], dir: -1, speed: SPEED_MIN + 0.1, x: 50, status: 'swim', ticksLeft: 0, color: 'coral' };
     const stepped = stepFish(fish);
@@ -100,7 +100,7 @@ describe('ordfiske movement', () => {
   });
 });
 
-describe('ordfiske surfacing', () => {
+describe('word-fishing surfacing', () => {
   function surfacedWorld() {
     const base = createWorld();
     return surfaceFish(base, base.fishes[0].id);
@@ -145,7 +145,7 @@ describe('ordfiske surfacing', () => {
   });
 });
 
-describe('ordfiske catching', () => {
+describe('word-fishing catching', () => {
   it('counts the catch, sends the fish flying, and refills the shoal', () => {
     let world = surfaceFish(createWorld(), createWorld().fishes[0].id);
     world = catchFish(world, world.fishes[0].id);
@@ -183,7 +183,7 @@ describe('ordfiske catching', () => {
   });
 });
 
-describe('ordfiske resetting', () => {
+describe('word-fishing resetting', () => {
   it('empties the bucket but keeps the living pond exactly as it was', () => {
     let world = createWorld();
     world = catchFish(surfaceFish(world, world.fishes[0].id), world.fishes[0].id);
@@ -196,7 +196,7 @@ describe('ordfiske resetting', () => {
   });
 });
 
-describe('ordfiske invariants', () => {
+describe('word-fishing invariants', () => {
   it('keeps every promise through a mixed play session', () => {
     let world = createWorld();
     for (let round = 0; round < 6; round += 1) {

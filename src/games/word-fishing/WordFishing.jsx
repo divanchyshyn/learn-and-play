@@ -49,7 +49,7 @@ function FishSprite({ fish, onLift, onKeep, onRetry, onHear }) {
   </div>;
 }
 
-export function Ordfiske() {
+export function WordFishing() {
   const [world, setWorld] = useState(() => createWorld());
   const [soundOn, setSoundOn] = useState(!isMuted());
 

@@ -37,19 +37,19 @@ const KEY_DIRS = {
 };
 
 const THEME_EMOJI = {
-  skog: '\u{1F332}', hav: '\u{1F30A}', savanne: '\u{1F33E}',
-  ukedager: '\u{1F5D3}', aarstider: '\u{1F4C5}',
+  forest: '\u{1F332}', ocean: '\u{1F30A}', savannah: '\u{1F33E}',
+  daysOfWeek: '\u{1F5D3}', monthsAndSeasons: '\u{1F4C5}',
 };
 export const THEME_BG = {
-  skog: '#edf4e0', hav: '#e4f2f7', savanne: '#fcf5df',
-  ukedager: '#eef0fa', aarstider: '#f7eef0',
+  forest: '#edf4e0', ocean: '#e4f2f7', savannah: '#fcf5df',
+  daysOfWeek: '#eef0fa', monthsAndSeasons: '#f7eef0',
 };
 // The explorer's mascot changes with the theme: forest → fox, ocean → sea
 // turtle, savannah → leopard, days of the week → snail, months and seasons →
 // hedgehog.
 const THEME_RUNNER = {
-  skog: '\u{1F98A}', hav: '\u{1F422}', savanne: '\u{1F406}',
-  ukedager: '\u{1F40C}', aarstider: '\u{1F42C}',
+  forest: '\u{1F98A}', ocean: '\u{1F422}', savannah: '\u{1F406}',
+  daysOfWeek: '\u{1F40C}', monthsAndSeasons: '\u{1F42C}',
 };
 
 const STEP_LOCK_MS = 165;
@@ -102,7 +102,7 @@ function readViewport() {
   };
 }
 
-export function LydLabyrint() {
+export function SoundLabyrinth() {
   // The whole maze session survives a page refresh (see progress.js): the child
   // comes back to the same carved labyrinth, standing on the tile they left,
   // with every opened door still open. Only moments - an open spelling lock,

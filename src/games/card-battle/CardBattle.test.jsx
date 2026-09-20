@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { Kortkrig, HEADLINES, REX_QUIPS, mathLine, spokenMath } from './Kortkrig.jsx';
+import { CardBattle, HEADLINES, REX_QUIPS, mathLine, spokenMath } from './CardBattle.jsx';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -45,13 +45,13 @@ function stubSpeech() {
   return speak;
 }
 
-describe('kortkrig battle flow', () => {
+describe('card-battle battle flow', () => {
   it('flips both cards and reveals a result with math and celebration', () => {
-    const view = render(<Kortkrig />);
+    const view = render(<CardBattle />);
     const [playerValue, opponentValue] = flipAndWait(view.container);
 
     const expectedOutcome = playerValue > opponentValue ? 'player' : opponentValue > playerValue ? 'opponent' : 'tie';
-    expect(screen.getByText(mathLine('pluss', playerValue, opponentValue))).toBeInTheDocument();
+    expect(screen.getByText(mathLine('plus', playerValue, opponentValue))).toBeInTheDocument();
     const headline = view.container.querySelector('.headline').textContent;
     expect(HEADLINES[expectedOutcome]).toContain(headline);
     expect(REX_QUIPS[expectedOutcome]).toContain(view.container.querySelector('.quip').textContent.replace('🦖', '').trim());
@@ -62,7 +62,7 @@ describe('kortkrig battle flow', () => {
   });
 
   it('counts rounds played today without judging them', () => {
-    const view = render(<Kortkrig />);
+    const view = render(<CardBattle />);
     const chip = view.container.querySelector('.rounds-chip');
     expect(chip).toHaveClass('hidden-chip');
 
@@ -76,7 +76,7 @@ describe('kortkrig battle flow', () => {
   });
 
   it('starts the next round immediately with fresh face-down cards', () => {
-    const view = render(<Kortkrig />);
+    const view = render(<CardBattle />);
     flipAndWait(view.container);
 
     fireEvent.click(screen.getByRole('button', { name: 'Nytt slag ⚔️' }));
@@ -89,7 +89,7 @@ describe('kortkrig battle flow', () => {
   });
 
   it('switches modes any time and cancels a pending reveal instead of rushing', () => {
-    const view = render(<Kortkrig />);
+    const view = render(<CardBattle />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Minus-slag' }));
     expect(screen.getByRole('button', { name: 'Minus-slag' })).toHaveAttribute('aria-pressed', 'true');
@@ -122,7 +122,7 @@ describe('kortkrig battle flow', () => {
 
   it('reads the math aloud only when narration is switched on', () => {
     const speak = stubSpeech();
-    render(<Kortkrig />);
+    render(<CardBattle />);
 
     flipAndWait(document.body);
     expect(speak).not.toHaveBeenCalled(); // opt-in: silent by default
@@ -135,12 +135,12 @@ describe('kortkrig battle flow', () => {
     expect(speak).toHaveBeenCalledTimes(1);
     const utterance = speak.mock.calls[0][0];
     expect(utterance.lang).toBe('nb-NO');
-    expect(utterance.text).toContain(spokenMath('pluss', playerValue, opponentValue));
+    expect(utterance.text).toContain(spokenMath('plus', playerValue, opponentValue));
     expect(utterance.text).toMatch(/Du vant runden!|Rex vant runden!|Uavgjort!/);
   });
 
   it('survives a browser without speech support when narration is on', () => {
-    render(<Kortkrig />);
+    render(<CardBattle />);
     fireEvent.click(screen.getByRole('button', { name: 'Les tallene høyt' }));
 
     expect(() => flipAndWait(document.body)).not.toThrow();

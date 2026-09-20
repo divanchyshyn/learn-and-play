@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { sounds, setMuted, isMuted } from './sounds.js';
 
-describe('ordfiske sound settings', () => {
+describe('word-fishing sound settings', () => {
   beforeEach(() => {
     setMuted(false);
   });
@@ -13,11 +13,11 @@ describe('ordfiske sound settings', () => {
   it('persists the mute setting to localStorage', () => {
     setMuted(true);
     expect(isMuted()).toBe(true);
-    expect(window.localStorage.getItem('ordfiske:muted')).toBe('1');
+    expect(window.localStorage.getItem('wordFishing:muted')).toBe('1');
 
     setMuted(false);
     expect(isMuted()).toBe(false);
-    expect(window.localStorage.getItem('ordfiske:muted')).toBe('0');
+    expect(window.localStorage.getItem('wordFishing:muted')).toBe('0');
   });
 
   it('treats every effect as a safe no-op without Web Audio or when muted', () => {

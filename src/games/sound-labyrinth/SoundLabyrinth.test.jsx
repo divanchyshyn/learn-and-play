@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, within } from '@testing-library/react';
 import { WORDS_BY_THEME } from './words.js';
 import { applyDrop, scrambleLetters } from './SpellPuzzle.jsx';
-import { LydLabyrint, createGame, THEME_BG } from './LydLabyrint.jsx';
+import { SoundLabyrinth, createGame, THEME_BG } from './SoundLabyrinth.jsx';
 import { PROGRESS_KEY, GAME_KEY, pieceSessionCodec, gameCodec } from './progress.js';
 import { BOARD_BORDER, PAGE_GUTTER, PAGE_MAX_WIDTH, PAD_COLUMN, boardLayout } from './layout.js';
 
@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 function renderGame() {
-  return render(<LydLabyrint />);
+  return render(<SoundLabyrinth />);
 }
 
 function press(view, key) {
@@ -140,7 +140,7 @@ function arrowFor([dx, dy]) {
   return 'ArrowUp';
 }
 
-describe('lyd-labyrint spelling puzzle helpers', () => {
+describe('sound-labyrinth spelling puzzle helpers', () => {
   it('scrambleLetters returns a full permutation of the word', () => {
     for (const word of ['rev', 'bever', 'hval']) {
       const letters = scrambleLetters(word, () => 0);
@@ -247,7 +247,7 @@ describe('lyd-labyrint spelling puzzle helpers', () => {
   });
 });
 
-describe('lyd-labyrint game', () => {
+describe('sound-labyrinth game', () => {
   it('renders a fresh themed maze with tappable habitat animal doors', () => {
     const view = renderGame();
     const expected = expectedGame();
@@ -259,7 +259,7 @@ describe('lyd-labyrint game', () => {
     expect(Number(board.style.getPropertyValue('--ch'))).toBe(expected.maze.height);
 
     expect(screen.getAllByRole('button', { name: /Hør ordet/ })).toHaveLength(expected.doors.length);
-    const habitatEmojis = WORDS_BY_THEME.skog.map((entry) => entry.emoji);
+    const habitatEmojis = WORDS_BY_THEME.forest.map((entry) => entry.emoji);
     for (const picture of view.container.querySelectorAll('.door-picture')) {
       expect(habitatEmojis).toContain(picture.textContent);
     }
@@ -295,7 +295,7 @@ describe('lyd-labyrint game', () => {
 
   it('paints the whole canvas with the maze theme so no bare strip is left at the bottom', () => {
     const view = renderGame();
-    expect(document.documentElement.style.getPropertyValue('--page-bg')).toBe(THEME_BG.skog);
+    expect(document.documentElement.style.getPropertyValue('--page-bg')).toBe(THEME_BG.forest);
     view.unmount();
     expect(document.documentElement.style.getPropertyValue('--page-bg')).toBe('');
   });
@@ -308,11 +308,11 @@ describe('lyd-labyrint game', () => {
 
     fireEvent.click(mutedToggle);
     expect(screen.getByRole('button', { name: 'Slå av lyd' }).textContent).toContain('🔊');
-    expect(window.localStorage.getItem('lydLabyrint:muted')).toBe('0');
+    expect(window.localStorage.getItem('soundLabyrinth:muted')).toBe('0');
 
     fireEvent.click(screen.getByRole('button', { name: 'Slå av lyd' }));
     expect(screen.getByRole('button', { name: 'Slå på lyd' }).textContent).toContain('🔇');
-    expect(window.localStorage.getItem('lydLabyrint:muted')).toBe('1');
+    expect(window.localStorage.getItem('soundLabyrinth:muted')).toBe('1');
   });
 
   it('moves with arrow keys and bumps into walls without moving', () => {

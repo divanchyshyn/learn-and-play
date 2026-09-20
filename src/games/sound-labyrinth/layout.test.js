@@ -27,7 +27,7 @@ function boardMetrics(viewportWidth, viewportHeight, columns, rows) {
   };
 }
 
-describe('lyd-labyrint board sizing', () => {
+describe('sound-labyrinth board sizing', () => {
   it('keeps the maze clear of the direction pad on the desktop screen from the bug report', () => {
     const fit = boardMetrics(1167, 1078, 17, 13);
     expect(fit.sideBySide).toBe(true);

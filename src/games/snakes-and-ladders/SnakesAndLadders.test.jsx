@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, screen, act } from '@testing-library/react';
-import { ANIMATION_STEP_MS, BOARD_SIZE, SlangenEnLadders, cellToGridPosition } from './SlangenEnLadders.jsx';
+import { ANIMATION_STEP_MS, BOARD_SIZE, SnakesAndLadders, cellToGridPosition } from './SnakesAndLadders.jsx';
 
 let rollQueue;
 
@@ -57,9 +57,9 @@ function expectTokenAt(container, toneClass, cell) {
   expect(parseFloat(token.style.top)).toBeCloseTo(wanted.top, 5);
 }
 
-describe('slangen-en-ladders game', () => {
+describe('snakes-and-ladders game', () => {
   it('starts with both players on cell 1 and a fresh message', () => {
-    render(<SlangenEnLadders />);
+    render(<SnakesAndLadders />);
     expect(screen.getByText('Kast terningen for å starte spillet.')).toBeInTheDocument();
     expect(screen.getAllByText('Rute 1')).toHaveLength(2);
     expect(rollButton()).toBeEnabled();
@@ -68,7 +68,7 @@ describe('slangen-en-ladders game', () => {
   });
 
   it('rolls the dice and asks the player to read the word', () => {
-    render(<SlangenEnLadders />);
+    render(<SnakesAndLadders />);
     fireEvent.click(rollButton());
 
     // Roll is always 4 by default, so Spiller 1 lands on cell 5.
@@ -84,7 +84,7 @@ describe('slangen-en-ladders game', () => {
   });
 
   it('walks the token through every square instead of jumping to the target', () => {
-    const { container } = render(<SlangenEnLadders />);
+    const { container } = render(<SnakesAndLadders />);
     fireEvent.click(rollButton()); // Spiller 1 moves 1 → 5
 
     // First hop is already on square 2, not the target square.
@@ -104,7 +104,7 @@ describe('slangen-en-ladders game', () => {
   });
 
   it('slides straight to the ladder top without visiting the squares between', () => {
-    const { container } = render(<SlangenEnLadders />);
+    const { container } = render(<SnakesAndLadders />);
     rollQueue.push(2); // Spiller 1 lands on cell 3, the first ladder.
     settle();
     fireEvent.click(rollButton());
@@ -125,7 +125,7 @@ describe('slangen-en-ladders game', () => {
   });
 
   it('keeps the position on a plain square after the word is read and passes the turn', () => {
-    render(<SlangenEnLadders />);
+    render(<SnakesAndLadders />);
     takeTurn();
 
     expect(screen.getByText(/holder posisjonen/)).toBeInTheDocument();
@@ -136,7 +136,7 @@ describe('slangen-en-ladders game', () => {
   });
 
   it('climbs the ladder at cell 3 after the word is read', () => {
-    render(<SlangenEnLadders />);
+    render(<SnakesAndLadders />);
     rollQueue.push(2); // Spiller 1 lands on cell 3, the first ladder.
     takeTurn();
 
@@ -147,7 +147,7 @@ describe('slangen-en-ladders game', () => {
   });
 
   it('slides down the snake at cell 20 to cell 11', () => {
-    render(<SlangenEnLadders />);
+    render(<SnakesAndLadders />);
     // Spiller 1 rolls 4, 4, 4, 4 and then 3: 1 → 5 → 9 → 13 → 17 → 20.
     while (rollQueue.length < 9) rollQueue.push(4);
     rollQueue[8] = 3;
@@ -158,7 +158,7 @@ describe('slangen-en-ladders game', () => {
   });
 
   it('lets the player practise the word again without moving', () => {
-    render(<SlangenEnLadders />);
+    render(<SnakesAndLadders />);
     settle();
     fireEvent.click(rollButton());
     fireEvent.click(screen.getByRole('button', { name: 'Øv mer' }));
@@ -170,7 +170,7 @@ describe('slangen-en-ladders game', () => {
   });
 
   it('plays a whole game through to the winner dialog', () => {
-    render(<SlangenEnLadders />);
+    render(<SnakesAndLadders />);
 
     for (let turn = 0; turn < 300; turn += 1) {
       if (screen.queryByText(/vant!/)) break;

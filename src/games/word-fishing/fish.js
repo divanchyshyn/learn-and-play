@@ -1,8 +1,8 @@
-// Pure fish-pond logic for Ordfiske. Everything here takes a world and
+// Pure fish-pond logic for Word Fishing. Everything here takes a world and
 // returns a new world – no timers, no DOM, no sounds. The component drives
 // it with one interval tick and renders whatever comes back.
 //
-// Design constraints from the spec (ordfiske-spec.md):
+// Design constraints from the spec (word-fishing-spec.md):
 // - No failure states anywhere: a missed fish just leaves and is replaced,
 //   a 🔁 tap is indistinguishable from the fish deciding to swim on, and
 //   nothing in the world shape ever counts retries or misses.

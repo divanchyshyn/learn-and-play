@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { pieceSessionCodec, gameCodec } from './progress.js';
-import { createGame } from './LydLabyrint.jsx';
+import { createGame } from './SoundLabyrinth.jsx';
 
 // createGame carves a maze with whatever Math.random says; pinning it keeps the
 // fixture deterministic, exactly like the game tests do.
@@ -12,7 +12,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('lyd-labyrint progress codec', () => {
+describe('sound-labyrinth progress codec', () => {
   it('round-trips a picture session through serialize and parse', () => {
     const session = { imageIndex: 3, earned: [0, 1, 3], cells: [0, null, null, 1] };
     const restored = pieceSessionCodec.parse(pieceSessionCodec.serialize(session));
@@ -64,7 +64,7 @@ describe('lyd-labyrint progress codec', () => {
   });
 });
 
-describe('lyd-labyrint game codec', () => {
+describe('sound-labyrinth game codec', () => {
   it('round-trips a full maze session through serialize and parse', () => {
     const game = createGame(0);
     const restored = gameCodec.parse(gameCodec.serialize(game));

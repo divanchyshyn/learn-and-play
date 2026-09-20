@@ -2,6 +2,6 @@ import { createRoot } from 'react-dom/client';
 import '../../styles/base.css';
 import '../../shared/game-header.css'; // shared header styles load first so the game can override
 import './style.css';
-import { SlangenEnLadders } from './SlangenEnLadders.jsx';
+import { SnakesAndLadders } from './SnakesAndLadders.jsx';
 
-createRoot(document.getElementById('root')).render(<SlangenEnLadders />);
+createRoot(document.getElementById('root')).render(<SnakesAndLadders />);

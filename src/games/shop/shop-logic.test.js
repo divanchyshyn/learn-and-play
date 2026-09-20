@@ -3,39 +3,39 @@ import {
   ITEM_BANK, MAX_PER_TRANSACTION, SELLER_START_MONEY, START_MONEY, MAX_ATTEMPTS,
   sampleShop, expectedAnswer, checkoutCopy,
   sumPrices, itemsFor, POLICE_LINES, pickPoliceLine,
-} from './Butikken.jsx';
+} from './Shop.jsx';
 
-describe('butikken shop sampler', () => {
+describe('shop sampler', () => {
   it('always picks 15 unique items: 3 food, 3 toys, 2 school things, 7 machinery', () => {
     for (let trial = 0; trial < 50; trial += 1) {
       const shop = sampleShop();
       expect(shop).toHaveLength(15);
       expect(new Set(shop.map((item) => item.id)).size).toBe(15);
-      expect(shop.filter((item) => item.category === 'mat')).toHaveLength(3);
-      expect(shop.filter((item) => item.category === 'leker')).toHaveLength(3);
-      expect(shop.filter((item) => item.category === 'skole')).toHaveLength(2);
-      expect(shop.filter((item) => item.category === 'teknikk')).toHaveLength(7);
+      expect(shop.filter((item) => item.category === 'food')).toHaveLength(3);
+      expect(shop.filter((item) => item.category === 'toys')).toHaveLength(3);
+      expect(shop.filter((item) => item.category === 'school')).toHaveLength(2);
+      expect(shop.filter((item) => item.category === 'tech')).toHaveLength(7);
     }
   });
 });
 
-describe('butikken goods bank', () => {
+describe('shop goods bank', () => {
   it('sells a single Donald Duck magazine with a duck icon', () => {
     const donald = ITEM_BANK.find((item) => item.id === 'donald');
     expect(donald).toBeTruthy();
     expect(donald.emoji).toBe('🦆');
-    expect(donald.category).toBe('skole');
+    expect(donald.category).toBe('school');
     // Only one Donald exists now – the tynn/middels/tykk trio is gone.
     expect(ITEM_BANK.filter((item) => item.name.toLowerCase().includes('donald'))).toHaveLength(1);
     expect(ITEM_BANK.some((item) => item.name.includes('hefte'))).toBe(false);
   });
 
-  it('sells a edelsten gem with a gem icon in the toys category', () => {
-    const edelsten = ITEM_BANK.find((item) => item.id === 'edelsten');
-    expect(edelsten).toBeTruthy();
-    expect(edelsten.emoji).toBe('💎');
-    expect(edelsten.name).toBe('edelsten');
-    expect(edelsten.category).toBe('leker');
+  it('sells a gem with a gem icon in the toys category', () => {
+    const gem = ITEM_BANK.find((item) => item.id === 'gem');
+    expect(gem).toBeTruthy();
+    expect(gem.emoji).toBe('💎');
+    expect(gem.name).toBe('edelsten');
+    expect(gem.category).toBe('toys');
   });
 
   it('keeps two-digit prices friendly: ones digit never above 5', () => {
@@ -49,19 +49,19 @@ describe('butikken goods bank', () => {
   });
 
   it('sells a toy airplane and a helicopter', () => {
-    for (const name of ['fly', 'helikopter']) {
+    for (const name of ['plane', 'helicopter']) {
       const item = ITEM_BANK.find((candidate) => candidate.id === name);
       expect(item).toBeTruthy();
-      expect(item.category).toBe('leker');
+      expect(item.category).toBe('toys');
       expect(item.price).toBeGreaterThan(0);
     }
   });
 
-  it('stocks a teknikk machinery shelf with boats, rockets and vehicles', () => {
-    const teknikk = ITEM_BANK.filter((item) => item.category === 'teknikk');
-    expect(teknikk.length).toBeGreaterThanOrEqual(10);
-    for (const id of ['bat', 'roket', 'ubat', 'buss', 'tram', 'antenne', 'magnet', 'mikroskop', 'kompass']) {
-      expect(ITEM_BANK.some((item) => item.id === id && item.category === 'teknikk')).toBe(true);
+  it('stocks a tech machinery shelf with boats, rockets and vehicles', () => {
+    const tech = ITEM_BANK.filter((item) => item.category === 'tech');
+    expect(tech.length).toBeGreaterThanOrEqual(10);
+    for (const id of ['boat', 'rocket', 'submarine', 'bus', 'tram', 'antenna', 'magnet', 'microscope', 'compass']) {
+      expect(ITEM_BANK.some((item) => item.id === id && item.category === 'tech')).toBe(true);
     }
   });
 
@@ -72,7 +72,7 @@ describe('butikken goods bank', () => {
   });
 });
 
-describe('butikken trade rules', () => {
+describe('shop trade rules', () => {
   it('caps every transaction at three items', () => {
     expect(MAX_PER_TRANSACTION).toBe(3);
   });
@@ -88,55 +88,55 @@ describe('butikken trade rules', () => {
   });
 
   it('sums prices and resolves ids to items', () => {
-    const basket = itemsFor(['eple', 'melk']);
+    const basket = itemsFor(['apple', 'milk']);
     expect(basket.map((item) => item.name)).toEqual(['eple', 'melk']);
     expect(sumPrices(basket)).toBe(8 + 14);
     expect(sumPrices([])).toBe(0);
   });
 });
 
-describe('butikken checkout answer', () => {
+describe('shop checkout answer', () => {
   it('works out a single-item purchase as a subtraction from the money you hold', () => {
-    const apple = ITEM_BANK.find((item) => item.id === 'eple');
+    const apple = ITEM_BANK.find((item) => item.id === 'apple');
     expect(expectedAnswer('buy', 100, [apple])).toBe(100 - apple.price);
   });
 
   it('works out a single-item return as an addition to the money you hold', () => {
-    const apple = ITEM_BANK.find((item) => item.id === 'eple');
+    const apple = ITEM_BANK.find((item) => item.id === 'apple');
     expect(expectedAnswer('sellBack', 40, [apple])).toBe(40 + apple.price);
   });
 
   it('keeps a multi-item basket as a sum for both buying and returning', () => {
-    const eple = ITEM_BANK.find((item) => item.id === 'eple');
-    const melk = ITEM_BANK.find((item) => item.id === 'melk');
-    const basket = [eple, melk];
-    expect(expectedAnswer('buy', 100, basket)).toBe(eple.price + melk.price);
-    expect(expectedAnswer('sellBack', 100, basket)).toBe(eple.price + melk.price);
+    const apple = ITEM_BANK.find((item) => item.id === 'apple');
+    const milk = ITEM_BANK.find((item) => item.id === 'milk');
+    const basket = [apple, milk];
+    expect(expectedAnswer('buy', 100, basket)).toBe(apple.price + milk.price);
+    expect(expectedAnswer('sellBack', 100, basket)).toBe(apple.price + milk.price);
   });
 
   it('asks about what is left when buying one thing', () => {
-    const eple = ITEM_BANK.find((item) => item.id === 'eple');
-    const copy = checkoutCopy('buy', [eple]);
+    const apple = ITEM_BANK.find((item) => item.id === 'apple');
+    const copy = checkoutCopy('buy', [apple]);
     expect(copy.heading).toBe('Hvor mye har du igjen?');
-    expect(copy.hint).toContain(`${eple.price} kr`);
+    expect(copy.hint).toContain(`${apple.price} kr`);
   });
 
   it('asks about a single return as an addition to what you hold', () => {
-    const eple = ITEM_BANK.find((item) => item.id === 'eple');
-    const copy = checkoutCopy('sellBack', [eple]);
+    const apple = ITEM_BANK.find((item) => item.id === 'apple');
+    const copy = checkoutCopy('sellBack', [apple]);
     expect(copy.heading).toBe('Hvor mye har du etter returen?');
-    expect(copy.hint).toContain(`${eple.price} kr`);
+    expect(copy.hint).toContain(`${apple.price} kr`);
   });
 
   it('asks for the total when buying several things or returning several', () => {
-    const eple = ITEM_BANK.find((item) => item.id === 'eple');
-    const melk = ITEM_BANK.find((item) => item.id === 'melk');
-    expect(checkoutCopy('buy', [eple, melk]).heading).toBe('Hvor mye koster alle varene sammen?');
-    expect(checkoutCopy('sellBack', [eple, melk]).heading).toBe('Hvor mye skal butikken betale deg for varene?');
+    const apple = ITEM_BANK.find((item) => item.id === 'apple');
+    const milk = ITEM_BANK.find((item) => item.id === 'milk');
+    expect(checkoutCopy('buy', [apple, milk]).heading).toBe('Hvor mye koster alle varene sammen?');
+    expect(checkoutCopy('sellBack', [apple, milk]).heading).toBe('Hvor mye skal butikken betale deg for varene?');
   });
 });
 
-describe('butikken policeman', () => {
+describe('shop policeman', () => {
   it('has a stock of funny scoldings and only ever picks one of them', () => {
     expect(POLICE_LINES.length).toBeGreaterThanOrEqual(3);
     expect(POLICE_LINES.every((line) => line.length > 5)).toBe(true);

@@ -8,11 +8,11 @@ import {
   makeWords,
   cellToGridPosition,
   getCellNumber,
-} from './SlangenEnLadders.jsx';
+} from './SnakesAndLadders.jsx';
 
 const rowOf = (cell) => Math.floor((cell - 1) / BOARD_SIZE);
 
-describe('slangen-en-ladders board config', () => {
+describe('snakes-and-ladders board config', () => {
   it('is a 7×7 board ending at cell 49', () => {
     expect(BOARD_SIZE).toBe(7);
     expect(FINAL_CELL).toBe(49);
@@ -74,7 +74,7 @@ describe('slangen-en-ladders board config', () => {
   });
 });
 
-describe('slangen-en-ladders cell numbering', () => {
+describe('snakes-and-ladders cell numbering', () => {
   it('maps every cell to the grid and back without loss', () => {
     for (let number = 1; number <= FINAL_CELL; number += 1) {
       const { row, column } = cellToGridPosition(number);
@@ -99,7 +99,7 @@ describe('slangen-en-ladders cell numbering', () => {
   });
 });
 
-describe('slangen-en-ladders token path', () => {
+describe('snakes-and-ladders token path', () => {
   it('steps through every square on a normal move', () => {
     expect(buildPath(1, 5)).toEqual([2, 3, 4, 5]);
   });
@@ -113,7 +113,7 @@ describe('slangen-en-ladders token path', () => {
   });
 });
 
-describe('slangen-en-ladders words', () => {
+describe('snakes-and-ladders words', () => {
   it('has a word bank without duplicates', () => {
     expect(new Set(WORDS).size).toBe(WORDS.length);
   });

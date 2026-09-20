@@ -1,11 +1,11 @@
-// Lyd-labyrinten's mazes are carved fresh for every new game with randomized
+// Sound Labyrinth's mazes are carved fresh for every new game with randomized
 // Kruskal's algorithm. The result is a "perfect" maze - a spanning tree on the
 // cell grid - so there is exactly one route from the start to the exit and
 // every corridor that is not the way out ends in a real dead end. No loops,
 // no shortcuts, so choosing the wrong branch costs a little exploring and the
 // exit keeps a single, satisfying way in.
 //
-// Doors are spelling locks (see LydLabyrint.jsx). They ride two kinds of
+// Doors are spelling locks (see SoundLabyrinth.jsx). They ride two kinds of
 // corridors: the one way to the exit, and the maze's dead ends. The way out
 // carries at most five locks; the dead-end branches wear the same number on
 // top - spread along their corridors, not pinned to the far wall - so the
@@ -24,11 +24,11 @@
 const DIRS = [[0, -1], [0, 1], [-1, 0], [1, 0]];
 
 export const THEMES = [
-  { name: 'Skogen', theme: 'skog', width: 17, height: 13 },
-  { name: 'Havet', theme: 'hav', width: 17, height: 15 },
-  { name: 'Savannen', theme: 'savanne', width: 17, height: 13 },
-  { name: 'Ukedagene', theme: 'ukedager', width: 17, height: 13 },
-  { name: 'Måneder og årstider', theme: 'aarstider', width: 17, height: 13 },
+  { name: 'Skogen', theme: 'forest', width: 17, height: 13 },
+  { name: 'Havet', theme: 'ocean', width: 17, height: 15 },
+  { name: 'Savannen', theme: 'savannah', width: 17, height: 13 },
+  { name: 'Ukedagene', theme: 'daysOfWeek', width: 17, height: 13 },
+  { name: 'Måneder og årstider', theme: 'monthsAndSeasons', width: 17, height: 13 },
 ];
 
 function shuffled(items, random) {

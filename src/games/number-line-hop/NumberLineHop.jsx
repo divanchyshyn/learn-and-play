@@ -41,7 +41,7 @@ function statusFor(phase, answer) {
   return `Framme ved ${answer}!`;
 }
 
-export function Tierhopp() {
+export function NumberLineHop() {
   // One continuous journey: the frog starts at 0 and simply stays wherever
   // it last landed when the next problem appears.
   const [problem, setProblem] = useState(() => nextProblem(null));

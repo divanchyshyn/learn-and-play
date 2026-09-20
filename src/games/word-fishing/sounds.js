@@ -1,8 +1,13 @@
 import { isMuted as engineIsMuted, loadMuted, setMuted as setEngineMuted, tone } from '../../shared/audio.js';
+import { migrateStorage } from '../../shared/persistence.js';
 
-const MUTE_STORAGE_KEY = 'ordfiske:muted';
+const MUTE_STORAGE_KEY = 'wordFishing:muted';
+// The mute choice used to be saved under the game's old Norwegian name; adopt
+// it once so nobody loses their sound setting to the rename.
+const LEGACY_MUTE_STORAGE_KEY = 'ordfiske:muted';
+migrateStorage(LEGACY_MUTE_STORAGE_KEY, MUTE_STORAGE_KEY);
 
-// Ordfiske remembers your mute choice between visits.
+// Word Fishing remembers your mute choice between visits.
 loadMuted(MUTE_STORAGE_KEY);
 
 // The pond's own sound character – effect definitions stay with the game,

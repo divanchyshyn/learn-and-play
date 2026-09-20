@@ -40,7 +40,7 @@ function distances(floors, from) {
   return dist;
 }
 
-describe('lyd-labyrint maze collection', () => {
+describe('sound-labyrinth maze collection', () => {
   it('ships at least three themed habitats with fresh names', () => {
     expect(THEMES.length).toBeGreaterThanOrEqual(3);
     expect(new Set(THEMES.map((t) => t.theme)).size).toBe(THEMES.length);
@@ -50,7 +50,7 @@ describe('lyd-labyrint maze collection', () => {
   for (const def of THEMES) {
     const maze = generateMaze({ ...def, random: RANDOM });
 
-    describe(`lyd-labyrint maze: ${def.name}`, () => {
+    describe(`sound-labyrinth maze: ${def.name}`, () => {
       it('has a start and a distinct exit on floor cells', () => {
         expect(maze.start).toEqual({ x: 1, y: 1 });
         expect(maze.floors.has('1,1')).toBe(true);

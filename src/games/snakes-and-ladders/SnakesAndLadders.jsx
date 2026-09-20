@@ -122,7 +122,7 @@ function newGame() {
   return { words: makeWords(), players: playerDefinitions.map((player) => ({ ...player, position: 1 })), currentPlayer: 0, roll: 1, pending: null, winner: null, message: 'Kast terningen for å starte spillet.' };
 }
 
-export function SlangenEnLadders() {
+export function SnakesAndLadders() {
   const [game, setGame] = useState(() => newGame());
   const [movement, setMovement] = useState(null);
   const routeByStart = useMemo(() => new Map(ROUTES.map((route) => [route.from, route])), []);

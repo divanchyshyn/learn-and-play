@@ -8,13 +8,16 @@ import { setMuted as setAudioMuted, sounds } from './sounds.js';
 export { speakNorwegian };
 
 const OPPONENT_DELAY_MS = 850;
-const TALLY_KEY = 'kortkrig-tally';
+const TALLY_KEY = 'cardBattle:tally';
+// The daily tally used to be saved under the game's old Norwegian name; read it
+// from there too, so the rounds already played today survive the rename.
+const LEGACY_TALLY_KEY = 'kortkrig-tally';
 const DECK_VALUES = Array.from({ length: 20 }, (_, index) => index + 1);
 
 export const MODES = [
-  { id: 'pluss', label: 'Pluss-slag' },
+  { id: 'plus', label: 'Pluss-slag' },
   { id: 'minus', label: 'Minus-slag' },
-  { id: 'storst', label: 'Størst vinner' },
+  { id: 'largest', label: 'Størst vinner' },
 ];
 
 // Winning and losing are framed identically: loud, silly, and fun either way.
@@ -72,7 +75,7 @@ export function pickLine(lines) {
 }
 
 export function mathLine(modeId, playerValue, opponentValue) {
-  if (modeId === 'pluss') return `${playerValue} + ${opponentValue} = ${playerValue + opponentValue}`;
+  if (modeId === 'plus') return `${playerValue} + ${opponentValue} = ${playerValue + opponentValue}`;
   if (modeId === 'minus') {
     const high = Math.max(playerValue, opponentValue);
     const low = Math.min(playerValue, opponentValue);
@@ -94,7 +97,7 @@ export function numberToNorwegian(value) {
 }
 
 export function spokenMath(modeId, playerValue, opponentValue) {
-  if (modeId === 'pluss') {
+  if (modeId === 'plus') {
     return `${numberToNorwegian(playerValue)} pluss ${numberToNorwegian(opponentValue)} er ${numberToNorwegian(playerValue + opponentValue)}`;
   }
   if (modeId === 'minus') {
@@ -120,7 +123,7 @@ function defaultStore() {
 // never a score, and it resets by itself at midnight.
 export function loadTally(store = defaultStore()) {
   try {
-    const raw = store?.getItem(TALLY_KEY);
+    const raw = store?.getItem(TALLY_KEY) ?? store?.getItem(LEGACY_TALLY_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || parsed.date !== todayKey()) return null;
@@ -191,8 +194,8 @@ function makeDecks() {
   return { player: createDeck(), opponent: createDeck() };
 }
 
-export function Kortkrig() {
-  const [mode, setMode] = useState('pluss');
+export function CardBattle() {
+  const [mode, setMode] = useState('plus');
   const [decks, setDecks] = useState(makeDecks);
   const decksRef = useRef(decks);
   const [playerCard, setPlayerCard] = useState(null);
@@ -332,9 +335,9 @@ export function Kortkrig() {
         {phase === 'ready' ? '⚔️ Slå ut!' : phase === 'waiting' ? 'Rex snur kortet…' : 'Nytt slag ⚔️'}
       </button>
       <p className="mode-hint">
-        {activeMode.id === 'pluss' && 'Pluss-slag: kortene legges sammen – hvem slo hardest?'}
+        {activeMode.id === 'plus' && 'Pluss-slag: kortene legges sammen – hvem slo hardest?'}
         {activeMode.id === 'minus' && 'Minus-slag: hvor stort er gapet mellom kortene?'}
-        {activeMode.id === 'storst' && 'Størst vinner: bare se på kortene, ingen regning.'}
+        {activeMode.id === 'largest' && 'Størst vinner: bare se på kortene, ingen regning.'}
       </p>
     </section>
 

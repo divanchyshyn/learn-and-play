@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, cleanup } from '@testing-library/react';
-import { Tierhopp, TIMING } from './Tierhopp.jsx';
+import { NumberLineHop, TIMING } from './NumberLineHop.jsx';
 import { PROBLEM_BANK } from './problems.js';
 
 // With Math.random pinned at 0 the first problem is always the first bank
@@ -49,9 +49,9 @@ function playWholeRound(view, tappedValue) {
   advance(TIMING.CELEBRATE_MS);
 }
 
-describe('tierhopp rendered game', () => {
+describe('number-line-hop rendered game', () => {
   it('opens ready to hop: problem up, frog at 0, nothing to configure', () => {
-    const view = render(<Tierhopp />);
+    const view = render(<NumberLineHop />);
 
     expect(screen.getByText(FIRST_SUM)).toBeInTheDocument();
     expect(frogLeft(view)).toBe('0%');
@@ -60,7 +60,7 @@ describe('tierhopp rendered game', () => {
   });
 
   it('hops wherever the player points, then reveals the answer as information', () => {
-    const view = render(<Tierhopp />);
+    const view = render(<NumberLineHop />);
 
     // A wild tap still produces the hop – that is the whole point.
     tapStrip(view, 70);
@@ -79,7 +79,7 @@ describe('tierhopp rendered game', () => {
   });
 
   it('gently finishes the journey when the tap was off, then moves on by itself', () => {
-    const view = render(<Tierhopp />);
+    const view = render(<NumberLineHop />);
     tapStrip(view, 70);
 
     advance(TIMING.HOP_MS);
@@ -99,7 +99,7 @@ describe('tierhopp rendered game', () => {
   });
 
   it('treats a near-enough tap as landed exactly and goes straight to the party', () => {
-    const view = render(<Tierhopp />);
+    const view = render(<NumberLineHop />);
     tapStrip(view, 8); // one unit from the answer 7 – inside the tolerance
 
     advance(TIMING.HOP_MS);
@@ -114,7 +114,7 @@ describe('tierhopp rendered game', () => {
   });
 
   it('never shows failure language, scores or timers, even after rounds of play', () => {
-    const view = render(<Tierhopp />);
+    const view = render(<NumberLineHop />);
     playWholeRound(view, 70);
     playWholeRound(view, 50);
 
@@ -132,7 +132,7 @@ describe('tierhopp rendered game', () => {
       speak(utterance) { spoken.push(utterance.text); },
     });
 
-    render(<Tierhopp />);
+    render(<NumberLineHop />);
     fireEvent.click(screen.getByRole('button', { name: 'Hør regnestykket' }));
 
     expect(spoken).toEqual(['tre pluss fire']);
@@ -140,18 +140,18 @@ describe('tierhopp rendered game', () => {
   });
 
   it('mutes from the header and remembers the choice', () => {
-    render(<Tierhopp />);
+    render(<NumberLineHop />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Slå av lyd' }));
-    expect(window.localStorage.getItem('tierhopp:muted')).toBe('1');
+    expect(window.localStorage.getItem('numberLineHop:muted')).toBe('1');
     expect(screen.getByRole('button', { name: 'Slå på lyd' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Slå på lyd' }));
-    expect(window.localStorage.getItem('tierhopp:muted')).toBe('0');
+    expect(window.localStorage.getItem('numberLineHop:muted')).toBe('0');
   });
 
   it('starts a fresh journey from 0 on demand', () => {
-    const view = render(<Tierhopp />);
+    const view = render(<NumberLineHop />);
     playWholeRound(view, 70);
     expect(frogLeft(view)).toBe('7%');
 
@@ -165,7 +165,7 @@ describe('tierhopp rendered game', () => {
   });
 
   it('supports keyboard aiming along the line for players who prefer keys', () => {
-    const view = render(<Tierhopp />);
+    const view = render(<NumberLineHop />);
     const strip = view.container.querySelector('.number-strip');
 
     fireEvent.keyDown(strip, { key: 'ArrowRight' });

@@ -1,6 +1,6 @@
 import { tone, setMuted } from '../../shared/audio.js';
 
-// Kortkrig's own sound character – effect definitions stay with the game,
+// Card Battle's own sound character – effect definitions stay with the game,
 // the Web Audio engine comes from src/shared.
 export const sounds = {
   flip() {

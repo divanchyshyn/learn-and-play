@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, fireEvent, screen, within, cleanup } from '@testing-library/react';
-import { Butikken, MAX_PER_TRANSACTION, SELLER_START_MONEY, START_MONEY } from './Butikken.jsx';
+import { Shop, MAX_PER_TRANSACTION, SELLER_START_MONEY, START_MONEY } from './Shop.jsx';
 afterEach(() => {
   cleanup();
 });
@@ -35,9 +35,9 @@ function giveAnswer(value) {
   fireEvent.click(screen.getByRole('button', { name: 'Svar' }));
 }
 
-describe('butikken shopping flow', () => {
+describe('shop shopping flow', () => {
   it('collects up to three items and never shows a running total', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const shopShelf = shelf(view, 'Varer til salgs');
     const [cheapest, second] = cardsIn(shopShelf).sort((a, b) => a.price - b.price);
 
@@ -54,7 +54,7 @@ describe('butikken shopping flow', () => {
   });
 
   it('refuses a fourth item and explains the limit', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const shopShelf = shelf(view, 'Varer til salgs');
     const four = cardsIn(shopShelf)
       .sort((a, b) => a.price - b.price)
@@ -68,7 +68,7 @@ describe('butikken shopping flow', () => {
     expect(document.querySelectorAll('.card-toggle.selected')).toHaveLength(MAX_PER_TRANSACTION);
   });
 it('sells goods over the counter and moves them to the customer shelf', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const [cheapest, second] = cardsIn(shelf(view, 'Varer til salgs')).sort((a, b) => a.price - b.price);
     const total = cheapest.price + second.price;
 
@@ -87,7 +87,7 @@ it('sells goods over the counter and moves them to the customer shelf', () => {
   });
 
   it('asks a subtraction puzzle when buying just one item', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
 
     fireEvent.click(cheapest.button);
@@ -110,7 +110,7 @@ it('sells goods over the counter and moves them to the customer shelf', () => {
     expect(purse(view, 'Deg som kunde').textContent).toContain(`${expected} kr`);
   });
 it('shows the current purse highlighted at a later checkout, even after money is spent', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const first = cardByPrice(shelf(view, 'Varer til salgs'), 0);
 
     // Spend once, so the purse is no longer the opening 100 kr.
@@ -134,7 +134,7 @@ it('shows the current purse highlighted at a later checkout, even after money is
     expect(purseEl.textContent).not.toContain(`${START_MONEY} kr`);
   });
 it('shows a policeman without revealing the answer, then three wrong tries send you back', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
 
     fireEvent.click(cheapest.button);
@@ -162,7 +162,7 @@ it('shows a policeman without revealing the answer, then three wrong tries send 
   });
 
   it('lets the generous starting purse afford even the dearest basket', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const dearestThree = cardsIn(shelf(view, 'Varer til salgs'))
       .sort((a, b) => b.price - a.price)
       .slice(0, 3);
@@ -182,7 +182,7 @@ it('shows a policeman without revealing the answer, then three wrong tries send 
   });
 
   it('lets the customer return items and get the money back', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
 
     // Buy a single item – a subtraction question…
@@ -206,7 +206,7 @@ it('shows a policeman without revealing the answer, then three wrong tries send 
     expect(purse(view, 'Selgeren').textContent).toContain(`${SELLER_START_MONEY} kr`);
   });
 it('starts a fresh day on demand', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
 
     fireEvent.click(cheapest.button);
@@ -234,7 +234,7 @@ it('starts a fresh day on demand', () => {
     };
 
     try {
-      const view = render(<Butikken />);
+      const view = render(<Shop />);
       const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
       fireEvent.click(cheapest.button);
       expect(spoken).toHaveLength(1);
@@ -251,7 +251,7 @@ it('starts a fresh day on demand', () => {
   });
 
   it('keeps the checkout escapable without answering', () => {
-    const view = render(<Butikken />);
+    const view = render(<Shop />);
     const cheapest = cardByPrice(shelf(view, 'Varer til salgs'), 0);
 
     fireEvent.click(cheapest.button);

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, cleanup } from '@testing-library/react';
-import { Ordfiske } from './Ordfiske.jsx';
+import { WordFishing } from './WordFishing.jsx';
 import { BUCKET_GOAL, CATCH_TICKS, FISH_ON_SCREEN, RESUME_TICKS, TICK_MS } from './fish.js';
 
 // Math.random is pinned so spawns are deterministic: every fish enters from
@@ -49,9 +49,9 @@ function bucketCount() {
   return screen.getByText(new RegExp(`^\\d+ av ${BUCKET_GOAL}$`));
 }
 
-describe('ordfiske rendered game', () => {
+describe('word-fishing rendered game', () => {
   it('opens with a living pond: shoal, tags and an empty bucket', () => {
-    const view = render(<Ordfiske />);
+    const view = render(<WordFishing />);
 
     expect(screen.getByRole('group', { name: /Fiskedammen/ })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Fisk som bærer ordet/ })).toHaveLength(FISH_ON_SCREEN);
@@ -65,7 +65,7 @@ describe('ordfiske rendered game', () => {
   });
 
   it('surfaces a tapped fish with its word and the two calm choices', () => {
-    const view = render(<Ordfiske />);
+    const view = render(<WordFishing />);
     const target = visibleFishAfterEntry(view);
 
     fireEvent.click(target.element.querySelector('.swimmer'));
@@ -97,7 +97,7 @@ describe('ordfiske rendered game', () => {
       speak(utterance) { spoken.push(utterance.text); },
     });
 
-    const view = render(<Ordfiske />);
+    const view = render(<WordFishing />);
     const target = visibleFishAfterEntry(view);
     fireEvent.click(target.element.querySelector('.swimmer'));
     fireEvent.click(view.container.querySelector('.fish-word'));
@@ -107,7 +107,7 @@ describe('ordfiske rendered game', () => {
   });
 
   it('sends the fish to the bucket on ✅ and greets a replacement', () => {
-    const view = render(<Ordfiske />);
+    const view = render(<WordFishing />);
     surfaceVisibleFish(view);
     fireEvent.click(screen.getByRole('button', { name: 'Fanget!' }));
 
@@ -122,7 +122,7 @@ describe('ordfiske rendered game', () => {
   });
 
   it('treats 🔁 as an ordinary part of play – back to swimming, nothing tracked', () => {
-    const view = render(<Ordfiske />);
+    const view = render(<WordFishing />);
     surfaceVisibleFish(view);
     fireEvent.click(screen.getByRole('button', { name: 'En gang til' }));
 
@@ -137,7 +137,7 @@ describe('ordfiske rendered game', () => {
   });
 
   it('lets an ignored surfaced fish calmly swim on by itself', () => {
-    const view = render(<Ordfiske />);
+    const view = render(<WordFishing />);
     surfaceVisibleFish(view);
     expect(view.container.querySelector('.fish-card')).toBeTruthy();
 
@@ -149,7 +149,7 @@ describe('ordfiske rendered game', () => {
   });
 
   it('celebrates a full bucket and refills it on demand', () => {
-    const view = render(<Ordfiske />);
+    const view = render(<WordFishing />);
     for (let caught = 0; caught < BUCKET_GOAL; caught += 1) catchOne(view);
 
     expect(screen.getByText('Bøtta er full!')).toBeInTheDocument();
@@ -164,7 +164,7 @@ describe('ordfiske rendered game', () => {
   });
 
   it('starts a completely fresh pond from the header', () => {
-    const view = render(<Ordfiske />);
+    const view = render(<WordFishing />);
     surfaceVisibleFish(view);
     fireEvent.click(screen.getByRole('button', { name: 'Fanget!' }));
     expect(bucketCount()).toHaveTextContent(`1 av ${BUCKET_GOAL}`);

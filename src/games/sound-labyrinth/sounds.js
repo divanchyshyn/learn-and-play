@@ -1,13 +1,18 @@
 import { isMuted, loadMuted, setMuted as setEngineMuted, tone } from '../../shared/audio.js';
+import { migrateStorage } from '../../shared/persistence.js';
 
-const MUTE_STORAGE_KEY = 'lydLabyrint:muted';
+const MUTE_STORAGE_KEY = 'soundLabyrinth:muted';
+// The mute choice used to be saved under the game's old Norwegian name; adopt
+// it once so nobody loses their sound setting to the rename.
+const LEGACY_MUTE_STORAGE_KEY = 'lydLabyrint:muted';
 
 // The labyrinth remembers your mute choice. A fresh player starts in silence –
 // the speaker button under the maze shows the muted state until it is tapped –
 // and any change from that point on is remembered between visits.
+migrateStorage(LEGACY_MUTE_STORAGE_KEY, MUTE_STORAGE_KEY);
 loadMuted(MUTE_STORAGE_KEY, true);
 
-// Lyd-labyrinten's own sound character – effect definitions stay with the
+// Sound Labyrinth's own sound character – effect definitions stay with the
 // game, the Web Audio engine comes from src/shared.
 export const sounds = {
   step() {

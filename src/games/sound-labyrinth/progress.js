@@ -1,7 +1,8 @@
 import { PUZZLE_PIECE_COUNT } from './PiecePuzzle.jsx';
+import { migrateStorage } from '../../shared/persistence.js';
 import { THEMES } from './mazes.js';
 
-// What a child has collected in Lyd-labyrinten survives a page refresh. Two
+// What a child has collected in Sound Labyrinth survives a page refresh. Two
 // pieces of state are saved:
 //
 //  * the earned puzzle pieces and the picture they belong to (pieceSession
@@ -15,10 +16,16 @@ import { THEMES } from './mazes.js';
 // refusing any saved state that does not match this version of the game, so a
 // future schema change can never make an old save misbehave.
 
-export const PROGRESS_KEY = 'lydLabyrint:progress';
+export const PROGRESS_KEY = 'soundLabyrinth:progress';
 const PROGRESS_VERSION = 1;
-export const GAME_KEY = 'lydLabyrint:game';
+export const GAME_KEY = 'soundLabyrinth:game';
 const GAME_VERSION = 1;
+
+// Saved games used to live under the game's old Norwegian name. Move them to
+// their current keys once, so a child's collected pieces and carved maze
+// survive the rename instead of quietly resetting.
+migrateStorage('lydLabyrint:progress', PROGRESS_KEY);
+migrateStorage('lydLabyrint:game', GAME_KEY);
 
 // A stored piece index is only real when it names one of the four quadrants.
 const isPieceIndex = (piece) =>

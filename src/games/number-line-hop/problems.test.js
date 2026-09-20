@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { PROBLEM_BANK, nextProblem, norwegianNumber, problemAnswer, problemSpeech, problemText } from './problems.js';
 
-describe('tierhopp problem bank', () => {
+describe('number-line-hop problem bank', () => {
   it('holds a large mixed bank of additions and subtractions', () => {
     expect(PROBLEM_BANK.length).toBeGreaterThanOrEqual(40);
     expect(PROBLEM_BANK.some((problem) => problem.op === '+')).toBe(true);
@@ -49,7 +49,7 @@ describe('tierhopp problem bank', () => {
   });
 });
 
-describe('tierhopp read-aloud helpers', () => {
+describe('number-line-hop read-aloud helpers', () => {
   it.each([
     [0, 'null'],
     [7, 'sju'],
@@ -75,7 +75,7 @@ describe('tierhopp read-aloud helpers', () => {
   });
 });
 
-describe('tierhopp nextProblem', () => {
+describe('number-line-hop nextProblem', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });

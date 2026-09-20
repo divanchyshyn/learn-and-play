@@ -11,7 +11,7 @@
 // distinct set every game.
 
 export const WORDS_BY_THEME = {
-  skog: [
+  forest: [
     { word: 'rev', emoji: '🦊' },
     { word: 'ulv', emoji: '🐺' },
     { word: 'bjørn', emoji: '🐻' },
@@ -33,7 +33,7 @@ export const WORDS_BY_THEME = {
     { word: 'blad', emoji: '🍃' },
     { word: 'bie', emoji: '🐝' },
   ],
-  hav: [
+  ocean: [
     { word: 'fisk', emoji: '🐟' },
     { word: 'hai', emoji: '🦈' },
     { word: 'hval', emoji: '🐋' },
@@ -55,7 +55,7 @@ export const WORDS_BY_THEME = {
     { word: 'øy', emoji: '🏝️' },
     { word: 'båt', emoji: '🚤' },
   ],
-  savanne: [
+  savannah: [
     { word: 'løve', emoji: '🦁' },
     { word: 'sebra', emoji: '🦓' },
     { word: 'bison', emoji: '🐃' },
@@ -80,7 +80,7 @@ export const WORDS_BY_THEME = {
   // The days of the week, plus the handful of related time words around them.
   // The phrases keep their spaces – the spelling lock treats a space as one
   // more letter tile (see SpellPuzzle.jsx).
-  ukedager: [
+  daysOfWeek: [
     { word: 'mandag', emoji: '📅' },
     { word: 'tirsdag', emoji: '📅' },
     { word: 'onsdag', emoji: '📅' },
@@ -97,7 +97,7 @@ export const WORDS_BY_THEME = {
   ],
   // The twelve months and the four seasons, each given once in base form and
   // once in the definite form the child meets in everyday Norwegian speech.
-  aarstider: [
+  monthsAndSeasons: [
     { word: 'januar', emoji: '❄️' },
     { word: 'februar', emoji: '❄️' },
     { word: 'mars', emoji: '🌱' },

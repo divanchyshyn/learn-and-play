@@ -1,5 +1,5 @@
-// Tierhopp's practice content: a handcrafted bank of 2nd-grade addition and
-// subtraction problems plus the Norwegian read-aloud helpers. Everything in
+// Number Line Hop's practice content: a handcrafted bank of 2nd-grade addition
+// and subtraction problems plus the Norwegian read-aloud helpers. Everything in
 // here is pure so tests can pin Math.random and check the rules directly.
 import { pickOne } from '../../shared/random.js';
 
