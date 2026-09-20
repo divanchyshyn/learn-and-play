@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ALL_CRATES, CATEGORY_CRATE_IDS, CRATE_TARGET, LENGTH_CRATE_IDS, MAX_WORD_LENGTH,
-  SHORT_WORD_MAX, TARGET_WORD_COUNT, WORD_BANK, WORD_CATEGORIES, WORD_COUNT, categoryForWord,
-  crateById, crateTarget, crateWordCount, drawWordIndexWhere, isWordInBank, pickWordOrder,
-  wordsInCrate,
+  ALL_CRATES, CATEGORY_CRATE_IDS, CRATE_TARGET, MAX_WORD_LENGTH, TARGET_WORD_COUNT, WORD_BANK,
+  WORD_CATEGORIES, WORD_COUNT, categoryForWord, crateById, crateTarget, crateWordCount,
+  drawWordIndexWhere, isWordInBank, pickWordOrder, wordsInCrate,
 } from './words.js';
 
 describe('word-fishing word bank', () => {
@@ -57,31 +56,25 @@ describe('word-fishing word bank', () => {
     expect(wordsInCrate(CATEGORY_CRATE_IDS[0])).toHaveLength(counts[0]);
   });
 
-  it('gives the length crates no target of their own', () => {
+  it('gives a crate the boat does not carry no target at all', () => {
     expect(CRATE_TARGET).toBe(10);
-    for (const crateId of LENGTH_CRATE_IDS) expect(crateTarget(crateId)).toBe(0);
+    expect(crateTarget('finnesikke')).toBe(0);
   });
 });
 
 describe('word-fishing crates', () => {
   it('describes every crate the boat can carry', () => {
-    for (const id of [...CATEGORY_CRATE_IDS, ...LENGTH_CRATE_IDS]) {
+    for (const id of CATEGORY_CRATE_IDS) {
       const crate = crateById(id);
       expect(crate.id).toBe(id);
       expect(crate.label.length).toBeGreaterThan(1);
       expect(crate.icon.length).toBeGreaterThan(0);
-      expect(['category', 'length']).toContain(crate.kind);
     }
     expect(crateById('finnesikke')).toBeNull();
-    expect(ALL_CRATES).toHaveLength(CATEGORY_CRATE_IDS.length + LENGTH_CRATE_IDS.length);
-  });
-
-  it('gives the length trip two crates that both have words to work with', () => {
-    const short = WORD_BANK.filter((entry) => entry.word.length <= SHORT_WORD_MAX);
-    const long = WORD_BANK.filter((entry) => entry.word.length > SHORT_WORD_MAX);
-    expect(short.length).toBeGreaterThanOrEqual(5);
-    expect(long.length).toBeGreaterThanOrEqual(5);
-    expect(short.length + long.length).toBe(WORD_COUNT);
+    // The short/long crates an older version carried are gone for good.
+    expect(crateById('short')).toBeNull();
+    expect(crateById('long')).toBeNull();
+    expect(ALL_CRATES).toHaveLength(CATEGORY_CRATE_IDS.length);
   });
 });
 

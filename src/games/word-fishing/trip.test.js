@@ -5,7 +5,7 @@ import {
   rewardForTrip, tripComplete, tripKindForNumber, tripRequest, unlockedRewards,
   withDelivery,
 } from './trip.js';
-import { CATEGORY_CRATE_IDS, LENGTH_CRATE_IDS, SHORT_WORD_MAX, WORD_BANK, crateById } from './words.js';
+import { CATEGORY_CRATE_IDS, WORD_BANK, crateById } from './words.js';
 
 beforeEach(() => {
   vi.spyOn(Math, 'random').mockReturnValue(0);
@@ -20,6 +20,8 @@ describe('word-fishing trips', () => {
     expect(TRIP_CYCLE[0]).toBe('freeSort');
     expect(tripKindForNumber(1)).toBe('freeSort');
     expect(tripKindForNumber(TRIP_CYCLE.length + 1)).toBe('freeSort');
+    // Only the two rules left are dealt: free sorting and one ordered crate.
+    expect(new Set(TRIP_CYCLE)).toEqual(new Set(['freeSort', 'order']));
     for (let number = 1; number <= 12; number += 1) {
       expect(TRIP_CYCLE).toContain(tripKindForNumber(number));
       expect(createTripPlan(number).kind).toBe(tripKindForNumber(number));
@@ -35,16 +37,6 @@ describe('word-fishing trips', () => {
     expect(trip.collected).toBe(0);
     expect(trip.orderCrateId).toBeNull();
     for (const crateId of trip.crates) expect(crateById(crateId)).toBeTruthy();
-  });
-
-  it('sorts by word length on a length trip', () => {
-    const trip = createTripPlan(3);
-    expect(trip.kind).toBe('length');
-    expect(trip.crates).toEqual(LENGTH_CRATE_IDS);
-    const shortWord = WORD_BANK.find((entry) => entry.word.length <= SHORT_WORD_MAX).word;
-    const longWord = WORD_BANK.find((entry) => entry.word.length > SHORT_WORD_MAX).word;
-    expect(crateForWord(trip, shortWord)).toBe('short');
-    expect(crateForWord(trip, longWord)).toBe('long');
   });
 
   it('puts a single ordered crate on the boat on an order trip', () => {
@@ -66,7 +58,7 @@ describe('word-fishing trips', () => {
   });
 
   it('sends every word into exactly one crate of every trip kind', () => {
-    const trips = [createTripPlan(1), createTripPlan(3), createTripPlan(4)];
+    const trips = [createTripPlan(1), createTripPlan(2), createTripPlan(4)];
     for (const trip of trips) {
       for (const entry of WORD_BANK) {
         const matching = trip.crates.filter((crateId) => crateAcceptsWord(trip, crateId, entry.word));
@@ -106,7 +98,7 @@ describe('word-fishing trips', () => {
 
   it('says out loud what the crew is looking for', () => {
     expect(tripRequest(createTripPlan(1))).toMatch(/kassen/i);
-    expect(tripRequest(createTripPlan(3))).toMatch(/bokstaver/i);
+    expect(tripRequest(createTripPlan(2))).toMatch(/kassen/i);
     const order = createTripPlan(4);
     expect(tripRequest(order)).toContain(crateById(order.orderCrateId).label.toLowerCase());
   });
@@ -145,8 +137,21 @@ describe('reading a saved trip back', () => {
   });
 
   it('refuses a trip that does not match its trip number', () => {
-    const trip = createTripPlan(1);
-    expect(isValidTripShape({ ...trip, kind: 'length' })).toBe(false);
+    expect(isValidTripShape({ ...createTripPlan(1), kind: 'order' })).toBe(false);
+    expect(isValidTripShape({ ...createTripPlan(4), kind: 'freeSort' })).toBe(false);
+  });
+
+  it('refuses the saved length trip an older version handed out', () => {
+    // The short/long trip is gone: a save that still holds one is refused like
+    // any other shape this version cannot deal, so a fresh trip is dealt.
+    expect(isValidTripShape({
+      number: 3,
+      kind: 'length',
+      crates: ['short', 'long'],
+      goal: CATCHES_PER_TRIP,
+      collected: 0,
+      orderCrateId: null,
+    })).toBe(false);
   });
 
   it('refuses crates the boat could not be carrying', () => {
@@ -163,29 +168,22 @@ describe('reading a saved trip back', () => {
   });
 
   it('refuses a crate set the kind is never dealt with', () => {
-    // A length trip is dealt the two length crates, never two categories, and a
-    // free-sorting trip is dealt all four – so a saved trip that mismatches its
-    // own kind is refused instead of half-understood.
-    const length = createTripPlan(3);
-    expect(isValidTripShape({ ...length, crates: [CATEGORY_CRATE_IDS[0], CATEGORY_CRATE_IDS[1]] })).toBe(false);
-    expect(isValidTripShape({ ...length, crates: [LENGTH_CRATE_IDS[0], CATEGORY_CRATE_IDS[0]] })).toBe(false);
-    expect(isValidTripShape({ ...length, crates: [LENGTH_CRATE_IDS[0]] })).toBe(false);
-    expect(isValidTripShape({ ...length, orderCrateId: CATEGORY_CRATE_IDS[0] })).toBe(false);
-
+    // A free-sorting trip is dealt all four crates and never fewer, and an
+    // order trip is dealt exactly the one crate it asked for – so a saved trip
+    // that mismatches its own kind is refused instead of half-understood.
     const free = createTripPlan(1);
-    expect(isValidTripShape({ ...free, crates: [...LENGTH_CRATE_IDS] })).toBe(false);
     expect(isValidTripShape({ ...free, crates: [CATEGORY_CRATE_IDS[0], CATEGORY_CRATE_IDS[1]] })).toBe(false);
+    expect(isValidTripShape({ ...free, crates: [CATEGORY_CRATE_IDS[0]] })).toBe(false);
     expect(isValidTripShape({ ...free, orderCrateId: CATEGORY_CRATE_IDS[0] })).toBe(false);
 
     const order = createTripPlan(4);
-    // An order trip never points at a length crate.
-    expect(isValidTripShape({ ...order, crates: [LENGTH_CRATE_IDS[0]], orderCrateId: LENGTH_CRATE_IDS[0] })).toBe(false);
-    expect(isValidTripShape({ ...order, crates: [...CATEGORY_CRATE_IDS], orderCrateId: CATEGORY_CRATE_IDS[0] })).toBe(false);
+    expect(isValidTripShape({ ...order, crates: [...CATEGORY_CRATE_IDS] })).toBe(false);
+    expect(isValidTripShape({ ...order, crates: [CATEGORY_CRATE_IDS[0], CATEGORY_CRATE_IDS[1]] })).toBe(false);
   });
 
   it('refuses a goal the kind is never dealt with', () => {
     expect(isValidTripShape({ ...createTripPlan(1), goal: ORDER_TRIP_GOAL })).toBe(false);
-    expect(isValidTripShape({ ...createTripPlan(3), goal: ORDER_TRIP_GOAL })).toBe(false);
+    expect(isValidTripShape({ ...createTripPlan(2), goal: ORDER_TRIP_GOAL })).toBe(false);
     expect(isValidTripShape({ ...createTripPlan(4), goal: CATCHES_PER_TRIP })).toBe(false);
     expect(isValidTripShape({ ...createTripPlan(4), goal: 0 })).toBe(false);
     expect(isValidTripShape({ ...createTripPlan(1), collected: CATCHES_PER_TRIP + 1 })).toBe(false);
