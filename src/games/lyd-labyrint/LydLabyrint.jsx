@@ -13,7 +13,7 @@ import {
   recallPiece,
 } from './PiecePuzzle.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
-import { PROGRESS_KEY, pieceSessionCodec } from './progress.js';
+import { GAME_KEY, PROGRESS_KEY, gameCodec, pieceSessionCodec } from './progress.js';
 import { shuffle } from '../../shared/random.js';
 import { usePersistentState } from '../../shared/usePersistentState.js';
 import puzzleCarrier from './puzzle-assets/carrier.webp';
@@ -69,7 +69,8 @@ const PUZZLE_IMAGES = [puzzleCarrier, puzzleSubmarine, puzzleChinook, puzzleSr71
 // (forest, ocean, savannah); the words are shuffled again so no two games
 // stack the same word on the same door.
 // The runner mascot is picked per habitat too.
-function createGame(mazeIndex) {
+// Exported so tests can rebuild the very same game the component starts with.
+export function createGame(mazeIndex) {
   const def = THEMES[mazeIndex % THEMES.length];
   const maze = generateMaze(def);
   const words = shuffle(pickWords(maze.doors.length, def.theme));
@@ -91,12 +92,19 @@ function createGame(mazeIndex) {
 }
 
 export function LydLabyrint() {
-  const [game, setGame] = useState(() => createGame(Math.floor(Math.random() * THEMES.length)));
+  // The whole maze session survives a page refresh (see progress.js): the child
+  // comes back to the same carved labyrinth, standing on the tile they left,
+  // with every opened door still open. Only moments - an open spelling lock,
+  // the celebrate card - restart in play.
+  const [game, setGame] = usePersistentState(
+    GAME_KEY,
+    () => createGame(Math.floor(Math.random() * THEMES.length)),
+    gameCodec,
+  );
   const [fx, setFx] = useState(null);
   const [soundOn, setSoundOn] = useState(!isMuted());
-  // The collected pieces and their picture survive a page refresh (see
-  // progress.js); the maze itself never does – every visit carves a fresh
-  // labyrinth, and only the collection carries over.
+  // The collected pieces and their picture survive a page refresh too (see
+  // progress.js).
   const [pieceSession, setPieceSession] = usePersistentState(
     PROGRESS_KEY,
     () => createPuzzleSession(PUZZLE_IMAGES.length),
@@ -143,7 +151,7 @@ export function LydLabyrint() {
       sounds.pieceEarned();
       setPieceReveal(true);
     }
-  }, [setPieceSession]);
+  }, [setPieceSession, setGame]);
 
   // The earned piece stays on the celebrate card until the child clicks it away.
   // For the fourth earned piece that click hands straight over to the puzzle
@@ -163,7 +171,7 @@ export function LydLabyrint() {
       && !gameRef.current.celebrated) {
       later(gen, () => celebrateMaze(), CELEBRATE_DELAY_MS);
     }
-  }, [later, celebrateMaze]);
+  }, [later, celebrateMaze, setGame]);
 
   const tryMove = useCallback((direction) => {
     const current = gameRef.current;
@@ -193,7 +201,7 @@ export function LydLabyrint() {
     busyRef.current = true;
     arrive(gen, nx, ny);
     later(gen, () => { busyRef.current = false; }, STEP_LOCK_MS);
-  }, [arrive, later, puzzleOpen]);
+  }, [arrive, later, puzzleOpen, setGame]);
 
   // The spelling lock is solved: say the word, unlock the door and step onto
   // the door tile itself – the runner stops there instead of leaping past it.
@@ -217,14 +225,14 @@ export function LydLabyrint() {
       arrive(gen, door.x, door.y);
       later(gen, () => { busyRef.current = false; }, STEP_LOCK_MS);
     }, 140);
-  }, [arrive, later]);
+  }, [arrive, later, setGame]);
 
   // Step away from a spelling lock without solving it – explore elsewhere,
   // the door stays closed and can be tried again any time.
   const closePuzzle = useCallback(() => {
     setGame((prev) => (prev.puzzle ? { ...prev, phase: 'play', puzzle: null } : prev));
     sounds.select();
-  }, []);
+  }, [setGame]);
 
   // ---- Puzzle-piece collection panel -------------------------------
   const openPuzzleScreen = useCallback(() => {
