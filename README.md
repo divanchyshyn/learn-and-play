@@ -47,13 +47,13 @@ effort. Its configuration lives in `opencode.json` and `.opencode/agents/`. The
 wiring, the one-time repository setup, and the guardrails are described in
 [`docs/agent-pipeline.md`](./docs/agent-pipeline.md).
 
-## GitHub Pages
+## Hosting
 
 ```sh
 npm run build
 ```
 
-Publish the contents of `dist/`. This creates these static pages:
+The build writes every published page into `dist/`:
 
 - `/` - game library
 - `/games/lyd-labyrint/` - Sound labyrinth
@@ -63,4 +63,8 @@ Publish the contents of `dist/`. This creates these static pages:
 - `/games/ordfiske/` - Ordfiske (the word-fishing pond)
 - `/games/tierhopp/` - Tierhopp (the number-line jumper)
 
-The workflow in `.github/workflows/deploy-pages.yml` builds and publishes the site automatically when you push to `main`. Select **GitHub Actions** as the Pages source in the repository's Settings > Pages once.
+`.github/workflows/deploy-cloudflare.yml` runs lint, the whole test suite and the build on every push to `main`, then deploys `dist/` to Cloudflare Workers static assets, so failing checks can never reach the live site. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
+
+The library lives at <https://play2learn.divanchyshyn.com/>, and each game sits at `/games/<slug>/` - for example <https://play2learn.divanchyshyn.com/games/lyd-labyrint/>.
+
+GitHub Pages keeps publishing the same build through `.github/workflows/deploy-pages.yml` while the custom domain settles, so the old `https://<user>.github.io/learn-and-play/` URLs keep working. Retire that workflow in its own change once the new domain has been verified. Progress saved in `localStorage` belongs to the origin it was saved on, so the new domain starts with fresh saves.

@@ -1,0 +1,25 @@
+// Cloudflare Workers configuration. The games are pure static assets, so there
+// is no Worker script here: Cloudflare serves `dist/` itself. The default
+// `html_handling` ("auto-trailing-slash") keeps the published URLs working the
+// way they always have – `/games/<slug>` redirects to `/games/<slug>/`, which
+// serves that folder's `index.html`.
+//
+// The first deploy from `.github/workflows/deploy-cloudflare.yml` creates the
+// Worker under this name, so it must match the Worker in the Cloudflare
+// dashboard. `compatibility_date` marks the Workers runtime version and can be
+// bumped deliberately; it does not affect the static assets.
+//
+// The custom domain (play2learn.divanchyshyn.com) is deliberately absent: it is
+// attached once in the Cloudflare dashboard, which keeps account and domain
+// details out of the repository.
+//
+// Growing later: an `/api/*` route means adding a `main` entry point plus a
+// binding (D1 for a database, KV for config) and `run_worker_first: ["/api/*"]`.
+// Assets keep being served exactly as they are; nothing here has to be undone.
+{
+  "name": "learn-and-play",
+  "compatibility_date": "2026-09-20",
+  "assets": {
+    "directory": "./dist"
+  }
+}

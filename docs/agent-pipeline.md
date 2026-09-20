@@ -23,7 +23,7 @@ Issue labelled `ai-ready`  (or a `/oc` comment)
         └─ .github/workflows/opencode-review.yml read-only review comment
         │
         ▼
-   HUMAN REVIEW  →  merge  →  deploy-pages.yml  →  issue closes
+   HUMAN REVIEW  →  merge  →  deploy-cloudflare.yml  →  issue closes
 ```
 
 The only human step is reviewing the pull request. Merging is the same as it has
