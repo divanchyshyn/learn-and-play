@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { GameHeader } from '../../shared/GameHeader.jsx';
-import { speakNorwegian } from '../../shared/speech.js';
 import { usePersistentState } from '../../shared/usePersistentState.js';
 import { CrateDock } from './CrateDock.jsx';
 import { FishingBook } from './FishingBook.jsx';
@@ -189,8 +188,9 @@ export function WordFishing() {
 
   // The reading task: the catch goes into the crate the word belongs in. A crate
   // that does not take the word is not a mistake – the fish calmly slips back
-  // into the water (exactly like the child's own "slipp ut igjen"), the right
-  // crate glows, and the word is read aloud. Nothing is lost and nothing counts.
+  // into the water (exactly like the child's own "slipp ut igjen") and the right
+  // crate glows. Nothing is lost, nothing counts, and nothing is read aloud:
+  // reading the word is the whole task.
   function putInCrate(crateId) {
     const fish = aboard;
     if (!fish || finale) return;
@@ -203,7 +203,6 @@ export function WordFishing() {
     if (wanted !== crateId) {
       sounds.blub();
       setSea((prev) => slipFish(prev, fish.id));
-      speakNorwegian(word, { rate: 0.8 });
       if (wanted) setHintCrateId(wanted);
       else setNotice({ kind: 'notWanted' });
       return;
@@ -256,10 +255,6 @@ export function WordFishing() {
     if (!aboard) return;
     sounds.blub();
     setSea((prev) => slipFish(prev, aboard.id));
-  }
-
-  function hearWord(word) {
-    speakNorwegian(word, { rate: 0.8 });
   }
 
   function newTrip() {
@@ -322,14 +317,7 @@ export function WordFishing() {
 
         {aboard && <div className="catch-card">
           <p className="catch-kicker">På dekk! Hvilken kasse hører ordet til?</p>
-          <button
-            type="button"
-            className="catch-word"
-            onClick={() => hearWord(fishWord(aboard))}
-            aria-label={`Hør ordet ${fishWord(aboard)}`}
-          >
-            {fishWord(aboard)}<span className="catch-speaker" aria-hidden="true">🔊</span>
-          </button>
+          <p className="catch-word">{fishWord(aboard)}</p>
           <button type="button" className="outline-button" onClick={slipCatch}>
             Slipp ut igjen <span aria-hidden="true">🐟</span>
           </button>

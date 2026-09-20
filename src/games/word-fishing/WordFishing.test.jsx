@@ -163,13 +163,17 @@ describe('word-fishing rendered game', () => {
     expect(card).toBeTruthy();
     expect(card.querySelector('.catch-word').textContent).toContain(word);
     expect(view.container.querySelector('.fish-aboard')).toBeTruthy();
-    expect(screen.getByRole('button', { name: `Hør ordet ${word}` })).toBeInTheDocument();
+    // The word is there to be read, not tapped: it is plain text, with no
+    // control – and nothing anywhere in the game reads it aloud.
+    expect(card.querySelector('.catch-word').tagName).toBe('P');
+    expect(card.querySelector('button.catch-word')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Hør ordet/ })).toBeNull();
     // The crates can be answered now.
     expect(crateElement(view, categoryOf(word))).toBeEnabled();
     expect(TIMING.REEL_STEPS).toBe(REEL_STEPS);
   });
 
-  it('reads the word aloud on the catch card, as optional support', () => {
+  it('never pronounces a word: catching, sorting and slipping all stay silent', () => {
     const spoken = [];
     vi.stubGlobal('speechSynthesis', {
       cancel: () => {},
@@ -182,9 +186,20 @@ describe('word-fishing rendered game', () => {
 
     const view = render(<WordFishing />);
     const word = catchWord(view);
-    fireEvent.click(view.container.querySelector('.catch-word'));
 
-    expect(spoken).toEqual([word]);
+    // The catch card shows the word and offers no way to hear it.
+    expect(view.container.querySelector('.catch-word').textContent).toContain(word);
+    fireEvent.click(view.container.querySelector('.catch-word'));
+    expect(spoken).toEqual([]);
+
+    // A catch that belongs in another crate is simply answered with silence.
+    const wrongCrate = CATEGORY_CRATE_IDS.find((crateId) => crateId !== categoryOf(word));
+    fireEvent.click(crateElement(view, wrongCrate));
+    expect(spoken).toEqual([]);
+
+    // Sorting the next catch correctly is silent too.
+    catchAndSort(view);
+    expect(spoken).toEqual([]);
     vi.unstubAllGlobals();
   });
 });
