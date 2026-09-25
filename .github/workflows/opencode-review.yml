@@ -43,7 +43,7 @@ jobs:
 
       - name: Cache opencode binary
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.opencode/bin
           key: opencode-review-1.18.31
