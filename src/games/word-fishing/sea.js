@@ -26,11 +26,12 @@ export const DELIVER_TICKS = Math.max(1, Math.round(DELIVER_MS / TICK_MS));
 export const REEL_STEPS = 4;
 // A hooked fish is not a parcel: it fights. `grip` is how well the line still
 // holds it, and it drains away tick by tick – every turn of the reel wins it
-// back. Twenty ticks is about 2.4 seconds, so a child who keeps tapping always
-// lands the fish while one who stops to think about something else can really
-// lose it. Deliberately tuned to be a real possibility, never a punishment: a
-// fish that gets away simply swims on, and can be hooked again at once.
-export const GRIP_TICKS = 20;
+// back. Twelve ticks is about 1.4 seconds: the fish pulls hard enough that one
+// who stops to think about something else really does lose it, while a child
+// who keeps tapping always lands it. Deliberately tuned to be a real
+// possibility, never a punishment: a fish that gets away simply swims on, and
+// can be hooked again at once.
+export const GRIP_TICKS = 12;
 export const SLACK_PER_TICK = 1 / GRIP_TICKS;
 // While it is hauled in, the fish thrashes about – and the less grip it has, the
 // wider it swings. Both are percentages of the sea box.

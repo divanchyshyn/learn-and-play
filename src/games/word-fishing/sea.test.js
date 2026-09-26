@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   DELIVER_TICKS, FISH_ON_SCREEN, FLOAT_POINT, GRIP_TICKS, HOOK_LANDING, LANES, REEL_STEPS,
-  SAG_MAX, SPEED_MAX, SPEED_MIN, STRUGGLE_SWING,
+  SAG_MAX, SPEED_MAX, SPEED_MIN, STRUGGLE_SWING, TICK_MS,
   aboardFish, activeFish, canHookFish, createSea, deliverFish, fishPosition, fishWord, hookedFish,
   hookFish, lineTarget, reelFish, slipFish, tickSea,
 } from './sea.js';
@@ -262,6 +262,22 @@ describe('word-fishing the fight on the line', () => {
     const later = tickSea(sea2);
     expect(later.fishes.find((fish) => fish.id === 1).escaped).toBe(false);
     expect(later.fishes).toHaveLength(FISH_ON_SCREEN);
+  });
+
+  it('makes the fight real: a long pause costs the fish, a short one does not', () => {
+    const hooked = hookFish(createSea(freeSortTrip()), 1);
+
+    // Pausing a moment to read the word is safe – this is a children's game.
+    let thinking = hooked;
+    for (let tick = 0; tick < Math.floor(800 / TICK_MS); tick += 1) thinking = tickSea(thinking);
+    expect(hookedFish(thinking)).not.toBeNull();
+
+    // But the line no longer holds for the old, leisurely window: by about a
+    // second and a half the fish has pulled itself free and swims on.
+    let idle = hooked;
+    for (let tick = 0; tick < Math.ceil(1500 / TICK_MS); tick += 1) idle = tickSea(idle);
+    expect(hookedFish(idle)).toBeNull();
+    expect(idle.fishes.find((fish) => fish.id === 1).status).toBe('swim');
   });
 
   it('always lands a fish for a child who keeps tapping in time', () => {
