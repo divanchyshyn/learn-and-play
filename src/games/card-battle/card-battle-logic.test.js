@@ -1,96 +1,149 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
-  createDeck, drawFrom, roundOutcome, pickLine, mathLine,
-  numberToNorwegian, spokenMath,
-  todayKey, loadTally, saveTally, bumpTally,
-  HEADLINES, REX_QUIPS, MODES,
-} from './CardBattle.jsx';
+  CREATURES, CREATURES_PER_PAGE, PAGE_COUNT, PAGES, TIERS,
+  attempt, creatureById, creaturesInPage, equationText, makeRiddle,
+  numberToNorwegian, pageById, riddleLabel, spokenEquation, tierForDiscovered,
+} from './riddles.js';
+import {
+  ALBUM_KEY, albumCodec, albumComplete, createAlbum, discoverCreature,
+  foundCount, nextCreature, pageTally,
+} from './album.js';
 
-function memoryStore() {
-  const map = new Map();
-  return {
-    getItem: (key) => (map.has(key) ? map.get(key) : null),
-    setItem: (key, value) => map.set(key, String(value)),
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+// A small deterministic generator so the riddle invariants can be checked over
+// hundreds of deals without ever depending on luck.
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 4294967296;
   };
 }
 
-describe('card-battle deck', () => {
-  it('holds every value from 1 to 20 exactly once', () => {
-    for (let trial = 0; trial < 20; trial += 1) {
-      const deck = createDeck();
-      expect(deck).toHaveLength(20);
-      expect([...deck].sort((a, b) => a - b)).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
-      expect(new Set(deck).size).toBe(20);
-    }
+describe('card-battle creature roster', () => {
+  it('holds exactly four animals on each of the four pages', () => {
+    expect(CREATURES).toHaveLength(PAGE_COUNT * CREATURES_PER_PAGE);
+    for (const page of PAGES) expect(creaturesInPage(page.id)).toHaveLength(CREATURES_PER_PAGE);
   });
 
-  it('deals every card before wrapping around to a fresh deck', () => {
-    let deck = createDeck();
-    const drawn = [];
-    for (let i = 0; i < 20; i += 1) {
-      const draw = drawFrom(deck);
-      drawn.push(draw.value);
-      deck = draw.rest;
-      expect(draw.wrapped).toBe(false);
+  it('gives every animal a unique English id, a Norwegian name and a fact', () => {
+    const ids = CREATURES.map((entry) => entry.id);
+    expect(new Set(ids).size).toBe(CREATURES.length);
+    for (const entry of CREATURES) {
+      expect(entry.id).toMatch(/^[a-z]+$/);
+      expect(entry.name.length).toBeGreaterThan(0);
+      expect(entry.fact.length).toBeGreaterThan(0);
+      expect(entry.emoji.length).toBeGreaterThan(0);
+      expect(pageById(entry.page)).not.toBeNull();
+      expect(creatureById(entry.id)).toBe(entry);
     }
-    expect([...drawn].sort((a, b) => a - b)).toEqual(Array.from({ length: 20 }, (_, index) => index + 1));
-    // The pile is empty now, so the next draw wraps around with a full new deck.
-    // (The wrapped draw's value is unused by the game – the fresh pile matters.)
-    const wrapped = drawFrom(deck);
-    expect(wrapped.wrapped).toBe(true);
-    expect(wrapped.value).toBeNull();
-    expect(wrapped.rest).toHaveLength(20);
+    expect(creatureById('dragon')).toBeNull();
   });
 });
 
-describe('card-battle round outcome', () => {
-  it('gives the round to the bigger card', () => {
-    expect(roundOutcome(14, 7)).toBe('player');
-    expect(roundOutcome(3, 19)).toBe('opponent');
-  });
-
-  it('treats equal cards as a tie that nobody loses', () => {
-    expect(roundOutcome(8, 8)).toBe('tie');
-    expect(roundOutcome(1, 1)).toBe('tie');
-    expect(roundOutcome(20, 20)).toBe('tie');
-  });
-
-  it('celebrates every outcome symmetrically – never a sad losing line', () => {
-    for (const outcome of ['player', 'opponent', 'tie']) {
-      expect(HEADLINES[outcome].length).toBeGreaterThan(0);
-      expect(REX_QUIPS[outcome].length).toBeGreaterThan(0);
-      for (const line of HEADLINES[outcome]) expect(line.length).toBeGreaterThan(0);
+describe('card-battle difficulty tiers', () => {
+  it('moves through the four tiers one album page at a time', () => {
+    const expected = ['plus10', 'plus18', 'minus', 'mixed'];
+    for (let count = 0; count < CREATURES.length; count += 1) {
+      expect(tierForDiscovered(count)).toBe(expected[Math.floor(count / CREATURES_PER_PAGE)]);
     }
+    expect(tierForDiscovered(CREATURES.length)).toBe('mixed');
+    expect(tierForDiscovered(99)).toBe('mixed');
+    expect(tierForDiscovered(-1)).toBe('plus10');
+    expect(tierForDiscovered(undefined)).toBe('plus10');
   });
 });
 
-describe('card-battle math lines', () => {
-  it('adds the two cards in plus mode', () => {
-    expect(mathLine('plus', 14, 7)).toBe('14 + 7 = 21');
-    expect(mathLine('plus', 5, 5)).toBe('5 + 5 = 10');
-  });
+describe('card-battle riddle generation', () => {
+  it('always deals four different cards, one of which solves the riddle', () => {
+    vi.spyOn(Math, 'random').mockImplementation(seededRandom(20260926));
+    for (let trial = 0; trial < 400; trial += 1) {
+      const tier = TIERS[trial % TIERS.length];
+      const riddle = makeRiddle(tier);
 
-  it('always subtracts the smaller card from the bigger one in minus mode', () => {
-    expect(mathLine('minus', 14, 7)).toBe('14 − 7 = 7');
-    expect(mathLine('minus', 4, 18)).toBe('18 − 4 = 14');
-    expect(mathLine('minus', 9, 9)).toBe('9 − 9 = 0');
-  });
+      expect(riddle.hand).toHaveLength(4);
+      expect(new Set(riddle.hand).size).toBe(4);
+      expect(riddle.hand).toContain(riddle.answer);
+      for (const card of riddle.hand) {
+        expect(card).toBeGreaterThanOrEqual(1);
+        expect(card).toBeLessThanOrEqual(10);
+        // A card is never shown producing a negative number.
+        expect(attempt(riddle, card).result).toBeGreaterThan(0);
+      }
 
-  it('shows no arithmetic at all in largest mode', () => {
-    expect(mathLine('largest', 12, 3)).toBeNull();
-  });
+      // Exactly one card fits – a child who checks their work always lands on
+      // the same answer.
+      expect(riddle.hand.filter((card) => attempt(riddle, card).correct)).toEqual([riddle.answer]);
+      expect(attempt(riddle, riddle.answer)).toEqual({ correct: true, result: riddle.target });
 
-  it('keeps sums and differences inside the 0–100 range of the level', () => {
-    for (const a of [1, 2, 10, 11, 19, 20]) {
-      for (const b of [1, 2, 10, 11, 19, 20]) {
-        const parsed = Number(mathLine('plus', a, b).split('= ')[1]);
-        expect(parsed).toBeGreaterThanOrEqual(0);
-        expect(parsed).toBeLessThanOrEqual(100);
-        const diff = Number(mathLine('minus', a, b).split('= ')[1]);
-        expect(diff).toBeGreaterThanOrEqual(0);
-        expect(diff).toBeLessThanOrEqual(100);
+      if (riddle.operation === 'plus') {
+        expect(riddle.answer + riddle.rexValue).toBe(riddle.target);
+        expect(riddle.rexValue).toBeGreaterThanOrEqual(1);
+        expect(riddle.rexValue).toBeLessThanOrEqual(9);
+        if (tier === 'plus10') {
+          expect(riddle.target).toBeGreaterThanOrEqual(2);
+          expect(riddle.target).toBeLessThanOrEqual(10);
+        } else if (tier === 'plus18') {
+          expect(riddle.target).toBeGreaterThanOrEqual(11);
+          expect(riddle.target).toBeLessThanOrEqual(18);
+        } else {
+          expect(riddle.target).toBeGreaterThanOrEqual(2);
+          expect(riddle.target).toBeLessThanOrEqual(18);
+        }
+      } else {
+        expect(riddle.answer - riddle.rexValue).toBe(riddle.target);
+        expect(riddle.rexValue).toBeGreaterThanOrEqual(1);
+        expect(riddle.rexValue).toBeLessThanOrEqual(4);
+        expect(riddle.target).toBeGreaterThanOrEqual(1);
+        expect(riddle.target).toBeLessThanOrEqual(9);
+        // Every hand card can be tried without borrowing: all are bigger than
+        // Rex's card.
+        for (const card of riddle.hand) expect(card).toBeGreaterThan(riddle.rexValue);
       }
     }
+  });
+
+  it('deals both operations in mixed tier instead of settling into a rut', () => {
+    vi.spyOn(Math, 'random').mockImplementation(seededRandom(7));
+    const operations = new Set();
+    for (let trial = 0; trial < 100; trial += 1) operations.add(makeRiddle('mixed').operation);
+    expect(operations).toEqual(new Set(['plus', 'minus']));
+  });
+
+  it('falls back to the easiest tier for an unknown tier id', () => {
+    vi.spyOn(Math, 'random').mockImplementation(seededRandom(3));
+    for (let trial = 0; trial < 20; trial += 1) {
+      const riddle = makeRiddle('gardening');
+      expect(riddle.operation).toBe('plus');
+      expect(riddle.target).toBeLessThanOrEqual(10);
+    }
+  });
+});
+
+describe('card-battle attempts', () => {
+  it('checks a card against the riddle and reports the real result', () => {
+    const plus = { operation: 'plus', rexValue: 9, target: 15, answer: 6 };
+    expect(attempt(plus, 6)).toEqual({ correct: true, result: 15 });
+    expect(attempt(plus, 4)).toEqual({ correct: false, result: 13 });
+
+    const minus = { operation: 'minus', rexValue: 4, target: 2, answer: 6 };
+    expect(attempt(minus, 6)).toEqual({ correct: true, result: 2 });
+    expect(attempt(minus, 5)).toEqual({ correct: false, result: 1 });
+  });
+
+  it('writes equations the way the child reads them', () => {
+    expect(equationText('plus', 4, 9, 13)).toBe('4 + 9 = 13');
+    expect(equationText('minus', 6, 4, 2)).toBe('6 − 4 = 2');
+  });
+
+  it('reads the riddle and the solved equation aloud in Norwegian', () => {
+    expect(riddleLabel({ operation: 'plus', rexValue: 9, target: 15 })).toBe('ni pluss noe er femten');
+    expect(riddleLabel({ operation: 'minus', rexValue: 4, target: 2 })).toBe('noe minus fire er to');
+    expect(spokenEquation('plus', 6, 9)).toBe('seks pluss ni er femten');
+    expect(spokenEquation('minus', 6, 4)).toBe('seks minus fire er to');
   });
 });
 
@@ -109,77 +162,71 @@ describe('norwegian number words', () => {
     expect(numberToNorwegian(100)).toBe('hundre');
   });
 
-  it('covers the whole 0–100 span without gaps', () => {
+  it('covers the whole 0–100 span without digits', () => {
     for (let value = 0; value <= 100; value += 1) {
       const word = numberToNorwegian(value);
       expect(word.length).toBeGreaterThan(0);
       expect(word).not.toMatch(/\d/);
     }
   });
-
-  it('speaks whole sentences without digits', () => {
-    expect(spokenMath('plus', 14, 7)).toBe('fjorten pluss sju er tjueen');
-    expect(spokenMath('minus', 4, 18)).toBe('atten minus fire er fjorten');
-    expect(spokenMath('largest', 12, 3)).toBe('tolv mot tre');
-  });
 });
 
-describe('reaction picker', () => {
-  it('only ever returns lines from the given list', () => {
-    const lines = ['en', 'to', 'tre'];
-    for (let trial = 0; trial < 50; trial += 1) expect(lines).toContain(pickLine(lines));
-    expect(pickLine(['bare'])).toBe('bare');
-  });
-});
-
-describe('daily tally', () => {
-  it('formats dates as YYYY-MM-DD', () => {
-    expect(todayKey(new Date(2024, 2, 5))).toBe('2024-03-05');
-    expect(todayKey(new Date(2025, 11, 31))).toBe('2025-12-31');
+describe('card-battle album', () => {
+  it('starts empty and offers the first animal in roster order', () => {
+    const album = createAlbum();
+    expect(foundCount(album)).toBe(0);
+    expect(albumComplete(album)).toBe(false);
+    expect(nextCreature(album)).toBe(CREATURES[0]);
   });
 
-  it('counts up within the same day', () => {
-    const monday = new Date(2024, 0, 15, 9, 0, 0);
-    const first = bumpTally({ date: '1999-01-01', rounds: 99 }, monday);
-    expect(first).toEqual({ date: '2024-01-15', rounds: 1 });
-    expect(bumpTally(first, monday)).toEqual({ date: '2024-01-15', rounds: 2 });
+  it('records one animal once and ignores unknown ids', () => {
+    const album = createAlbum();
+    const withFox = discoverCreature(album, 'fox');
+    expect(withFox).toEqual({ discovered: ['fox'] });
+    expect(withFox).not.toBe(album);
+    // A repeat or an unknown card changes nothing, not even the reference.
+    expect(discoverCreature(withFox, 'fox')).toBe(withFox);
+    expect(discoverCreature(withFox, 'dragon')).toBe(withFox);
+    expect(discoverCreature(withFox, 42)).toBe(withFox);
   });
 
-  it('starts fresh on a new day instead of stacking old numbers', () => {
-    const tuesday = new Date(2024, 0, 16, 8, 30, 0);
-    const next = bumpTally({ date: '2024-01-15', rounds: 12 }, tuesday);
-    expect(next).toEqual({ date: '2024-01-16', rounds: 1 });
+  it('fills the next missing animal even after an out-of-order save', () => {
+    const album = { discovered: ['wolf', 'fox'] };
+    expect(nextCreature(album)).toBe(creatureById('owl'));
   });
 
-  it('saves and loads through storage, ignoring other days and junk', () => {
-    const store = memoryStore();
-    expect(loadTally(store)).toBeNull();
-
-    const tally = { date: todayKey(), rounds: 4 };
-    saveTally(tally, store);
-    expect(loadTally(store)).toEqual(tally);
-
-    store.setItem('cardBattle:tally', '{not json');
-    expect(loadTally(store)).toBeNull();
-
-    saveTally({ date: '2000-01-01', rounds: 50 }, store);
-    expect(loadTally(store)).toBeNull(); // stale day – not today's business
+  it('knows when the album is complete', () => {
+    const album = CREATURES.reduce((current, entry) => discoverCreature(current, entry.id), createAlbum());
+    expect(foundCount(album)).toBe(CREATURES.length);
+    expect(albumComplete(album)).toBe(true);
+    expect(nextCreature(album)).toBeNull();
   });
 
-  it('still finds a tally left under the legacy key', () => {
-    const store = memoryStore();
-    // The key the game wrote before its English rename; today's round count
-    // must not be lost to that rename.
-    store.setItem('kortkrig-tally', JSON.stringify({ date: todayKey(), rounds: 6 }));
-    expect(loadTally(store)).toEqual({ date: todayKey(), rounds: 6 });
-
-    // The next save writes the current key, which is also the one read first.
-    saveTally({ date: todayKey(), rounds: 7 }, store);
-    expect(JSON.parse(store.getItem('cardBattle:tally')).rounds).toBe(7);
+  it('counts a page against the animals the roster puts on it', () => {
+    const album = { discovered: ['fox', 'owl', 'lion'] };
+    expect(pageTally(album, 'forest')).toEqual({ found: 2, total: CREATURES_PER_PAGE });
+    expect(pageTally(album, 'mountain')).toEqual({ found: 0, total: CREATURES_PER_PAGE });
+    expect(pageTally(album, 'savanna')).toEqual({ found: 1, total: CREATURES_PER_PAGE });
+    expect(pageTally(album, 'nowhere')).toEqual({ found: 0, total: 0 });
   });
 
-  it('exposes all three modes with unique ids', () => {
-    expect(MODES.map((mode) => mode.id)).toEqual(['plus', 'minus', 'largest']);
-    expect(new Set(MODES.map((mode) => mode.id)).size).toBe(MODES.length);
+  it('saves and loads through its own English storage key', () => {
+    expect(ALBUM_KEY).toBe('cardBattle:album');
+    const store = createAlbum();
+    const album = discoverCreature(discoverCreature(store, 'otter'), 'fox');
+    expect(albumCodec.parse(albumCodec.serialize(album))).toEqual(album);
+  });
+
+  it('refuses junk and stale versions and cleans duplicate or foreign cards', () => {
+    expect(albumCodec.parse('{not json')).toBeNull();
+    expect(albumCodec.parse('null')).toBeNull();
+    expect(albumCodec.parse(JSON.stringify({ version: 0, album: { discovered: ['fox'] } }))).toBeNull();
+    expect(albumCodec.parse(JSON.stringify({ version: 1, album: null }))).toBeNull();
+    expect(albumCodec.parse(JSON.stringify({
+      version: 1,
+      album: { discovered: ['fox', 'fox', 'dragon', 7, 'owl'] },
+    }))).toEqual({ discovered: ['fox', 'owl'] });
+    expect(albumCodec.parse(JSON.stringify({ version: 1, album: { discovered: 'fox' } })))
+      .toEqual({ discovered: [] });
   });
 });

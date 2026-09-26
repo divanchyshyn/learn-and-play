@@ -1,42 +1,62 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { CardBattle, HEADLINES, REX_QUIPS, mathLine, spokenMath } from './CardBattle.jsx';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { CardBattle } from './CardBattle.jsx';
+import { ALBUM_KEY } from './album.js';
+import { CREATURES, attempt, equationText, spokenEquation } from './riddles.js';
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  localStorage.clear();
 });
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  vi.restoreAllMocks();
   delete window.speechSynthesis;
   delete window.SpeechSynthesisUtterance;
-  vi.useRealTimers();
 });
 
-// Card values are random per round (each deck is a shuffled 1–20 pile), so
-// the tests read whatever was actually rendered and derive expectations.
-function cardValues(scope) {
-  return [...scope.querySelectorAll('.battle-card.face-up .card-value')]
-    .map((element) => Number(element.textContent))
-    .filter((value) => !Number.isNaN(value));
+// The riddle is random (tier, numbers and hand), so every test reads whatever
+// was actually rendered and derives the answer from it.
+function readRiddle(view) {
+  const card = view.container.querySelector('.riddle-card');
+  return {
+    operation: card.dataset.operation,
+    rexValue: Number(card.dataset.rex),
+    target: Number(card.dataset.target),
+  };
 }
 
-function flipAndWait(scope) {
-  fireEvent.click(screen.getByRole('button', { name: '⚔️ Slå ut!' }));
-  // Rex has not flipped yet – anticipation beat, never a countdown to race.
-  expect(cardValues(scope)).toHaveLength(1);
-  act(() => {
-    vi.advanceTimersByTime(900);
-  });
-  const values = cardValues(scope);
-  expect(values).toHaveLength(2);
-  return values;
+function answerFor(riddle) {
+  return riddle.operation === 'plus' ? riddle.target - riddle.rexValue : riddle.target + riddle.rexValue;
+}
+
+function handCards(view) {
+  return [...view.container.querySelectorAll('.hand-card')];
+}
+
+function cardWithValue(view, value) {
+  return handCards(view).find((card) => card.textContent.trim() === String(value));
+}
+
+function solve(view) {
+  const riddle = readRiddle(view);
+  fireEvent.click(cardWithValue(view, answerFor(riddle)));
+  fireEvent.click(screen.getByRole('button', { name: 'Legg kortet!' }));
+  return riddle;
+}
+
+function foundCardCount(view) {
+  return view.container.querySelectorAll('.album-card.found').length;
+}
+
+function seedAlbum(discovered) {
+  localStorage.setItem(ALBUM_KEY, JSON.stringify({ version: 1, album: { discovered } }));
 }
 
 function stubSpeech() {
   const speak = vi.fn();
-  window.speechSynthesis = { cancel: vi.fn(), speak };
+  window.speechSynthesis = { cancel: vi.fn(), speak, getVoices: () => [] };
   window.SpeechSynthesisUtterance = class {
     constructor(text) {
       this.text = text;
@@ -45,105 +65,134 @@ function stubSpeech() {
   return speak;
 }
 
-describe('card-battle battle flow', () => {
-  it('flips both cards and reveals a result with math and celebration', () => {
+describe('card-battle riddle flow', () => {
+  it('deals a solvable riddle with four different hand cards', () => {
     const view = render(<CardBattle />);
-    const [playerValue, opponentValue] = flipAndWait(view.container);
+    const riddle = readRiddle(view);
+    const values = handCards(view).map((card) => Number(card.textContent));
 
-    const expectedOutcome = playerValue > opponentValue ? 'player' : opponentValue > playerValue ? 'opponent' : 'tie';
-    expect(screen.getByText(mathLine('plus', playerValue, opponentValue))).toBeInTheDocument();
-    const headline = view.container.querySelector('.headline').textContent;
-    expect(HEADLINES[expectedOutcome]).toContain(headline);
-    expect(REX_QUIPS[expectedOutcome]).toContain(view.container.querySelector('.quip').textContent.replace('🦖', '').trim());
-    expect(view.container.querySelector('.result-card')).toHaveAttribute('data-outcome', expectedOutcome);
-
-    // Every single round gets its silly burst – win, loss or tie alike.
-    expect(view.container.querySelector('.burst-layer')).toBeTruthy();
+    expect(values).toHaveLength(4);
+    expect(new Set(values).size).toBe(4);
+    expect(values).toContain(answerFor(riddle));
+    expect(attempt(riddle, answerFor(riddle)).correct).toBe(true);
+    expect(screen.getByText('🃏 0 av 16 kort funnet')).toBeInTheDocument();
   });
 
-  it('counts rounds played today without judging them', () => {
+  it('solving flips the next animal into the album and deals a fresh riddle', () => {
     const view = render(<CardBattle />);
-    const chip = view.container.querySelector('.rounds-chip');
-    expect(chip).toHaveClass('hidden-chip');
+    solve(view);
 
-    flipAndWait(view.container);
-    expect(screen.getByText('⚔️ 1 slag i dag')).toBeInTheDocument();
-    expect(chip).not.toHaveClass('hidden-chip');
+    expect(view.container.querySelector('.creature-name').textContent).toBe(CREATURES[0].name);
+    expect(view.container.querySelector('.creature-fact').textContent).toBe(CREATURES[0].fact);
+    expect(foundCardCount(view)).toBe(1);
+    expect(screen.getByText('🃏 1 av 16 kort funnet')).toBeInTheDocument();
+    expect(view.container.querySelector('.album-card[data-creature="fox"]')).toHaveClass('found');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Nytt slag ⚔️' }));
-    flipAndWait(view.container);
-    expect(screen.getByText('⚔️ 2 slag i dag')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Neste gåte' }));
+    expect(view.container.querySelector('.reveal')).toBeNull();
+    expect(handCards(view)).toHaveLength(4);
+    expect(foundCardCount(view)).toBe(1);
   });
 
-  it('starts the next round immediately with fresh face-down cards', () => {
+  it('a wrong card shows the real sum and can be tried again', () => {
     const view = render(<CardBattle />);
-    flipAndWait(view.container);
+    const riddle = readRiddle(view);
+    const answer = answerFor(riddle);
+    const wrong = handCards(view).map((card) => Number(card.textContent)).find((value) => value !== answer);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Nytt slag ⚔️' }));
-    expect(cardValues(view.container)).toHaveLength(0);
-    expect(view.container.querySelector('.battle-card.face-up')).toBeNull();
-    expect(screen.getByText('Klar til kamp? Trykk på kortet ditt!')).toBeInTheDocument();
+    fireEvent.click(cardWithValue(view, wrong));
+    fireEvent.click(screen.getByRole('button', { name: 'Legg kortet!' }));
 
-    // No gate in between: the very next strike is one click away.
-    expect(screen.getByRole('button', { name: '⚔️ Slå ut!' })).toBeEnabled();
+    const outcome = attempt(riddle, wrong);
+    const mistake = view.container.querySelector('.mistake').textContent;
+    expect(mistake).toContain(equationText(riddle.operation, wrong, riddle.rexValue, outcome.result));
+    expect(mistake).toMatch(/Prøv et annet kort/);
+    expect(cardWithValue(view, wrong)).toBeDisabled();
+    expect(foundCardCount(view)).toBe(0);
+    expect(screen.getByText('🃏 0 av 16 kort funnet')).toBeInTheDocument();
+
+    solve(view);
+    expect(foundCardCount(view)).toBe(1);
+    // The retry costs nothing but the extra try also earns no first-try star.
+    expect(view.container.querySelector('.bonus')).toBeNull();
   });
 
-  it('switches modes any time and cancels a pending reveal instead of rushing', () => {
+  it('celebrates a solved riddle without a wrong try with a first-try star', () => {
     const view = render(<CardBattle />);
+    solve(view);
+    expect(screen.getByText(/Feilfritt/)).toBeInTheDocument();
+  });
+});
 
-    fireEvent.click(screen.getByRole('button', { name: 'Minus-slag' }));
-    expect(screen.getByRole('button', { name: 'Minus-slag' })).toHaveAttribute('aria-pressed', 'true');
-    let [playerValue, opponentValue] = flipAndWait(view.container);
-    const high = Math.max(playerValue, opponentValue);
-    const low = Math.min(playerValue, opponentValue);
-    expect(screen.getByText(`${high} − ${low} = ${high - low}`)).toBeInTheDocument();
+describe('card-battle album progress', () => {
+  it('completes a page and throws confetti on its fourth animal', () => {
+    seedAlbum(['fox', 'owl', 'squirrel']);
+    const view = render(<CardBattle />);
+    expect(foundCardCount(view)).toBe(3);
 
-    // Flip again, then bail out to another mode while Rex is still turning his card.
-    fireEvent.click(screen.getByRole('button', { name: 'Nytt slag ⚔️' }));
-    fireEvent.click(screen.getByRole('button', { name: '⚔️ Slå ut!' }));
-    expect(cardValues(view.container)).toHaveLength(1);
-    fireEvent.click(screen.getAllByRole('button', { name: 'Størst vinner' })[0]);
-    act(() => {
-      vi.advanceTimersByTime(5000);
-    });
-    expect(cardValues(view.container)).toHaveLength(0); // board quietly reset, nobody rushed
-    expect(view.container.querySelector('.result-card')).toBeNull();
-    expect(screen.getByText('Klar til kamp? Trykk på kortet ditt!')).toBeInTheDocument();
-
-    // Størst mode compares the cards without showing any arithmetic.
-    const [storstPlayer, storstOpponent] = flipAndWait(view.container);
-    expect(view.container.querySelector('.math-line')).toBeNull();
-    expect(view.container.querySelector('.result-card')).toHaveAttribute(
-      'data-outcome',
-      storstPlayer > storstOpponent ? 'player' : storstOpponent > storstPlayer ? 'opponent' : 'tie',
-    );
-    expect(screen.getByText(/ingen regning/)).toBeInTheDocument();
+    solve(view);
+    expect(view.container.querySelector('.creature-name').textContent).toBe('Rådyret');
+    expect(view.container.querySelector('.page-medal[data-page="forest"]').textContent).toContain('Skogen er samlet!');
+    expect(view.container.querySelector('.confetti-layer')).not.toBeNull();
+    expect(foundCardCount(view)).toBe(4);
   });
 
-  it('reads the math aloud only when narration is switched on', () => {
+  it('grows the maths with the album: page three deals minus riddles', () => {
+    seedAlbum(CREATURES.slice(0, 8).map((entry) => entry.id));
+    const view = render(<CardBattle />);
+    expect(readRiddle(view).operation).toBe('minus');
+  });
+
+  it('completes the album with the last animal and offers an explicit restart', () => {
+    seedAlbum(CREATURES.slice(0, CREATURES.length - 1).map((entry) => entry.id));
+    const view = render(<CardBattle />);
+    expect(foundCardCount(view)).toBe(CREATURES.length - 1);
+
+    solve(view);
+    const last = CREATURES[CREATURES.length - 1];
+    expect(view.container.querySelector('.creature-name').textContent).toBe(last.name);
+    expect(screen.getByText(/Alle 16 dyrekortene er samlet!/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start på nytt' }));
+    expect(screen.getByText('🃏 0 av 16 kort funnet')).toBeInTheDocument();
+    expect(foundCardCount(view)).toBe(0);
+    expect(screen.queryByText(/Alle 16 dyrekortene er samlet!/)).toBeNull();
+  });
+
+  it('remembers found animals across a reload', () => {
+    const view = render(<CardBattle />);
+    solve(view);
+    view.unmount();
+
+    const again = render(<CardBattle />);
+    expect(screen.getByText('🃏 1 av 16 kort funnet')).toBeInTheDocument();
+    expect(foundCardCount(again)).toBe(1);
+  });
+});
+
+describe('card-battle narration', () => {
+  it('reads the solved equation aloud only when narration is switched on', () => {
     const speak = stubSpeech();
-    render(<CardBattle />);
+    const view = render(<CardBattle />);
 
-    flipAndWait(document.body);
+    solve(view);
     expect(speak).not.toHaveBeenCalled(); // opt-in: silent by default
 
-    fireEvent.click(screen.getByRole('button', { name: 'Les tallene høyt' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Neste gåte' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Les regnestykket høyt' }));
     expect(screen.getByRole('button', { name: 'Slå av opplesning' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Nytt slag ⚔️' }));
-    const [playerValue, opponentValue] = flipAndWait(document.body);
+    const riddle = solve(view);
     expect(speak).toHaveBeenCalledTimes(1);
     const utterance = speak.mock.calls[0][0];
     expect(utterance.lang).toBe('nb-NO');
-    expect(utterance.text).toContain(spokenMath('plus', playerValue, opponentValue));
-    expect(utterance.text).toMatch(/Du vant runden!|Rex vant runden!|Uavgjort!/);
+    expect(utterance.text).toBe(spokenEquation(riddle.operation, answerFor(riddle), riddle.rexValue));
   });
 
   it('survives a browser without speech support when narration is on', () => {
-    render(<CardBattle />);
-    fireEvent.click(screen.getByRole('button', { name: 'Les tallene høyt' }));
-
-    expect(() => flipAndWait(document.body)).not.toThrow();
-    expect(document.querySelector('.result-card')).not.toBeNull();
+    const view = render(<CardBattle />);
+    fireEvent.click(screen.getByRole('button', { name: 'Les regnestykket høyt' }));
+    expect(() => solve(view)).not.toThrow();
+    expect(view.container.querySelector('.reveal')).not.toBeNull();
   });
 });

@@ -1,246 +1,134 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { pickOne, shuffle } from '../../shared/random.js';
+import { useState } from 'react';
+import { pickOne } from '../../shared/random.js';
 import { speakNorwegian } from '../../shared/speech.js';
+import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { GameHeader } from '../../shared/GameHeader.jsx';
+import { usePersistentState } from '../../shared/usePersistentState.js';
+import {
+  CREATURES, PAGES, attempt, creaturesInPage, equationText, makeRiddle,
+  pageById, riddleLabel, spokenEquation, tierForDiscovered,
+} from './riddles.js';
+import {
+  ALBUM_KEY, albumCodec, albumComplete, createAlbum, discoverCreature,
+  foundCount, nextCreature, pageTally,
+} from './album.js';
 import { setMuted as setAudioMuted, sounds } from './sounds.js';
 
 // Read-aloud stays part of this game's public surface for tests/tools.
 export { speakNorwegian };
 
-const OPPONENT_DELAY_MS = 850;
-const TALLY_KEY = 'cardBattle:tally';
-// The daily tally used to be saved under the game's old Norwegian name; read it
-// from there too, so the rounds already played today survive the rename.
-const LEGACY_TALLY_KEY = 'kortkrig-tally';
-const DECK_VALUES = Array.from({ length: 20 }, (_, index) => index + 1);
-
-export const MODES = [
-  { id: 'plus', label: 'Pluss-slag' },
-  { id: 'minus', label: 'Minus-slag' },
-  { id: 'largest', label: 'Størst vinner' },
-];
-
-// Winning and losing are framed identically: loud, silly, and fun either way.
-export const HEADLINES = {
-  player: ['BOOM! Du vant runden! 💥', 'KRAK! Det var et kraftslag! 🎉', 'ZAPP! Runden din! ⚡'],
-  opponent: ['POFF! Rex vant dette slaget! 💫', 'BUM! Rex tok runden! 🎈', 'SPLATT! Rex slo hardest denne gangen! ✨'],
-  tie: ['KRASJ! Akkurat likt! ✨', 'DUSS! Nøyaktig samme slag! 🤝', 'PLING! Helt uavgjort! 🌟'],
+// Rex is a good sport: every line is warm, and a wrong card is only ever an
+// invitation to look again.
+export const REX_LINES = {
+  ready: [
+    'Rex legger gåten på bordet …',
+    'Rex utfordrer deg: hvilket kort mangler?',
+    'Rex tripper spent – klarer du kortgåten?',
+  ],
+  nudge: [
+    'Ikke helt! Se på regnestykket og prøv et annet kort.',
+    'Nesten! Rex tror du finner det riktige kortet nå.',
+    'Hmm, prøv et annet kort – du er på sporet!',
+  ],
+  cheer: [
+    'Rex hopper av glede! 🎉',
+    'Rex roper: Så flink du er!',
+    'Rex danser gledesdans!',
+  ],
 };
 
-export const REX_QUIPS = {
-  player: ['Rex snurrer rundt av begeistring!', 'Rex roper: STAS! Igjen! Igjen!', 'Rex reiser tommelen helt opp.'],
-  opponent: ['Rex danser seiersdans – kom igjen, neste slag!', 'Rex blåser glitrende røykringer av glede.', 'Rex bøyer seg dypt og ler hjertelig.'],
-  tie: ['Rex gir deg en skikkelig høyt-fem!', 'Rex bumper neven din, staselig.', 'Rex humrer fornøyd begge to.'],
-};
-
-const OUTCOME_SPOKEN = {
-  player: 'Du vant runden!',
-  opponent: 'Rex vant runden!',
-  tie: 'Uavgjort!',
-};
-
-const BURST_EMOJI = {
-  player: ['💥', '🎉', '⭐', '✨', '🎊'],
-  opponent: ['💥', '💫', '🌟', '✨', '🎈'],
-  tie: ['🌈', '💥', '✨', '⭐', '🌟'],
-};
-const BURST_COLORS = {
-  player: ['#e46e4b', '#e5ae45', '#ffd95c'],
-  opponent: ['#0c9fc4', '#7a5fd0', '#4dc3e8'],
-  tie: ['#63a375', '#0c9fc4', '#e46e4b'],
-};
-
-export function createDeck() {
-  return shuffle(DECK_VALUES);
+function HandCard({ value, selected, used, onSelect }) {
+  const classes = ['hand-card'];
+  if (selected) classes.push('selected');
+  if (used) classes.push('used');
+  return <button
+    className={classes.join(' ')}
+    type="button"
+    aria-label={`Velg kortet ${value}`}
+    aria-pressed={selected}
+    disabled={used}
+    onClick={() => onSelect(value)}
+  >{value}</button>;
 }
 
-// Draw the top card; when the deck is empty it quietly wraps around by
-// handing back a freshly shuffled deck as the remaining pile.
-export function drawFrom(deck) {
-  if (!deck.length) return { value: null, rest: createDeck(), wrapped: true };
-  const [value, ...rest] = deck;
-  return { value, rest, wrapped: false };
-}
-
-// The battle rule never changes – biggest card wins the round – so the game
-// stays predictable no matter which math mode is active.
-export function roundOutcome(playerValue, opponentValue) {
-  if (playerValue > opponentValue) return 'player';
-  if (opponentValue > playerValue) return 'opponent';
-  return 'tie';
-}
-
-export function pickLine(lines) {
-  return pickOne(lines);
-}
-
-export function mathLine(modeId, playerValue, opponentValue) {
-  if (modeId === 'plus') return `${playerValue} + ${opponentValue} = ${playerValue + opponentValue}`;
-  if (modeId === 'minus') {
-    const high = Math.max(playerValue, opponentValue);
-    const low = Math.min(playerValue, opponentValue);
-    return `${high} − ${low} = ${high - low}`;
-  }
-  return null;
-}
-
-const UNITS = ['null', 'en', 'to', 'tre', 'fire', 'fem', 'seks', 'sju', 'åtte', 'ni', 'ti', 'elleve', 'tolv', 'tretten', 'fjorten', 'femten', 'seksten', 'sytten', 'atten', 'nitten'];
-const TENS = { 2: 'tjue', 3: 'tretti', 4: 'førti', 5: 'femti', 6: 'seksti', 7: 'sytti', 8: 'åtti', 9: 'nitti' };
-
-export function numberToNorwegian(value) {
-  if (!Number.isInteger(value) || value < 0 || value > 100) return String(value);
-  if (value <= 19) return UNITS[value];
-  if (value === 100) return 'hundre';
-  const tens = Math.floor(value / 10);
-  const unit = value % 10;
-  return TENS[tens] + (unit ? UNITS[unit] : '');
-}
-
-export function spokenMath(modeId, playerValue, opponentValue) {
-  if (modeId === 'plus') {
-    return `${numberToNorwegian(playerValue)} pluss ${numberToNorwegian(opponentValue)} er ${numberToNorwegian(playerValue + opponentValue)}`;
-  }
-  if (modeId === 'minus') {
-    const high = Math.max(playerValue, opponentValue);
-    const low = Math.min(playerValue, opponentValue);
-    return `${numberToNorwegian(high)} minus ${numberToNorwegian(low)} er ${numberToNorwegian(high - low)}`;
-  }
-  return `${numberToNorwegian(playerValue)} mot ${numberToNorwegian(opponentValue)}`;
-}
-
-// Opt-in read-aloud support lives in src/shared/speech.js.
-
-export function todayKey(now = new Date()) {
-  const pad = (part) => String(part).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
-function defaultStore() {
-  return typeof window === 'undefined' ? null : window.localStorage;
-}
-
-// The tally only counts how many rounds were played today – it is flavour,
-// never a score, and it resets by itself at midnight.
-export function loadTally(store = defaultStore()) {
-  try {
-    const raw = store?.getItem(TALLY_KEY) ?? store?.getItem(LEGACY_TALLY_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || parsed.date !== todayKey()) return null;
-    return { date: parsed.date, rounds: Number(parsed.rounds) || 0 };
-  } catch {
-    return null;
-  }
-}
-
-export function saveTally(tally, store = defaultStore()) {
-  try {
-    store?.setItem(TALLY_KEY, JSON.stringify(tally));
-  } catch {
-    // Storage may be unavailable (private mode); playing still works fine.
-  }
-}
-
-export function bumpTally(tally, now = new Date()) {
-  const date = todayKey(now);
-  const rounds = (tally && tally.date === date ? tally.rounds : 0) + 1;
-  return { date, rounds };
-}
-
-function BurstLayer({ tone }) {
-  const bits = useMemo(() => Array.from({ length: 26 }, (_, index) => {
-    const angle = (index / 26) * Math.PI * 2 + Math.random() * 0.4;
-    const distance = 120 + Math.random() * 190;
-    return {
-      id: index,
-      emoji: BURST_EMOJI[tone][index % BURST_EMOJI[tone].length],
-      dx: Math.cos(angle) * distance,
-      dy: Math.sin(angle) * distance,
-      delay: Math.random() * 0.18,
-      size: 17 + Math.random() * 22,
-      spin: `${Math.round((Math.random() > 0.5 ? 1 : -1) * (200 + Math.random() * 320))}deg`,
-      color: BURST_COLORS[tone][index % BURST_COLORS[tone].length],
-      round: index % 3 === 0,
-    };
-    // `tone` never changes while mounted (the layer unmounts between
-    // rounds), so listing it only satisfies correctness for the future.
-  }), [tone]);
-  return <div className="burst-layer" aria-hidden="true">
-    {bits.map((bit) => <span
-      className={`burst-bit${bit.round ? ' round' : ''}`}
-      key={bit.id}
-      style={{
-        '--dx': `${bit.dx}px`,
-        '--dy': `${bit.dy}px`,
-        '--spin': bit.spin,
-        fontSize: `${bit.size}px`,
-        color: bit.color,
-        animationDelay: `${bit.delay}s`,
-      }}
-    >{bit.emoji}</span>)}
+function AlbumCard({ creature, found }) {
+  return <div className={`album-card${found ? ' found' : ''}`} data-creature={creature.id}>
+    <span className="album-emoji" aria-hidden="true">{found ? creature.emoji : '❓'}</span>
+    <span className="album-name">{found ? creature.name : '???'}</span>
   </div>;
 }
 
-function BattleCard({ value, faceUp, thinking }) {
-  return <div className={`battle-card${faceUp ? ' face-up' : ''}${thinking ? ' thinking' : ''}`}>
-    <div className="battle-card-inner">
-      <div className="battle-face battle-back"><span aria-hidden="true">⚔️</span></div>
-      <div className="battle-face battle-front"><span className="card-value">{faceUp ? value : ''}</span></div>
-    </div>
-  </div>;
-}
-
-function makeDecks() {
-  return { player: createDeck(), opponent: createDeck() };
-}
-
+// One card from Rex, one missing card from the hand, one animal revealed behind
+// every solved riddle. The whole game is that loop, repeated across four pages
+// that grow from sums under ten to mixed plus and minus.
 export function CardBattle() {
-  const [mode, setMode] = useState('plus');
-  const [decks, setDecks] = useState(makeDecks);
-  const decksRef = useRef(decks);
-  const [playerCard, setPlayerCard] = useState(null);
-  const [opponentCard, setOpponentCard] = useState(null);
-  const [phase, setPhase] = useState('ready');
-  const [result, setResult] = useState(null);
-  const [roundsToday, setRoundsToday] = useState(() => loadTally()?.rounds || 0);
+  const [album, setAlbum] = usePersistentState(ALBUM_KEY, createAlbum, albumCodec);
+  const [riddle, setRiddle] = useState(() => makeRiddle(tierForDiscovered(foundCount(album))));
+  const [selected, setSelected] = useState(null);
+  const [used, setUsed] = useState([]);
+  const [mistake, setMistake] = useState(null);
+  const [solved, setSolved] = useState(null);
+  const [rexLine, setRexLine] = useState(() => pickOne(REX_LINES.ready));
   const [soundOn, setSoundOn] = useState(true);
   const [voiceOn, setVoiceOn] = useState(false);
-  const timerRef = useRef(null);
-  const lockRef = useRef(false);
 
-  useEffect(() => () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
-  }, []);
+  const found = foundCount(album);
+  const complete = albumComplete(album);
 
-  function clearRoundTimer() {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
+  function dealRiddle(count) {
+    setRiddle(makeRiddle(tierForDiscovered(count)));
+    setSelected(null);
+    setUsed([]);
+    setMistake(null);
+    setSolved(null);
+    setRexLine(pickOne(REX_LINES.ready));
   }
 
-  function resetBoard() {
-    clearRoundTimer();
-    lockRef.current = false;
-    setPlayerCard(null);
-    setOpponentCard(null);
-    setResult(null);
-    setPhase('ready');
-  }
-
-  function changeMode(nextMode) {
-    if (nextMode === mode && phase === 'ready') return;
-    setMode(nextMode);
-    resetBoard();
+  function selectCard(value) {
+    if (solved || used.includes(value)) return;
+    setSelected(value);
+    setMistake(null);
     sounds.select();
+  }
+
+  function layCard() {
+    if (selected === null || solved) return;
+    const outcome = attempt(riddle, selected);
+    if (!outcome.correct) {
+      setUsed((cards) => [...cards, selected]);
+      setMistake(equationText(riddle.operation, selected, riddle.rexValue, outcome.result));
+      setSelected(null);
+      setRexLine(pickOne(REX_LINES.nudge));
+      sounds.wrong();
+      return;
+    }
+
+    const firstTry = used.length === 0;
+    const completeBefore = complete;
+    const creature = nextCreature(album) ?? pickOne(CREATURES);
+    const grown = discoverCreature(album, creature.id);
+    setAlbum(grown);
+    const tally = pageTally(grown, creature.page);
+    setSolved({
+      creature,
+      equation: equationText(riddle.operation, selected, riddle.rexValue, riddle.target),
+      firstTry,
+      page: pageById(creature.page),
+      // A complete album before this solve means every page already wears its
+      // medal – celebrating the last card alone is the finale's job.
+      pageDone: !completeBefore && tally.total > 0 && tally.found >= tally.total,
+    });
+    setRexLine(pickOne(REX_LINES.cheer));
+    if (firstTry) sounds.medal();
+    else sounds.correct();
+    if (voiceOn) speakNorwegian(spokenEquation(riddle.operation, selected, riddle.rexValue));
   }
 
   function toggleSound() {
     const next = !soundOn;
     setSoundOn(next);
     setAudioMuted(!next);
-    if (next) sounds.flip();
+    if (next) sounds.select();
   }
 
   function toggleVoice() {
@@ -248,99 +136,106 @@ export function CardBattle() {
     sounds.select();
   }
 
-  function startRound() {
-    if (lockRef.current || phase !== 'ready') return;
-    lockRef.current = true;
-    const source = decksRef.current;
-    const playerDraw = drawFrom(source.player);
-    const opponentDraw = drawFrom(source.opponent);
-    const nextDecks = { player: playerDraw.rest, opponent: opponentDraw.rest };
-    decksRef.current = nextDecks;
-    setDecks(nextDecks);
-    setPlayerCard(playerDraw.value);
-    setOpponentCard(null);
-    setResult(null);
-    setPhase('waiting');
-    sounds.flip();
-    timerRef.current = setTimeout(() => finishRound(playerDraw.value, opponentDraw.value), OPPONENT_DELAY_MS);
+  function startOver() {
+    const fresh = createAlbum();
+    setAlbum(fresh);
+    dealRiddle(0);
+    sounds.medal();
   }
-
-  function finishRound(playerValue, opponentValue) {
-    timerRef.current = null;
-    const outcome = roundOutcome(playerValue, opponentValue);
-    const headline = pickLine(HEADLINES[outcome]);
-    const quip = pickLine(REX_QUIPS[outcome]);
-    setOpponentCard(opponentValue);
-    setResult({ outcome, headline, quip });
-    setPhase('revealed');
-    setRoundsToday((count) => {
-      const next = bumpTally({ date: todayKey(), rounds: count });
-      saveTally(next);
-      return next.rounds;
-    });
-    sounds.clash();
-    (outcome === 'player' ? sounds.cheer : sounds.boing)();
-    if (voiceOn) speakNorwegian(`${spokenMath(mode, playerValue, opponentValue)}. ${OUTCOME_SPOKEN[outcome]}`);
-    lockRef.current = false;
-  }
-
-  function strike() {
-    if (phase === 'revealed') resetBoard();
-    else startRound();
-  }
-
-  const activeMode = MODES.find((entry) => entry.id === mode);
-  const line = phase === 'revealed' && result ? mathLine(mode, playerCard, opponentCard) : null;
 
   return <main className="game-page battle-page">
-    <GameHeader title="Kortkrig">
-      <p>Kortduell mot Rex! Snu kortet ditt og se hvem som slår hardest.</p>
+    <GameHeader title="Kortkrigen">
+      <p>Rex gjemmer et dyrekort bak hver kortgåte. Velg kortet som mangler i regnestykket – og se hvilket dyr som dukker opp!</p>
       <div className="game-controls">
-        <span className={`rounds-chip${roundsToday === 0 ? ' hidden-chip' : ''}`}>⚔️ {roundsToday} slag i dag</span>
-        <div className="chip-group" role="group" aria-label="Måte å spille på">
-          {MODES.map((entry) => (
-            <button className={`chip${mode === entry.id ? ' active' : ''}`} aria-pressed={mode === entry.id} key={entry.id} onClick={() => changeMode(entry.id)} type="button">{entry.label}</button>
-          ))}
-        </div>
-        <button className="chip toggle" aria-pressed={voiceOn} aria-label={voiceOn ? 'Slå av opplesning' : 'Les tallene høyt'} onClick={toggleVoice} type="button">{voiceOn ? '🗣 Lesing: på' : '🗣 Lesing: av'}</button>
-        <button className="chip toggle" aria-pressed={!soundOn} aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'} onClick={toggleSound} type="button">{soundOn ? '🔊' : '🔇'}</button>
+        <span className="found-chip">🃏 {found} av {CREATURES.length} kort funnet</span>
+        <button className="chip toggle" type="button" aria-pressed={voiceOn} aria-label={voiceOn ? 'Slå av opplesning' : 'Les regnestykket høyt'} onClick={toggleVoice}>{voiceOn ? '🗣 Lesing: på' : '🗣 Lesing: av'}</button>
+        <button className="chip toggle" type="button" aria-pressed={!soundOn} aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'} onClick={toggleSound}>{soundOn ? '🔊' : '🔇'}</button>
       </div>
     </GameHeader>
 
-    <section className="arena" aria-label="Kortkrig-arenaen">
-      <div className="fighter fighter-player" data-side="player">
-        <span className="fighter-avatar" aria-hidden="true">🧒</span>
-        <h2>Deg</h2>
-        <button className="card-flip-btn" onClick={strike} disabled={phase !== 'ready'} aria-label="Snur kortet ditt" type="button">
-          <BattleCard value={playerCard} faceUp={playerCard !== null} />
-        </button>
+    <section className="arena" aria-label="Kortkrigen-arenaen">
+      <div className="rex-row">
+        <span className="rex-avatar" aria-hidden="true">🦖</span>
+        <p className="rex-line" aria-live="polite">{rexLine}</p>
       </div>
-      <div className="versus" aria-hidden="true">VS</div>
-      <div className="fighter fighter-opponent" data-side="opponent">
-        <span className="fighter-avatar" aria-hidden="true">🦖</span>
-        <h2>Rex</h2>
-        <BattleCard value={opponentCard} faceUp={opponentCard !== null} thinking={phase === 'waiting'} />
+
+      <div
+        className="riddle-card"
+        data-operation={riddle.operation}
+        data-rex={riddle.rexValue}
+        data-target={riddle.target}
+        role="img"
+        aria-label={riddleLabel(riddle)}
+      >
+        {riddle.operation === 'plus' ? <>
+          <span className="riddle-term">{riddle.rexValue}</span>
+          <span className="riddle-op" aria-hidden="true">+</span>
+          <span className="riddle-blank">{selected ?? '?'}</span>
+        </> : <>
+          <span className="riddle-blank">{selected ?? '?'}</span>
+          <span className="riddle-op" aria-hidden="true">−</span>
+          <span className="riddle-term">{riddle.rexValue}</span>
+        </>}
+        <span className="riddle-op" aria-hidden="true">=</span>
+        <span className="riddle-term riddle-target">{riddle.target}</span>
       </div>
+      <p className="riddle-hint">Hvilket kort passer i ruten?</p>
+
+      {!solved && <>
+        <div className="hand" role="group" aria-label="Hånden din">
+          {riddle.hand.map((value) => <HandCard
+            key={value}
+            value={value}
+            selected={selected === value}
+            used={used.includes(value)}
+            onSelect={selectCard}
+          />)}
+        </div>
+
+        {mistake && <p className="mistake" aria-live="polite">{mistake} passer ikke. Prøv et annet kort!</p>}
+
+        <button className="lay-button" type="button" disabled={selected === null} onClick={layCard}>Legg kortet!</button>
+      </>}
     </section>
 
-    <section className="result-zone" aria-live="polite">
-      {phase === 'ready' && <p className="status-line">Klar til kamp? Trykk på kortet ditt!</p>}
-      {phase === 'waiting' && <p className="status-line">Rex snur kortet sitt…</p>}
-      {phase === 'revealed' && result && <div className="result-card" data-outcome={result.outcome}>
-        {line && <p className="math-line">{line}</p>}
-        <h2 className="headline">{result.headline}</h2>
-        <p className="quip"><span aria-hidden="true">🦖</span> {result.quip}</p>
+    {solved && <section className="reveal" aria-live="polite">
+      <div className="creature-card">
+        <span className="creature-emoji" aria-hidden="true">{solved.creature.emoji}</span>
+        <h2 className="creature-name">{solved.creature.name}</h2>
+        <p className="creature-fact">{solved.creature.fact}</p>
+        <p className="solved-equation">{solved.equation}</p>
+      </div>
+      {solved.firstTry && <p className="bonus">⭐ Feilfritt! Rex er imponert.</p>}
+      {solved.pageDone && solved.page && <p className="page-medal" data-page={solved.page.id}>{solved.page.emoji} {solved.page.label} er samlet!</p>}
+      <button className="next-button" type="button" onClick={() => dealRiddle(foundCount(album))}>Neste gåte</button>
+      {solved.pageDone && <ConfettiLayer />}
+    </section>}
+
+    <section className="album" aria-label="Dyrealbumet">
+      <h2 className="album-title">Dyrealbumet</h2>
+      {PAGES.map((page) => {
+        const tally = pageTally(album, page.id);
+        const done = tally.total > 0 && tally.found >= tally.total;
+        return <div className="album-page" key={page.id}>
+          <h3>
+            <span aria-hidden="true">{page.emoji}</span> {page.label}
+            {done
+              ? <span className="medal" aria-label={`${page.label} er samlet`} role="img">🏅</span>
+              : <span className="album-count">{tally.found} av {tally.total}</span>}
+          </h3>
+          <div className="album-row">
+            {creaturesInPage(page.id).map((creature) => <AlbumCard
+              key={creature.id}
+              creature={creature}
+              found={album.discovered.includes(creature.id)}
+            />)}
+          </div>
+        </div>;
+      })}
+      {complete && <div className="finale">
+        <p>🎉 Alle {CREATURES.length} dyrekortene er samlet! Rex er stolt av deg.</p>
+        <button className="restart-button" type="button" onClick={startOver}>Start på nytt</button>
       </div>}
-      <button className="strike-button" onClick={strike} disabled={phase === 'waiting'} type="button">
-        {phase === 'ready' ? '⚔️ Slå ut!' : phase === 'waiting' ? 'Rex snur kortet…' : 'Nytt slag ⚔️'}
-      </button>
-      <p className="mode-hint">
-        {activeMode.id === 'plus' && 'Pluss-slag: kortene legges sammen – hvem slo hardest?'}
-        {activeMode.id === 'minus' && 'Minus-slag: hvor stort er gapet mellom kortene?'}
-        {activeMode.id === 'largest' && 'Størst vinner: bare se på kortene, ingen regning.'}
-      </p>
     </section>
-
-    {phase === 'revealed' && result && <BurstLayer tone={result.outcome} />}
   </main>;
 }
