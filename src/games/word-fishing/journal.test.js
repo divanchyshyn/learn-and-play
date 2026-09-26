@@ -1,14 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, allWordsCaught, caughtWordsInCrate, createJournal,
-  crateFull, crateTally, hasRoomForWord, hasWord, journalCodec, openCategoryIds, recordCatch,
-  recordDecoration, recordTrip, tripCodec, tripHasWork, unavailableWords, uncaughtWordsInCrate,
+  crateFull, crateTally, hasRoomForWord, hasWord, journalCodec, recordCatch,
+  recordDecoration, recordTrip, tripCodec, unavailableWords, uncaughtWordsInCrate,
   wordsCaught, wordsLeftToCatch,
 } from './journal.js';
-import { createTripPlan, REEF_REWARDS } from './trip.js';
+import { CATCHES_PER_TRIP, createTripPlan, REEF_REWARDS } from './trip.js';
 import {
-  CATEGORY_CRATE_IDS, CRATE_TARGET, LENGTH_CRATE_IDS, SHORT_WORD_MAX, TARGET_WORD_COUNT,
-  WORD_BANK, WORD_COUNT, crateWordCount, wordsInCrate,
+  CATEGORY_CRATE_IDS, CRATE_TARGET, TARGET_WORD_COUNT, WORD_COUNT, crateWordCount, wordsInCrate,
 } from './words.js';
 
 describe('word-fishing journal', () => {
@@ -63,11 +62,8 @@ describe('word-fishing journal', () => {
     // The pool behind the target is twice as big as the goal.
     expect(crateWordCount(CATEGORY_CRATE_IDS[0])).toBeGreaterThan(CRATE_TARGET);
 
-    // The length crates count the very same words, just by how long they are.
-    const shortWords = WORD_BANK.filter((entry) => entry.word.length <= SHORT_WORD_MAX);
-    expect(crateTally(journal, LENGTH_CRATE_IDS[0]).total).toBe(shortWords.length);
-    expect(crateTally(journal, LENGTH_CRATE_IDS[1]).total).toBe(WORD_COUNT - shortWords.length);
-    expect(crateTally(createJournal(), LENGTH_CRATE_IDS[0]).caught).toBe(0);
+    // A crate the boat does not carry has nothing in it and no target.
+    expect(crateTally(journal, 'finnesikke')).toEqual({ caught: 0, total: 0 });
   });
 
   it('knows which words a crate could still take', () => {
@@ -88,28 +84,6 @@ describe('word-fishing journal', () => {
     // Half the pool is still uncaught, yet the crate can take no more.
     expect(uncaughtWordsInCrate(full, 'nature')).toEqual([]);
     expect(pool.length).toBeGreaterThan(CRATE_TARGET);
-  });
-
-  it('knows a trip that can no longer add a word to the book', () => {
-    const nature = wordsInCrate('nature').slice(0, CRATE_TARGET).map((entry) => entry.word);
-    const full = { words: nature, trips: 0, decorations: [] };
-    const orderTrip = createTripPlan(4, () => 0.5);
-    expect(orderTrip.orderCrateId).toBe('nature');
-    expect(tripHasWork(orderTrip, full)).toBe(false);
-    expect(tripHasWork(orderTrip, { ...full, words: nature.slice(0, -1) })).toBe(true);
-    // Free-sorting and length trips carry every rule, so with only Nature
-    // finished they still have work in the other categories.
-    expect(tripHasWork(createTripPlan(1), full)).toBe(true);
-    expect(tripHasWork(createTripPlan(3), full)).toBe(true);
-    // Only a fully caught book stops every trip.
-    expect(tripHasWork(createTripPlan(1), { words: WORD_BANK.map((entry) => entry.word), trips: 0, decorations: [] })).toBe(false);
-  });
-
-  it('lists the categories that still have words to find', () => {
-    const nature = wordsInCrate('nature').slice(0, CRATE_TARGET).map((entry) => entry.word);
-    const journal = { words: nature, trips: 0, decorations: [] };
-    expect(openCategoryIds(journal)).toEqual(CATEGORY_CRATE_IDS.filter((id) => id !== 'nature'));
-    expect(openCategoryIds(createJournal())).toEqual(CATEGORY_CRATE_IDS);
   });
 
   it('keeps every word of a finished crate out of the water', () => {
@@ -187,9 +161,9 @@ describe('word-fishing journal storage', () => {
 });
 
 describe('word-fishing trip storage', () => {
-  it('round-trips every trip kind', () => {
+  it('round-trips the free-sorting trip', () => {
     expect(TRIP_KEY).toBe('wordFishing:trip');
-    for (const number of [1, 3, 4]) {
+    for (const number of [1, 2, 4]) {
       const trip = createTripPlan(number);
       expect(tripCodec.parse(tripCodec.serialize(trip))).toEqual(trip);
     }
@@ -201,6 +175,23 @@ describe('word-fishing trip storage', () => {
     expect(tripCodec.parse(JSON.stringify({ version: 1, trip: { ...trip, kind: 'slappe-av' } }))).toBeNull();
     expect(tripCodec.parse('{}')).toBeNull();
     expect(tripCodec.parse('ikke json')).toBeNull();
+  });
+
+  it('reads an old one-crate order trip back as free sorting', () => {
+    // A save from the version that still dealt one-crate trips: the boat keeps
+    // its number and its progress, and all four crates are open again.
+    const raw = JSON.stringify({
+      version: 1,
+      trip: { number: 4, kind: 'order', crates: ['nature'], goal: 3, collected: 2, orderCrateId: 'nature' },
+    });
+    expect(tripCodec.parse(raw)).toEqual({
+      number: 4,
+      kind: 'freeSort',
+      crates: CATEGORY_CRATE_IDS,
+      goal: CATCHES_PER_TRIP,
+      collected: 2,
+      orderCrateId: null,
+    });
   });
 
   it('refuses progress that runs past the goal', () => {

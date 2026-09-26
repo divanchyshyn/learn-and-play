@@ -437,20 +437,7 @@
 .primary-button:hover, .outline-button:hover { transform: translateY(-2px); }
 .primary-button:active, .outline-button:active { transform: translateY(1px); }
 
-/* ---- A fish with nowhere to go, and the end of a trip --------------------- */
-.notice-card {
-  position: absolute; left: 50%; top: 44%; translate: -50% -50%; z-index: 16;
-  width: min(90%, 320px);
-  display: grid; gap: 4px; justify-items: center; text-align: center;
-  padding: 14px 16px 12px;
-  border: 4px solid #0c8fb6; border-radius: 16px;
-  background: #f1fafd;
-  box-shadow: 0 10px 0 rgba(20, 63, 78, .18);
-  animation: card-pop .2s ease;
-}
-.notice-kicker { color: #0b7897; font-size: .85rem; font-weight: 900; letter-spacing: .6px; text-transform: uppercase; }
-.notice-note { color: #285362; font-size: .9rem; line-height: 1.35; }
-
+/* ---- The end of a trip ---------------------------------------------------- */
 .trip-done {
   position: absolute; left: 50%; top: 50%; translate: -50% -50%; z-index: 18;
   width: min(92%, 340px);
@@ -465,7 +452,6 @@
 .trip-done p { margin: 0; color: #285362; line-height: 1.4; }
 .trip-done-mascot { font-size: 2.6rem !important; line-height: 1 !important; animation: mascot-hop .7s ease infinite alternate; }
 @keyframes mascot-hop { to { translate: 0 -8px; rotate: -6deg; } }
-.trip-done-full { font-weight: 900; color: #b34a26 !important; }
 .trip-done-reward { font-weight: 900; color: #95661a !important; }
 .trip-done-tally { font-size: .88rem; }
 
@@ -683,7 +669,7 @@
 /* ---- Focus rings and small screens --------------------------------------- */
 .sea-surface:focus-visible, .strike-ring:focus-visible, .action-button:focus-visible,
 .reel-crank:focus-visible, .crate:focus-visible, .chip:focus-visible,
-.primary-button:focus-visible, .outline-button:focus-visible, .notice-card:focus-visible,
+.primary-button:focus-visible, .outline-button:focus-visible,
 .book-close:focus-visible, .back-link:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
 
 @media (max-width: 640px) {

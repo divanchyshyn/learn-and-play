@@ -9,7 +9,7 @@ import {
   BITE_TICKS, BOAT_MAX_X, BOAT_SPEED, BOAT_START_X, CAST_TICKS, DROP_MAX_DEPTH, DROP_MIN_DEPTH, DROP_SWAY,
   NIBBLE_EACH, NIBBLES_MIN, RIG_DX, RIG_Y, SLACK_TICKS, TENSION_NEAR,
 } from './rig.js';
-import { acceptsWord, createTripPlan } from './trip.js';
+import { createTripPlan } from './trip.js';
 import { WORD_BANK } from './words.js';
 
 beforeEach(() => {
@@ -602,23 +602,5 @@ describe('word-fishing invariants', () => {
         expect(['swim', 'chasing', 'nibbling', 'biting', 'hooked', 'aboard', 'delivered']).toContain(fish.status);
       }
     }
-  });
-
-  it('always leaves a fish worth catching on an ordered trip', () => {
-    const orderTrip = createTripPlan(4);
-    let sea = createSea(orderTrip);
-    for (let tick = 0; tick < 600; tick += 1) {
-      sea = tickSea(sea);
-      expect(sea.fishes.some((fish) => acceptsWord(orderTrip, fishWord(fish)))).toBe(true);
-      expect(sea.fishes).toHaveLength(FISH_ON_SCREEN);
-    }
-  });
-
-  it('always sends a fish that counts to the bait on an ordered trip', () => {
-    const orderTrip = createTripPlan(4);
-    let sea = castBait(createSea(orderTrip));
-    sea = tickTimes(sea, CAST_TICKS + OFFER_TICKS + CHASE_TICKS + NIBBLES_MIN * NIBBLE_EACH);
-    expect(canStrike(sea)).toBe(true);
-    expect(acceptsWord(orderTrip, fishWord(baitFish(sea)))).toBe(true);
   });
 });

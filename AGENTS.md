@@ -26,7 +26,7 @@ Build a small, friendly collection of browser games for children. Games should b
   | `snakes-and-ladders`, `SnakesAndLadders` | Slanger og stiger |
   | `number-line-hop`, `NumberLineHop` | Tierhopp |
 
-- Storage keys are English as well (`soundLabyrinth:game`, `cardBattle:tally`,
+- Storage keys are English as well (`soundLabyrinth:game`, `cardBattle:album`,
   …). If a key ever has to change again, move the saved value once with
   `migrateStorage` from `src/shared/persistence.js`, so no child loses progress.
 - The Norwegian slugs that were published before this rule existed were renamed

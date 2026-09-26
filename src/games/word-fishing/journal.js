@@ -1,7 +1,7 @@
 import {
   CATEGORY_CRATE_IDS, WORD_BANK, crateById, crateTarget, categoryForWord, isWordInBank, wordsInCrate,
 } from './words.js';
-import { crateTakesWord, isValidTripShape } from './trip.js';
+import { crateTakesWord, readTrip } from './trip.js';
 
 // The fishing journal is what makes Word Fishing a game a child can come back
 // to: which words have been caught, how many trips are finished, and which reef
@@ -69,46 +69,29 @@ export function allWordsCaught(journal) {
 // What the celebrate card says when the very last word has been caught.
 export const ALL_WORDS_MESSAGE = 'Alle ordene er fanget!';
 
-// How full one crate is. A category crate counts its words in the book against
-// its target of ten, even though the pool behind it holds twenty. The length
-// crates are not goals of their own: they show how many words of each length
-// are in the book, out of all the words of that length.
+// How full one crate is: the words of its category in the book, against its
+// target of ten – even though the pool behind it holds twenty words. An
+// unknown crate has nothing to fill.
 export function crateTally(journal, crateId) {
-  const crate = crateById(crateId);
   const caught = journal.words.filter((word) => crateTakesWord(crateId, word)).length;
-  const total = crate?.kind === 'category'
-    ? crateTarget(crateId)
-    : WORD_BANK.filter((entry) => crateTakesWord(crateId, entry.word)).length;
+  const total = crateTarget(crateId);
   return { caught: Math.min(caught, total), total };
 }
 
-// The words a crate could still take: uncaught, and belonging in it under its
-// own rule (meaning or length). A category crate is done at its target even
-// though its pool holds more words, so it takes nothing more; a word from a
-// finished category has no crate left to go to, so a length crate takes none
-// of those either. An order trip is over when its crate is full – there is
-// nothing left the child could add to it, so nothing to fish for.
+// The words a crate could still take: its own uncaught words, while the crate
+// is not yet full. A crate is done at its target even though its pool holds
+// more words, so it takes nothing more – and the rest of its pool never swims
+// again either (see unavailableWords).
 export function uncaughtWordsInCrate(journal, crateId) {
-  const crate = crateById(crateId);
-  if (!crate) return [];
-  if (crate.kind === 'category') {
-    if (crateFull(journal, crateId)) return [];
-    return wordsInCrate(crateId).filter((entry) => !hasWord(journal, entry.word));
-  }
-  return WORD_BANK.filter((entry) =>
-    crateTakesWord(crateId, entry.word)
-    && !hasWord(journal, entry.word)
-    && !crateFull(journal, entry.cat));
+  if (!crateById(crateId)) return [];
+  if (crateFull(journal, crateId)) return [];
+  return wordsInCrate(crateId).filter((entry) => !hasWord(journal, entry.word));
 }
 
 export function crateFull(journal, crateId) {
-  const crate = crateById(crateId);
-  if (!crate) return false;
-  if (crate.kind === 'category') {
-    const { caught, total } = crateTally(journal, crateId);
-    return caught >= total;
-  }
-  return uncaughtWordsInCrate(journal, crateId).length === 0;
+  if (!crateById(crateId)) return false;
+  const { caught, total } = crateTally(journal, crateId);
+  return caught >= total;
 }
 
 // The words the sea must not serve any more: the words already in the book,
@@ -131,17 +114,6 @@ export function caughtWordsInCrate(journal, crateId) {
 export function hasRoomForWord(journal, word) {
   const crateId = categoryForWord(word);
   return crateId !== null && !crateFull(journal, crateId);
-}
-
-// Can this trip still add a single word to the book? Once every crate on board
-// is full the trip is pointless – the child must not be made to finish it.
-export function tripHasWork(trip, journal) {
-  return trip.crates.some((crateId) => !crateFull(journal, crateId));
-}
-
-// The meaning crates that still have words to find, for dealing the next trip.
-export function openCategoryIds(journal) {
-  return CATEGORY_CRATE_IDS.filter((crateId) => !crateFull(journal, crateId));
 }
 
 function normalizeWords(words) {
@@ -183,16 +155,7 @@ export const tripCodec = {
     try {
       const data = JSON.parse(raw);
       if (!data || data.version !== TRIP_VERSION) return null;
-      const saved = data.trip;
-      if (!isValidTripShape(saved)) return null;
-      return {
-        number: saved.number,
-        kind: saved.kind,
-        crates: [...saved.crates],
-        goal: saved.goal,
-        collected: saved.collected,
-        orderCrateId: saved.kind === 'order' ? saved.orderCrateId : null,
-      };
+      return readTrip(data.trip);
     } catch {
       return null;
     }

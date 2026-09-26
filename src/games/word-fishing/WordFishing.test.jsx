@@ -8,7 +8,7 @@ import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, SLAC
 import {
   ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, createJournal, journalCodec, tripCodec,
 } from './journal.js';
-import { acceptsWord, createTripPlan, crateForWord, tripRequest } from './trip.js';
+import { createTripPlan, tripRequest } from './trip.js';
 import { sounds } from './sounds.js';
 import {
   CATEGORY_CRATE_IDS, CRATE_TARGET, TARGET_WORD_COUNT, WORD_BANK, crateById, crateTarget, wordsInCrate,
@@ -174,7 +174,7 @@ describe('word-fishing the opening screen', () => {
       expect(crate.getAttribute('aria-label')).toMatch(/^Kassen .+: 0 av \d+ ord$/);
     }
 
-    expect(screen.getByText(tripRequest(createTripPlan(1)))).toBeInTheDocument();
+    expect(screen.getByText(tripRequest())).toBeInTheDocument();
     expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
   });
 
@@ -641,26 +641,6 @@ describe('word-fishing catch and reward', () => {
     expect(view.container.querySelector('.fish-biting')).toBeTruthy();
   });
 
-  it('sends the bait a fish that counts on a trip with one crate', () => {
-    // A later trip carries one crate only, so the sea has to choose a fish that
-    // counts: the child can no longer pick one out of the shoal themselves.
-    vi.spyOn(Math, 'random').mockReturnValue(0.3);
-    const orderTrip = createTripPlan(4);
-    window.localStorage.setItem(TRIP_KEY, tripCodec.serialize(orderTrip));
-
-    const view = render(<WordFishing />);
-    expect(view.container.querySelectorAll('.crate')).toHaveLength(1);
-
-    const word = catchWord(view);
-    expect(crateForWord(orderTrip, word)).not.toBeNull();
-    expect(acceptsWord(orderTrip, word)).toBe(true);
-
-    // It goes into the one crate on board, and the day moves on.
-    fireEvent.click(crateElement(view, crateForWord(orderTrip, word)));
-    ticks(DELIVER_TICKS + 2);
-    expect(screen.getByText('1 av 3 i dag')).toBeInTheDocument();
-  });
-
   it('lets a fish that belongs in another crate swim on, with nothing lost', () => {
     const view = render(<WordFishing />);
     const word = catchWord(view);
@@ -768,71 +748,31 @@ describe('word-fishing rewards and the fishing book', () => {
 });
 
 
-describe('word-fishing the long trips', () => {
-  it('ends an order trip once its crate reaches its target, instead of forcing the round', () => {
-    const naturePool = wordsInCrate('nature').map((entry) => entry.word);
-    expect(naturePool.length).toBeGreaterThan(CRATE_TARGET);
-    window.localStorage.setItem(JOURNAL_KEY, journalCodec.serialize({
-      ...createJournal(),
-      words: naturePool.slice(0, CRATE_TARGET - 1),
+describe('word-fishing saved trips', () => {
+  it('reads an old one-crate order trip back as the free-sorting trip that replaced it', () => {
+    window.localStorage.setItem(TRIP_KEY, tripCodec.serialize({
+      number: 4,
+      kind: 'order',
+      crates: ['nature'],
+      goal: 3,
+      collected: 2,
+      orderCrateId: 'nature',
     }));
-    // Trip 4 is the single-crate trip; 0.5 picks Nature.
-    window.localStorage.setItem(TRIP_KEY, tripCodec.serialize(createTripPlan(4, () => 0.5)));
-
-    const view = render(<WordFishing />);
-    expect(view.container.querySelectorAll('.crate')).toHaveLength(1);
-    expect(screen.getByText('0 av 3 i dag')).toBeInTheDocument();
-
-    // The bait brings one more word of the one category on board, and that fills
-    // the crate – so the trip is over even though its goal was three.
-    const word = catchWord(view);
-    expect(categoryOf(word)).toBe('nature');
-    fireEvent.click(crateElement(view, 'nature'));
-
-    const done = view.container.querySelector('.trip-done');
-    expect(done).toBeTruthy();
-    expect(done.textContent).toContain('Kassen Natur er full');
-    expect(done.textContent).toContain('Tur 1 er ferdig!');
-    expect(screen.getByText('1 av 3 i dag')).toBeInTheDocument();
-    expect(screen.getByText(`${CRATE_TARGET} av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - CRATE_TARGET} igjen.`)).toBeInTheDocument();
-    // The filled crate earns its reward like any finished trip.
-    expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
-
-    // The next trip follows the cycle with all crates open again.
-    fireEvent.click(within(done).getByRole('button', { name: /Ny tur/ }));
-    expect(view.container.querySelectorAll('.crate')).toHaveLength(4);
-    expect(screen.getByText(tripRequest(createTripPlan(2)))).toBeInTheDocument();
-    // The ten uncaught words the finished pool still holds stay out of the
-    // water: the rest of the run can only meet the other categories.
-    expect(categoryOf(catchAndSort(view))).not.toBe('nature');
-  });
-
-  it('re-deals a workless saved trip as the next trip, on the cycle', () => {
-    const natureWords = wordsInCrate('nature').map((entry) => entry.word);
-    window.localStorage.setItem(JOURNAL_KEY, journalCodec.serialize({
-      ...createJournal(),
-      words: natureWords,
-      trips: 4,
-    }));
-    // Trip 4 is the single-crate trip, already dealt to Nature and now full:
-    // the save holds a boat with nothing left to fish for.
-    window.localStorage.setItem(TRIP_KEY, tripCodec.serialize(createTripPlan(4, () => 0.5)));
 
     const view = render(<WordFishing />);
 
-    // On load a fresh trip is dealt from the journal, so the boat is number 5
-    // and the cycle moves on to free sorting instead of repeating the order
-    // trip – badge, card and the next «Ny tur» can never disagree.
-    expect(screen.getByText('Tur 5')).toBeInTheDocument();
+    // The boat keeps its number and its two catches, but carries all four
+    // crates: badge, order card and the next «Ny tur» can never disagree.
+    expect(screen.getByText('Tur 4')).toBeInTheDocument();
     expect(view.container.querySelectorAll('.crate')).toHaveLength(4);
-    expect(screen.getByText(tripRequest(createTripPlan(5)))).toBeInTheDocument();
-    expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+    expect(screen.getByText('2 av 4 i dag')).toBeInTheDocument();
+    expect(screen.getByText(tripRequest())).toBeInTheDocument();
     expect(fishElements(view)).toHaveLength(FISH_ON_SCREEN);
     expect(view.container.querySelector('.trip-done')).toBeNull();
 
-    // The sea is alive, and the words it deals avoid the full Nature crate.
-    const word = catchAndSort(view);
-    expect(categoryOf(word)).not.toBe('nature');
+    // A catch from any category sorts as usual.
+    catchAndSort(view);
+    expect(screen.getByText('3 av 4 i dag')).toBeInTheDocument();
   });
 });
 

@@ -5,42 +5,24 @@
 
 import {
   CATEGORY_CRATE_IDS,
-  LENGTH_CRATE_IDS,
-  SHORT_WORD_MAX,
   crateById,
   categoryForWord,
 } from './words.js';
 
-// How many good catches end a trip, and how many the boat wants when it is out
-// for one particular kind of word.
+// How many good catches end a trip.
 export const CATCHES_PER_TRIP = 4;
-export const ORDER_TRIP_GOAL = 3;
 
-// Trips take turns: the first two let the child sort freely, then a trip asks
-// for short/long words, then one asks for a single category. Then it repeats.
-// A brand-new player therefore meets one rule at a time.
-export const TRIP_CYCLE = ['freeSort', 'freeSort', 'length', 'order'];
+// Every trip is the same free-sorting trip: the boat carries all four crates,
+// and the child decides which one each catch belongs in. The one-crate order
+// trips an earlier version dealt in a cycle are gone – sorting freely is the
+// only kind of fishing there is. A saved order trip is still read back as the
+// free-sorting trip that replaced it (see `readTrip` below).
 
-export const TRIP_KIND_LABEL = {
-  freeSort: 'Sorter fangsten i kassene',
-  length: 'Korte ord og lange ord',
-  order: 'Bare én kasse i dag',
-};
-
-// Which crate holds this word under this trip's rule? A word whose length or
-// meaning no crate on board asks for belongs nowhere (`null`) and is gently
-// released again.
-function lengthCrateIdForWord(word) {
-  return word.length <= SHORT_WORD_MAX ? 'short' : 'long';
-}
-
-// Does this crate take this word at all, no matter which trip is going on? The
-// fishing book uses this to count a word group's progress.
+// Does this crate take this word? A word whose meaning no crate on board asks
+// for belongs nowhere (`null`) and is gently released again. The fishing book
+// counts a crate's progress by this very same rule.
 export function crateTakesWord(crateId, word) {
-  const crate = crateById(crateId);
-  if (!crate) return false;
-  if (crate.kind === 'length') return crateId === lengthCrateIdForWord(word);
-  return crateId === categoryForWord(word);
+  return crateById(crateId) !== null && crateId === categoryForWord(word);
 }
 
 export function crateAcceptsWord(trip, crateId, word) {
@@ -58,29 +40,17 @@ export function acceptsWord(trip, word) {
   return crateForWord(trip, word) !== null;
 }
 
-export function tripKindForNumber(tripNumber) {
-  const index = (Math.max(1, tripNumber) - 1) % TRIP_CYCLE.length;
-  return TRIP_CYCLE[index];
-}
-
-// A fresh trip. `tripNumber` is the number of finished trips + 1, and only the
-// kind's randomness (which category the boat is after) needs a random source.
-// `availableCategories` limits which categories an order trip may ask for: a
-// full crate is never picked, so the child is never sent after words that are
-// already all in the book.
-export function createTripPlan(tripNumber, random = Math.random, availableCategories = CATEGORY_CRATE_IDS) {
+// A fresh trip. `tripNumber` is the number of finished trips + 1.
+export function createTripPlan(tripNumber) {
   const number = Math.max(1, Math.trunc(tripNumber) || 1);
-  const kind = tripKindForNumber(number);
-  if (kind === 'length') {
-    return { number, kind, crates: [...LENGTH_CRATE_IDS], goal: CATCHES_PER_TRIP, collected: 0, orderCrateId: null };
-  }
-  if (kind === 'order') {
-    const open = availableCategories.filter((crateId) => crateById(crateId)?.kind === 'category');
-    const pool = open.length > 0 ? open : CATEGORY_CRATE_IDS;
-    const orderCrateId = pool[Math.floor(random() * pool.length)];
-    return { number, kind, crates: [orderCrateId], goal: ORDER_TRIP_GOAL, collected: 0, orderCrateId };
-  }
-  return { number, kind, crates: [...CATEGORY_CRATE_IDS], goal: CATCHES_PER_TRIP, collected: 0, orderCrateId: null };
+  return {
+    number,
+    kind: 'freeSort',
+    crates: [...CATEGORY_CRATE_IDS],
+    goal: CATCHES_PER_TRIP,
+    collected: 0,
+    orderCrateId: null,
+  };
 }
 
 export function tripComplete(trip) {
@@ -95,13 +65,9 @@ export function tripProgress(trip) {
   return `${trip.collected} av ${trip.goal}`;
 }
 
-// The order card the boat carries: what the crew is looking for right now.
-export function tripRequest(trip) {
-  if (trip.kind === 'order') {
-    const crate = crateById(trip.orderCrateId);
-    return `I dag trenger vi ${trip.goal} ${crate.label.toLowerCase()}`;
-  }
-  if (trip.kind === 'length') return `I dag sorterer vi ${SHORT_WORD_MAX} bokstaver eller mindre mot lengre ord`;
+// The card the boat carries: sorting every catch by meaning is the whole task,
+// so every trip asks for the same thing.
+export function tripRequest() {
   return 'Sorter hver fisk i kassen den hører til';
 }
 
@@ -144,41 +110,58 @@ export function unlockedRewards(decorationIndexes) {
 
 // ---- Reading a saved trip back -------------------------------------------
 // A stored trip is only trusted when it is a shape this version of the game
-// could actually have dealt: the right kind for its number, exactly the crates
-// and the goal that kind is dealt with, and a progress that has not run past
-// its own goal. Anything else falls back to a fresh trip instead of a boat with
-// no crates.
+// could actually have dealt: a free-sorting trip carrying all four crates, with
+// the goal that kind is dealt with and a progress that has not run past its own
+// goal. Anything else falls back to a fresh trip instead of a boat with no
+// crates.
 //
-// The crates each kind is dealt with, and the one goal it is dealt with. A
-// length trip with two category crates, an order trip pointing at a length
-// crate, or an order goal on a free-sorting trip is a shape this game never
-// handed out, so it is refused rather than half-understood.
-function dealtCrates(kind, orderCrateId) {
-  if (kind === 'length') return orderCrateId === null ? [...LENGTH_CRATE_IDS] : null;
-  if (kind === 'order') {
-    const crate = crateById(orderCrateId);
-    return crate && crate.kind === 'category' ? [orderCrateId] : null;
-  }
-  return orderCrateId === null ? [...CATEGORY_CRATE_IDS] : null;
-}
+// The one-crate order trips an earlier version dealt are not a shape this
+// version hands out any more, but a save that holds one is still read back – as
+// the free-sorting trip that replaced it, keeping the trip number and the
+// catches made so far, so a child never sees the boat's number jump.
 
-function dealtGoal(kind) {
-  return kind === 'order' ? ORDER_TRIP_GOAL : CATCHES_PER_TRIP;
+function freeSortTripFrom(saved) {
+  return {
+    number: saved.number,
+    kind: 'freeSort',
+    crates: [...CATEGORY_CRATE_IDS],
+    goal: CATCHES_PER_TRIP,
+    collected: Math.min(saved.collected, CATCHES_PER_TRIP),
+    orderCrateId: null,
+  };
 }
 
 export function isValidTripShape(saved) {
   if (!saved || typeof saved !== 'object') return false;
-  if (typeof saved.kind !== 'string' || !(saved.kind in TRIP_KIND_LABEL)) return false;
+  if (saved.kind !== 'freeSort') return false;
   if (!Number.isInteger(saved.number) || saved.number < 1) return false;
-  if (tripKindForNumber(saved.number) !== saved.kind) return false;
-  if (!Array.isArray(saved.crates) || saved.crates.length === 0) return false;
+  if (!Array.isArray(saved.crates) || saved.crates.length !== CATEGORY_CRATE_IDS.length) return false;
   if (saved.crates.some((crateId) => !crateById(crateId))) return false;
   if (new Set(saved.crates).size !== saved.crates.length) return false;
-  if (!Number.isInteger(saved.goal) || !Number.isInteger(saved.collected)) return false;
-  if (saved.collected < 0 || saved.collected > saved.goal) return false;
-  if (saved.goal !== dealtGoal(saved.kind)) return false;
-  const dealt = dealtCrates(saved.kind, saved.orderCrateId);
-  if (!dealt || saved.crates.length !== dealt.length) return false;
-  return saved.crates.every((crateId) => dealt.includes(crateId));
+  if (!CATEGORY_CRATE_IDS.every((crateId) => saved.crates.includes(crateId))) return false;
+  if (saved.orderCrateId !== null) return false;
+  if (!Number.isInteger(saved.goal) || saved.goal !== CATCHES_PER_TRIP) return false;
+  if (!Number.isInteger(saved.collected) || saved.collected < 0 || saved.collected > saved.goal) return false;
+  return true;
 }
 
+// An order trip the older cycle dealt: exactly one known crate, its own goal,
+// and progress that never ran past it. Null for anything else.
+function migratedOrderTrip(saved) {
+  if (!saved || typeof saved !== 'object') return null;
+  if (saved.kind !== 'order') return null;
+  if (!Number.isInteger(saved.number) || saved.number < 1) return null;
+  if (!crateById(saved.orderCrateId)) return null;
+  if (!Array.isArray(saved.crates) || saved.crates.length !== 1) return null;
+  if (saved.crates[0] !== saved.orderCrateId) return null;
+  if (!Number.isInteger(saved.goal) || !Number.isInteger(saved.collected)) return null;
+  if (saved.collected < 0 || saved.collected > saved.goal) return null;
+  return freeSortTripFrom(saved);
+}
+
+// The trip a saved value means in this version, or null when the value is not a
+// trip at all. The caller falls back to `createTripPlan` on null.
+export function readTrip(saved) {
+  if (isValidTripShape(saved)) return freeSortTripFrom(saved);
+  return migratedOrderTrip(saved);
+}
