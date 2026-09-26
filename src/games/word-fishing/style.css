@@ -383,15 +383,30 @@
 .fishing-float {
   position: absolute; z-index: 7; width: 20px; height: 29px;
   transform: translate(-50%, -50%);
+  /* The glide between ticks is the fishing line's clock as well (see
+     `.fishing-line-frame`): the same 120ms, the same linear step, so the float and
+     the line it hangs from travel as one. */
   transition: left 120ms linear, top 120ms linear;
   animation: float-bob 1.8s ease-in-out infinite alternate;
 }
-.float-art { display: block; width: 100%; height: 100%; overflow: visible; }
+.float-art { display: block; width: 100%; height: 100%; overflow: visible; transition: scale 220ms ease-out; }
 .float-antenna { fill: none; stroke: #d24d31; stroke-width: 2; stroke-linecap: round; }
 @keyframes float-bob { to { translate: 0 4px; } }
+/* The ring belongs to the water, not to the float: it is there while the float
+   lies in the water, and bursts out once when the cast touches down, which is what
+   tells a child the float is in. Up in the air the float wears no ring at all. */
+.float-ripple { transform-box: fill-box; transform-origin: center; opacity: 0; }
+.fishing-float.float-waiting .float-ripple,
+.fishing-float.float-nibbling .float-ripple,
+.fishing-float.float-biting .float-ripple { opacity: 1; animation: float-plop .55s ease-out; }
+@keyframes float-plop { from { scale: 2.5; opacity: 0; } 45% { opacity: .85; } to { scale: 1; opacity: 1; } }
 /* On the way down the float is still above the water, a little smaller than it
-   will be when it floats. */
-.fishing-float.float-flying { animation: none; scale: .8; }
+   will be when it floats. The size belongs to the drawing, never to the sprite:
+   `scale` on the sprite itself would scale the `translate(-50%, -50%)` that puts
+   its middle on the float's own point, so the float would hang a few pixels off
+   the anchor the line ends on - exactly what a cast shows up. */
+.fishing-float.float-flying { animation: none; }
+.fishing-float.float-flying .float-art { scale: .8; }
 /* A fish is tasting it: the float is knocked about, faster and faster. */
 .fishing-float.float-nibbling { animation: float-nibble .5s ease-in-out infinite alternate; }
 @keyframes float-nibble { from { translate: 0 1px; scale: 1; } to { translate: 0 5px; scale: .92; } }
@@ -420,14 +435,27 @@
 }
 
 /* The rod and the line live in a layer whose `left` is the boat's, so the rod
-   follows the angler's hands exactly and glides with them between ticks. */
+   follows the angler's hands exactly and glides with them between ticks. The
+   layer sits under the float, so the line runs in behind the float instead of
+   across its face: the two read as tied together however the float bobs. */
 .line-layer {
-  position: absolute; top: 0; height: 100%; width: 100%; z-index: 8;
+  position: absolute; top: 0; height: 100%; width: 100%; z-index: 6;
   pointer-events: none; overflow: visible;
   transition: left 120ms linear;
 }
 .line-drawing { display: block; width: 100%; height: 100%; overflow: visible; }
 .rod-line { stroke: #7a5a38; stroke-width: 3.4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+/* The line is drawn once, from (0,0) to (1,1) of its own frame, and this one
+   transform stretches that frame from the rod tip onto the float (see LineLayer in
+   SeaScene.jsx). Its own corner is the origin, and `vector-effect` on the path
+   keeps the stroke one hair wide however far the frame is stretched. The
+   transition is the float's own - same 120ms, same linear step - so the line and
+   the float it is tied to move as one thing instead of the line jumping to each
+   new spot and waiting there for the float to arrive. */
+.fishing-line-frame {
+  transform-box: view-box; transform-origin: 0 0;
+  transition: transform 120ms linear;
+}
 .fishing-line { fill: none; stroke: rgba(255, 253, 243, .8); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
 .fishing-line.taut { stroke: #fffdf3; stroke-width: 2; }
 

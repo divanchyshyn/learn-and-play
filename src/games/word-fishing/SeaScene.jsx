@@ -86,18 +86,47 @@ function SailMarker({ boat, nudge }) {
 
 // The rod and the line, in a layer that sails with the boat: its own `left` is
 // the boat's, so the rod stays glued to the angler's hands and glides along with
-// them, while the line's far end reaches the float below it or the fish that is
-// being fought. Its coordinates are the sea box's, measured from the boat's left
-// edge, which is exactly what the rig anchors are (see RIG_DX in rig.js).
-function LineLayer({ boat, target }) {
+// them. Its coordinates are the sea box's, measured from the boat's left edge,
+// which is exactly what the rig anchors are (see RIG_DX in rig.js).
+//
+// The rod is drawn straight into those coordinates, because a rod never changes
+// shape. The line does: its far end rides the float, or the fish being fought. So
+// the line is drawn once, in a little frame of its own that runs from the rod tip
+// (0,0) to that far end (1,1), and one transform places the frame on both ends.
+//
+// That frame is what keeps the line on the float's own clock: the float glides
+// between logic ticks (see the transitions in style.css), and a line drawn
+// straight into the sea box would be re-drawn at each tick instead of gliding with
+// it - which is exactly how a line comes loose from the float it is tied to. A
+// frame that glides instead keeps both ends where they belong, all the way down.
+//
+// The bow is a touch past halfway down the drop (0.5 would be a straight run), so
+// the line sags below its own ends - proportionally, the way a real line does: a
+// long drop bows more than a short one.
+export const LINE_BOW = 0.56;
+
+// The two ends of the line, in the sea box's own percentages: the rod tip, which
+// is a fixed offset from the boat's left edge, and whatever the far end is tied
+// to. A null end means no line is in the water.
+export function lineEnds(boat, target) {
   const tip = { x: RIG_DX.rodTip, y: RIG_Y.rodTip };
-  const end = target ? { x: target.x - boat.x, y: target.y } : null;
-  const midX = end ? (tip.x + end.x) / 2 + 1.5 : tip.x;
-  const midY = end ? (tip.y + end.y) / 2 + 2.5 : tip.y + 6;
+  if (!target) return { tip, end: null };
+  return { tip, end: { x: target.x - boat.x, y: target.y } };
+}
+
+function LineLayer({ boat, target, taut }) {
+  const { tip, end } = lineEnds(boat, target);
   return <div className="line-layer" style={{ left: `${boat.x}%` }}>
     <svg className="line-drawing" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
       <line className="rod-line" x1={RIG_DX.rodBase} y1={RIG_Y.rodBase} x2={tip.x} y2={tip.y} />
-      {end && <path className="fishing-line" d={`M ${tip.x} ${tip.y} Q ${midX} ${midY} ${end.x} ${end.y}`} />}
+      {end && <g
+        className="fishing-line-frame"
+        style={{
+          transform: `translate(${tip.x}px, ${tip.y}px) scale(${end.x - tip.x}, ${end.y - tip.y})`,
+        }}
+      >
+        <path className={taut ? 'fishing-line taut' : 'fishing-line'} d={`M 0 0 Q 0.5 ${LINE_BOW} 1 1`} />
+      </g>}
     </svg>
   </div>;
 }
@@ -168,7 +197,7 @@ function SailSurface({ onSail, onStep }) {
 }
 
 export function SeaScene({
-  decorations, newRewardId, boat, bait, baitPoint, lineTo, canStrike, nudge, tripNumber,
+  decorations, newRewardId, boat, bait, baitPoint, lineTo, taut, canStrike, nudge, tripNumber,
   onSail, onStep, onStrike, children,
 }) {
   return <>
@@ -179,7 +208,7 @@ export function SeaScene({
     <SeaBed decorations={decorations} newRewardId={newRewardId} />
     <SailMarker boat={boat} nudge={nudge} />
     <Boat boat={boat} tripNumber={tripNumber} />
-    <LineLayer boat={boat} target={lineTo} />
+    <LineLayer boat={boat} target={lineTo} taut={taut} />
     <SailSurface onSail={onSail} onStep={onStep} />
     <Float point={baitPoint} bait={bait} canStrike={canStrike} onStrike={onStrike} />
     {children}

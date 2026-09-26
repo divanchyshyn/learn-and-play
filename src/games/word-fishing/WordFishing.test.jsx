@@ -4,7 +4,7 @@ import { TIMING, WordFishing, seaStage, stageHint } from './WordFishing.jsx';
 import {
   DELIVER_TICKS, FISH_ON_SCREEN, TICK_MS, castBait, createSea, strikeFish,
 } from './sea.js';
-import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, SLACK_TICKS } from './rig.js';
+import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, RIG_DX, RIG_Y, SLACK_TICKS } from './rig.js';
 import {
   ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, createJournal, journalCodec, tripCodec,
 } from './journal.js';
@@ -288,9 +288,15 @@ describe('word-fishing sailing the boat', () => {
     fireEvent.click(view.container.querySelector('.cast-button'));
     for (let tick = 0; tick <= CAST_TICKS; tick += 1) {
       const float = view.container.querySelector('.fishing-float');
-      const d = view.container.querySelector('.fishing-line').getAttribute('d').split(' ');
-      expect(Number(d.at(-2)) + parseFloat(layer.style.left)).toBeCloseTo(parseFloat(float.style.left), 3);
-      expect(Number(d.at(-1))).toBeCloseTo(parseFloat(float.style.top), 3);
+      const frame = view.container.querySelector('.fishing-line-frame');
+      // The line is a single frame from (0,0) to (1,1) that one transform stretches
+      // onto its two ends (see LineLayer in SeaScene.jsx): the near end belongs on
+      // the rod tip, the far end on the float, tick after tick.
+      const [x, y, scaleX, scaleY] = frame.style.transform.match(/-?[\d.]+/g).map(Number);
+      expect(x).toBeCloseTo(RIG_DX.rodTip, 3);
+      expect(y).toBeCloseTo(RIG_Y.rodTip, 3);
+      expect(x + scaleX + parseFloat(layer.style.left)).toBeCloseTo(parseFloat(float.style.left), 3);
+      expect(y + scaleY).toBeCloseTo(parseFloat(float.style.top), 3);
       expect(layer.style.left).toBe(view.container.querySelector('.boat').style.left);
       ticks(1);
     }

@@ -385,6 +385,7 @@ export function WordFishing() {
           bait={sea.bait}
           baitPoint={baitPosition(sea)}
           lineTo={lineTarget(sea)}
+          taut={Boolean(sea.fight)}
           canStrike={canStrike(sea) && !tripCard && !finale}
           nudge={nudge}
           tripNumber={trip.number}
