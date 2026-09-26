@@ -1,7 +1,7 @@
 import {
   CATEGORY_CRATE_IDS, WORD_BANK, crateById, crateTarget, categoryForWord, isWordInBank, wordsInCrate,
 } from './words.js';
-import { crateTakesWord, isValidTripShape } from './trip.js';
+import { crateTakesWord, readTrip } from './trip.js';
 
 // The fishing journal is what makes Word Fishing a game a child can come back
 // to: which words have been caught, how many trips are finished, and which reef
@@ -80,9 +80,8 @@ export function crateTally(journal, crateId) {
 
 // The words a crate could still take: its own uncaught words, while the crate
 // is not yet full. A crate is done at its target even though its pool holds
-// more words, so it takes nothing more; an order trip is therefore over when
-// its crate is full – there is nothing left the child could add to it, so
-// nothing left to fish for.
+// more words, so it takes nothing more – and the rest of its pool never swims
+// again either (see unavailableWords).
 export function uncaughtWordsInCrate(journal, crateId) {
   if (!crateById(crateId)) return [];
   if (crateFull(journal, crateId)) return [];
@@ -115,17 +114,6 @@ export function caughtWordsInCrate(journal, crateId) {
 export function hasRoomForWord(journal, word) {
   const crateId = categoryForWord(word);
   return crateId !== null && !crateFull(journal, crateId);
-}
-
-// Can this trip still add a single word to the book? Once every crate on board
-// is full the trip is pointless – the child must not be made to finish it.
-export function tripHasWork(trip, journal) {
-  return trip.crates.some((crateId) => !crateFull(journal, crateId));
-}
-
-// The meaning crates that still have words to find, for dealing the next trip.
-export function openCategoryIds(journal) {
-  return CATEGORY_CRATE_IDS.filter((crateId) => !crateFull(journal, crateId));
 }
 
 function normalizeWords(words) {
@@ -167,16 +155,7 @@ export const tripCodec = {
     try {
       const data = JSON.parse(raw);
       if (!data || data.version !== TRIP_VERSION) return null;
-      const saved = data.trip;
-      if (!isValidTripShape(saved)) return null;
-      return {
-        number: saved.number,
-        kind: saved.kind,
-        crates: [...saved.crates],
-        goal: saved.goal,
-        collected: saved.collected,
-        orderCrateId: saved.kind === 'order' ? saved.orderCrateId : null,
-      };
+      return readTrip(data.trip);
     } catch {
       return null;
     }
