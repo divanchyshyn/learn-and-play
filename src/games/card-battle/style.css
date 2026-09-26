@@ -3,68 +3,76 @@
 .game-header > p { max-width: 64ch; margin: 0; color: #285362; font-size: 1.03rem; line-height: 1.4; }
 
 .game-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.rounds-chip { padding: 6px 11px; border: 2px solid #d09b45; border-radius: 999px; background: #fff3d6; color: #7a4c08; font-size: .88rem; font-weight: 900; white-space: nowrap; }
-.rounds-chip.hidden-chip { visibility: hidden; }
+.found-chip { padding: 6px 11px; border: 2px solid #d09b45; border-radius: 999px; background: #fff3d6; color: #7a4c08; font-size: .88rem; font-weight: 900; white-space: nowrap; }
 .chip { min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
 .chip:hover { transform: translateY(-2px); }
-.chip.active { border-color: #e46e4b; background: #ffe4d8; color: #b34a26; }
-.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.chip:focus-visible, .hand-card:focus-visible, .lay-button:focus-visible, .next-button:focus-visible, .restart-button:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
 
-.arena { display: flex; align-items: stretch; justify-content: center; gap: clamp(8px, 3vw, 26px); margin: 0 auto 18px; padding: clamp(14px, 3vw, 24px); border: 4px solid #0c9fc4; border-radius: 16px; background: radial-gradient(circle at 50% 14%, #fffdf3 0%, #eaf6f4 78%); box-shadow: 0 9px 0 rgba(20, 63, 78, .13); }
+/* The card table: Rex, the riddle and the hand sit on one felt-like surface. */
+.arena { display: grid; justify-items: center; gap: 14px; margin: 0 auto 18px; padding: clamp(14px, 3vw, 24px); border: 4px solid #0c9fc4; border-radius: 18px; background: radial-gradient(circle at 50% 8%, #fffdf3 0%, #eaf6f4 78%); box-shadow: 0 9px 0 rgba(20, 63, 78, .13); }
 
-.fighter { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
-.fighter-avatar { font-size: clamp(2.1rem, 6vw, 2.9rem); line-height: 1; }
-.fighter h2 { margin: 0; color: #143f4e; font-size: clamp(.98rem, 2.6vw, 1.22rem); letter-spacing: .5px; text-transform: uppercase; }
-.versus { align-self: center; flex-shrink: 0; color: #e46e4b; font-size: clamp(1.05rem, 3vw, 1.55rem); font-weight: 900; transform: rotate(-8deg); text-shadow: 0 2px 0 rgba(20, 63, 78, .12); }
+.rex-row { display: flex; align-items: center; gap: 10px; width: min(100%, 560px); }
+.rex-avatar { flex-shrink: 0; font-size: clamp(1.9rem, 5.5vw, 2.6rem); line-height: 1; }
+.rex-line { position: relative; margin: 0; padding: 9px 13px; border: 2px solid #92c1c8; border-radius: 12px; background: #fff; color: #285362; font-weight: 700; line-height: 1.35; }
+.rex-line::before { content: ''; position: absolute; left: -8px; top: 50%; margin-top: -6px; border-width: 6px 9px 6px 0; border-style: solid; border-color: transparent #92c1c8 transparent transparent; }
 
-.battle-card { perspective: 720px; width: min(42vw, 164px); aspect-ratio: 3 / 4; }
-.battle-card-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .5s cubic-bezier(.3, 1.35, .5, 1); }
-.battle-card.face-up .battle-card-inner { transform: rotateY(180deg); }
-.battle-face { position: absolute; inset: 0; display: grid; place-items: center; backface-visibility: hidden; border-radius: 14px; border: 4px solid; }
-.battle-back { border-color: #085f79; background: repeating-linear-gradient(45deg, #0c9fc4 0 12px, #0a86a8 12px 24px); box-shadow: inset 0 0 0 6px rgba(255, 253, 243, .85), inset 0 -7px 0 rgba(20, 63, 78, .28); }
-.battle-back span { font-size: clamp(1.7rem, 6vw, 2.5rem); filter: drop-shadow(0 3px 0 rgba(20, 63, 78, .3)); }
-.battle-front { transform: rotateY(180deg); border-color: #d09b45; background: #fffdf3; box-shadow: inset 0 -7px 0 rgba(20, 63, 78, .1); }
-.card-value { font-size: clamp(2.5rem, 9vw, 3.9rem); font-weight: 900; color: #143f4e; }
-.fighter-player .card-value { color: #b34a26; }
-.fighter-opponent .card-value { color: #0b7897; }
-.battle-card.thinking .battle-card-inner { animation: card-wiggle .45s ease-in-out infinite alternate; }
-@keyframes card-wiggle { from { transform: rotate(-3.5deg) translateY(0); } to { transform: rotate(3.5deg) translateY(-5px); } }
+/* Rex's riddle: one big card with a dashed slot where the hand card goes. */
+.riddle-card { display: flex; align-items: center; justify-content: center; gap: clamp(5px, 1.6vw, 11px); padding: clamp(10px, 2.5vw, 16px) clamp(12px, 3vw, 22px); border: 4px solid #d09b45; border-radius: 16px; background: #fffdf3; box-shadow: inset 0 -6px 0 rgba(20, 63, 78, .08), 0 6px 0 rgba(20, 63, 78, .12); }
+.riddle-term, .riddle-blank { display: grid; place-items: center; min-width: clamp(2.3rem, 9vw, 3.2rem); min-height: clamp(3rem, 12vw, 4.2rem); border-radius: 10px; font-size: clamp(1.7rem, 7vw, 2.6rem); font-weight: 900; line-height: 1; }
+.riddle-term { border: 3px solid #0c9fc4; background: #ecf7fb; color: #0b7897; }
+.riddle-blank { border: 3px dashed #e46e4b; background: #fff3ea; color: #b34a26; }
+.riddle-op { color: #143f4e; font-size: clamp(1.3rem, 5vw, 2rem); font-weight: 900; }
+.riddle-target { border-color: #63a375; background: #eff8f0; color: #3c6b48; }
+.riddle-hint { margin: 0; color: #4d6b72; font-size: .98rem; font-weight: 700; }
 
-.card-flip-btn { border: 0; background: none; padding: 0; border-radius: 14px; transition: transform .12s ease; }
-.card-flip-btn:hover:not(:disabled) { transform: translateY(-3px); }
-.card-flip-btn:focus-visible, .chip:focus-visible, .strike-button:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
+.hand { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(7px, 2.5vw, 14px); width: min(100%, 440px); }
+.hand-card { display: grid; place-items: center; aspect-ratio: 3 / 4; border: 4px solid #0c9fc4; border-radius: 13px; background: #fffdf3; color: #143f4e; font-size: clamp(1.7rem, 6.5vw, 2.5rem); font-weight: 900; box-shadow: inset 0 -6px 0 rgba(20, 63, 78, .1), 0 5px 0 rgba(20, 63, 78, .13); transition: transform .12s ease, border-color .12s ease, background .12s ease; }
+.hand-card:hover:not(:disabled) { transform: translateY(-3px); }
+.hand-card.selected { border-color: #e46e4b; background: #ffe4d8; color: #b34a26; transform: translateY(-4px); }
+.hand-card.used { border-style: dashed; border-color: #b9c9cd; background: #eef2f2; color: #8aa0a6; box-shadow: none; }
 
-.result-zone { display: grid; justify-items: center; gap: 13px; width: min(100%, 620px); margin: 0 auto; }
-.status-line { margin: 0; color: #0b7897; font-size: 1.08rem; font-weight: 900; }
-.result-card { display: grid; gap: 7px; justify-items: center; width: 100%; padding: 16px 18px; border: 4px solid #92c1c8; border-radius: 12px; background: #fffdf3; box-shadow: 0 7px 0 rgba(20, 63, 78, .11); animation: result-pop .3s cubic-bezier(.34, 1.56, .64, 1); }
-@keyframes result-pop { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: none; } }
-.result-card[data-outcome="player"] { border-color: #e46e4b; background: #fff3ea; }
-.result-card[data-outcome="opponent"] { border-color: #0c9fc4; background: #ecf7fb; }
-.result-card[data-outcome="tie"] { border-color: #e5ae45; background: #fff8e2; }
-.math-line { margin: 0; padding: 4px 14px; border-radius: 999px; background: #fff; border: 2px dashed #d09b45; color: #143f4e; font-size: clamp(1.25rem, 4vw, 1.65rem); font-weight: 900; letter-spacing: 1px; }
-.headline { margin: 0; color: #143f4e; font-size: clamp(1.2rem, 4vw, 1.6rem); line-height: 1.25; text-align: center; }
-.quip { display: flex; gap: 8px; align-items: center; margin: 0; color: #285362; font-weight: 700; }
-.quip span { font-size: 1.4rem; }
+.mistake { margin: 0; padding: 8px 13px; border: 2px solid #e5ae45; border-radius: 10px; background: #fff8e2; color: #7a5310; font-weight: 800; text-align: center; animation: mistake-shake .3s ease; }
+@keyframes mistake-shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 
-.strike-button { min-width: min(100%, 280px); min-height: 56px; border: 2px solid #e46e4b; border-radius: 10px; background: #e46e4b; color: white; font-size: 1.3rem; font-weight: 900; box-shadow: inset 0 -4px 0 rgba(114, 43, 30, .22), 0 5px 0 rgba(20, 63, 78, .13); transition: transform .12s ease; }
-.strike-button:hover:not(:disabled) { transform: translateY(-2px); }
-.strike-button:active:not(:disabled) { transform: translateY(1px); }
-.mode-hint { margin: 0; color: #4d6b72; font-size: .95rem; text-align: center; }
+.lay-button, .next-button, .restart-button { min-width: min(100%, 280px); min-height: 56px; border-radius: 10px; color: #fff; font-size: 1.25rem; font-weight: 900; box-shadow: inset 0 -4px 0 rgba(114, 43, 30, .22), 0 5px 0 rgba(20, 63, 78, .13); transition: transform .12s ease; }
+.lay-button { border: 2px solid #e46e4b; background: #e46e4b; }
+.lay-button:hover:not(:disabled), .next-button:hover, .restart-button:hover { transform: translateY(-2px); }
+.lay-button:active:not(:disabled), .next-button:active, .restart-button:active { transform: translateY(1px); }
 
-.burst-layer { position: fixed; inset: 0; z-index: 20; overflow: hidden; pointer-events: none; }
-.burst-bit { position: absolute; left: 50%; top: 42%; animation-name: bit-burst; animation-duration: 1.15s; animation-timing-function: ease-out; animation-fill-mode: forwards; opacity: 0; }
-.burst-bit.round { width: 13px; height: 13px; border-radius: 50%; background: currentColor; overflow: hidden; }
-@keyframes bit-burst {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
-  12% { opacity: 1; }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px))) rotate(var(--spin, 300deg)) scale(1.15); }
-}
+/* The solved riddle flips into the animal card behind it. */
+.reveal { display: grid; justify-items: center; gap: 11px; width: min(100%, 560px); margin: 0 auto 22px; }
+.creature-card { display: grid; justify-items: center; gap: 6px; width: 100%; padding: 18px; border: 4px solid #63a375; border-radius: 16px; background: linear-gradient(180deg, #fffdf3 0%, #eff8f0 100%); box-shadow: 0 7px 0 rgba(20, 63, 78, .11); animation: reveal-pop .32s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes reveal-pop { from { opacity: 0; transform: scale(.84) rotate(-2deg); } to { opacity: 1; transform: none; } }
+.creature-emoji { font-size: clamp(3rem, 12vw, 4.6rem); line-height: 1; }
+.creature-name { margin: 0; color: #2f5b3a; font-size: clamp(1.35rem, 5vw, 1.8rem); }
+.creature-fact { margin: 0; max-width: 44ch; color: #285362; font-weight: 700; text-align: center; line-height: 1.4; }
+.solved-equation { margin: 4px 0 0; padding: 4px 14px; border-radius: 999px; border: 2px dashed #d09b45; background: #fff; color: #143f4e; font-size: clamp(1.1rem, 4vw, 1.4rem); font-weight: 900; letter-spacing: 1px; }
+.bonus { margin: 0; color: #7a4c08; font-weight: 900; }
+.page-medal { margin: 0; padding: 7px 15px; border: 2px solid #63a375; border-radius: 999px; background: #eff8f0; color: #2f5b3a; font-weight: 900; font-size: 1.05rem; }
+.next-button { border: 2px solid #0c9fc4; background: #0c9fc4; }
+
+/* The album: four pages of four animals, filling up as riddles are solved. */
+.album { display: grid; gap: 14px; margin-top: 6px; padding: clamp(14px, 3vw, 20px); border: 4px solid #92c1c8; border-radius: 16px; background: #fffdf3; box-shadow: 0 7px 0 rgba(20, 63, 78, .1); }
+.album-title { margin: 0; color: #143f4e; font-size: 1.2rem; letter-spacing: .5px; text-transform: uppercase; }
+.album-page h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 7px; color: #285362; font-size: 1rem; }
+.album-count { margin-left: auto; color: #7a8f95; font-size: .85rem; font-weight: 800; }
+.medal { margin-left: auto; font-size: 1.1rem; }
+.album-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(6px, 2vw, 10px); }
+.album-card { display: grid; place-items: center; gap: 3px; padding: 7px 4px; border: 3px solid #ccdadd; border-radius: 10px; background: #f1f5f5; text-align: center; }
+.album-card.found { border-color: #63a375; background: #eff8f0; }
+.album-emoji { font-size: clamp(1.3rem, 5vw, 1.9rem); line-height: 1; }
+.album-card:not(.found) .album-emoji { opacity: .45; }
+.album-name { color: #285362; font-size: clamp(.6rem, 2.3vw, .8rem); font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; }
+.album-card:not(.found) .album-name { color: #9db0b4; }
+
+.finale { display: grid; justify-items: center; gap: 10px; padding: 14px; border: 3px solid #e5ae45; border-radius: 14px; background: #fff8e2; text-align: center; }
+.finale p { margin: 0; color: #7a4c08; font-weight: 900; font-size: 1.05rem; }
+.restart-button { border: 2px solid #d09b45; background: #d09b45; }
 
 @media (max-width: 480px) {
-  .versus { font-size: .95rem; }
   .game-controls { justify-content: center; }
-  .result-card { padding: 13px; }
+  .rex-line { font-size: .92rem; }
+  .album { padding: 12px 9px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

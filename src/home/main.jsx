@@ -9,7 +9,7 @@ const GAMES = [
   { title: 'Lyd-labyrinten', description: 'Utforsk en stor labyrint, hør dyrene og stav ordene riktig for å åpne dørene.', href: './games/sound-labyrinth/', badge: 'Lesespill', art: 'maze' },
   { title: 'Slanger og stiger', description: 'Les norske ord, klatre opp stiger og pass på slangene.', href: './games/snakes-and-ladders/', badge: 'Ordspill', art: 'snake' },
   // Card battle is hidden from the library while the game is still in development – it keeps building and is reachable at ./games/card-battle/
-  // { title: 'Kortkrig', description: 'Kortduell mot Rex – snu kortene, sammenlign tall og se hvem som slår hardest.', href: './games/card-battle/', badge: 'Regnespill', art: 'cards' },
+  // { title: 'Kortkrig', description: 'Løs Rex sine tallgåter, velg det rette kortet og samle 16 dyrekort.', href: './games/card-battle/', badge: 'Regnespill', art: 'cards' },
   { title: 'Ordfiske', description: 'Fisk ord med fiskebåten, sveiv dem inn og legg dem i rett kasse. Fyll fangstboka og pynt sjøbunnen.', href: './games/word-fishing/', badge: 'Lesespill', art: 'fishing' },
   { title: 'Butikken', description: 'Handle i butikken: kjøp varer, trekk prisen fra lommeboka di og skriv svaret selv – eller lever tilbake det du angrer på.', href: './games/shop/', badge: 'Regnespill', art: 'shop' },
 ];
