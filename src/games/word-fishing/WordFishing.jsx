@@ -6,6 +6,7 @@ import { ActionBar } from './ActionBar.jsx';
 import { CrateDock } from './CrateDock.jsx';
 import { FishingBook } from './FishingBook.jsx';
 import { FishSprite } from './FishSprite.jsx';
+import { ReefArt } from './ReefRewards.jsx';
 import { SeaScene } from './SeaScene.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
 import { BOAT_KEY_STEP, sailTargetForTap, tensionLevel } from './rig.js';
@@ -32,10 +33,13 @@ const LANDED_MS = 1200;
 // How long the little "pull the line up first" nudge stays after a tap that
 // could not sail.
 const NUDGE_MS = 2000;
+// How long a treasure that has just been found keeps its arrival glow on the
+// seabed, so the child sees what their trip added.
+const REWARD_POP_MS = 3200;
 
 // Kept close to the constants above so tests and CSS stay in step with the
 // component's timing (see sea.js and rig.js for the fishing itself).
-export const TIMING = { TICK_MS, LANDED_MS, NUDGE_MS };
+export const TIMING = { TICK_MS, LANDED_MS, NUDGE_MS, REWARD_POP_MS };
 
 // What the trip is doing right now. One stage drives the hint, the one control
 // on the water and the narration, so the three can never disagree:
@@ -109,6 +113,7 @@ export function WordFishing() {
   const [hintCrateId, setHintCrateId] = useState(null);
   const [landed, setLanded] = useState(null); // { crateId, word, gain, key } just after a catch lands
   const [nudge, setNudge] = useState(null); // { text, key } a tap that could not sail
+  const [newRewardId, setNewRewardId] = useState(null); // the treasure that just arrived
 
   const aboard = aboardFish(sea);
   const rewards = unlockedRewards(journal.decorations);
@@ -141,6 +146,14 @@ export function WordFishing() {
     if (bait && bait.phase === 'biting' && (!before || before.phase !== 'biting')) sounds.bite();
     lastBait.current = bait;
   }, [sea]);
+
+  // The treasure a finished trip just added glows where it landed for a few
+  // seconds, then settles into the collection like every other find.
+  useEffect(() => {
+    if (!newRewardId) return undefined;
+    const timer = window.setTimeout(() => setNewRewardId(null), REWARD_POP_MS);
+    return () => window.clearTimeout(timer);
+  }, [newRewardId]);
 
   // A fish landing on deck, and the line giving way (or a fish letting go of the
   // bait), are moments too: both are read off the one-tick marks the sea leaves.
@@ -306,6 +319,12 @@ export function WordFishing() {
       const reward = rewardForTrip(trips);
       nextJournal = recordDecoration(recordTrip(nextJournal), reward ? trips - 1 : -1);
       sounds.fanfare();
+      // A newly found treasure lands on the seabed with a glow of its own, so the
+      // trip's reward is impossible to miss.
+      if (reward) {
+        setNewRewardId(reward.id);
+        sounds.discovery();
+      }
       // The final catch ends the whole game; the finale screen takes over.
       if (!final) setTripCard({ tripNumber: trips, reward });
     }
@@ -361,6 +380,7 @@ export function WordFishing() {
       <div className="sea" style={{ '--waterline': `${WATERLINE}%` }} role="group" aria-label="Havet med ord-fisker">
         <SeaScene
           decorations={rewards}
+          newRewardId={newRewardId}
           boat={sea.boat}
           bait={sea.bait}
           baitPoint={baitPosition(sea)}
@@ -401,7 +421,11 @@ export function WordFishing() {
         {tripCard && !finale && <>
           <ConfettiLayer count={44} />
           <div className="trip-done" role="dialog" aria-live="polite" aria-label={`Tur ${tripCard.tripNumber} er ferdig`}>
-            <p className="trip-done-mascot" aria-hidden="true">{tripCard.reward ? '⭐' : '🎣'}</p>
+            {/* The trip's own find is the picture on the card: the child sees the
+                treasure they just earned, not a star that could be anything. */}
+            {tripCard.reward
+              ? <span className="trip-done-art" aria-hidden="true"><ReefArt id={tripCard.reward.id} /></span>
+              : <p className="trip-done-mascot" aria-hidden="true">🎣</p>}
             <h2>Tur {tripCard.tripNumber} er ferdig!</h2>
             {tripCard.reward && <p className="trip-done-reward">
               Du fant {tripCard.reward.label.toLowerCase()} på sjøbunnen!

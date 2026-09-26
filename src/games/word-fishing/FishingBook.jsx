@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ReefArt } from './ReefArt.jsx';
+import { ReefArt } from './ReefRewards.jsx';
 import { allWordsCaught, caughtWordsInCrate, crateTally, wordsCaught, wordsLeftToCatch } from './journal.js';
 import { REEF_REWARDS } from './trip.js';
 import { ALL_CRATES, TARGET_WORD_COUNT } from './words.js';

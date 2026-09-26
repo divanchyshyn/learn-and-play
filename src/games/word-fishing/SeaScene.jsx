@@ -1,5 +1,10 @@
 import { RIG_DX, RIG_Y } from './rig.js';
-import { Anchor, Kelp, ReefArt, Rock, Sand } from './ReefArt.jsx';
+import { BoatArt } from './BoatArt.jsx';
+import { SeaArtDefs, paint } from './SeaArtDefs.jsx';
+import { Anchor, Driftwood, RockCluster, SandFloor, Stones } from './SeaFloor.jsx';
+import { SkyLayer } from './SeaSky.jsx';
+import { WaterBody, WaveLine } from './SeaWater.jsx';
+import { ReefArt } from './ReefRewards.jsx';
 
 // The whole stage: sky and water, the seabed with whatever the child has
 // unlocked, the boat with its angler, the rod, the float and the line. All of it
@@ -8,44 +13,39 @@ import { Anchor, Kelp, ReefArt, Rock, Sand } from './ReefArt.jsx';
 //
 // Positions are percentages of the sea box and everything follows `boat.x`, the
 // boat's own left edge, so the whole rig keeps its shape and its place from a
-// phone up to a desktop screen (see `RIG_DX` in sea.js).
+// phone up to a desktop screen (see `RIG_DX` in rig.js).
+//
+// The art lives in its own modules, each one painted from the shared paints
+// (SeaArtDefs) so no gradient is ever defined twice:
+//
+//   SeaSky      – sun, clouds, gulls and the far shore
+//   SeaWater    – the surface line, the light, the drifting snow, the kelp
+//   SeaFloor    – sand, rocks, the old anchor, driftwood, stones
+//   ReefRewards – the sixteen treasures a finished trip unlocks
+//   BoatArt     – the boat, its crew and the gear on deck
+//   FishArt     – the six fish species (worn by FishSprite)
 
-function Sky() {
-  return <div className="sea-sky" aria-hidden="true">
-    <span className="sea-sun" />
-    <span className="sea-cloud cloud-a" />
-    <span className="sea-cloud cloud-b" />
-    <span className="sea-gull gull-a" />
-    <span className="sea-gull gull-b" />
-  </div>;
-}
-
-function Water() {
-  return <div className="sea-water" aria-hidden="true">
-    <span className="sea-beam beam-a" />
-    <span className="sea-beam beam-b" />
-    <span className="sea-bubble bubble-a" />
-    <span className="sea-bubble bubble-b" />
-    <span className="sea-bubble bubble-c" />
-    <span className="sea-bubble bubble-d" />
-    <span className="lake-kelp kelp-a"><Kelp /></span>
-    <span className="lake-kelp kelp-b"><Kelp /></span>
-  </div>;
-}
-
-function SeaBed({ decorations }) {
+// The seabed, with everything the child has found so far. A reward above the sand
+// ridge is painted with the far haze (`.is-far`), the newest one pops (`.is-new`),
+// and the size is handed over as a custom property so one media query can scale
+// the whole collection down on a narrow screen.
+function SeaBed({ decorations, newRewardId }) {
   return <>
-    <div className="sea-bed" aria-hidden="true">
-      <span className="sand-strip"><Sand /></span>
-    </div>
+    <SandFloor />
     <div className="sea-floor" aria-hidden="true">
-      <span className="reef-item reef-rock"><Rock /></span>
+      <span className="reef-item reef-rock"><RockCluster /></span>
       <span className="reef-item reef-anchor"><Anchor /></span>
+      <span className="reef-item reef-driftwood"><Driftwood /></span>
+      <span className="reef-item reef-stones"><Stones /></span>
       {decorations.map((reward, index) => (
         <span
-          className={`reef-item reward reward-${reward.id}`}
+          className={[
+            'reef-item', 'reward', `reward-${reward.id}`,
+            reward.y < 84 ? 'is-far' : 'is-near',
+            reward.id === newRewardId ? 'is-new' : '',
+          ].filter(Boolean).join(' ')}
           key={`${reward.id}-${index}`}
-          style={{ left: `${reward.x}%`, top: `${reward.y}%`, width: `${reward.size}px` }}
+          style={{ left: `${reward.x}%`, top: `${reward.y}%`, '--reward-size': `${reward.size}px` }}
         >
           <ReefArt id={reward.id} />
         </span>
@@ -54,10 +54,8 @@ function SeaBed({ decorations }) {
   </>;
 }
 
-// The boat: hull, cabin, mast with the trip flag, and the angler whose hands
-// hold the rod. It sails by its own `left`, so its wake and its heading follow
-// it, and the rod (drawn in the line layer off the same anchor) always meets the
-// angler's hands.
+// The boat, plus the wake and the spray it drags along when it is under way. The
+// drawing itself is BoatArt; this only decides how it moves.
 function Boat({ boat, tripNumber }) {
   const sailing = boat.x !== boat.targetX;
   return <div
@@ -65,25 +63,12 @@ function Boat({ boat, tripNumber }) {
     style={{ left: `${boat.x}%`, '--facing': boat.targetX < boat.x ? -1 : 1 }}
     aria-hidden="true"
   >
-    {sailing && <span className="boat-wake" />}
-    <svg className="boat-drawing" viewBox="0 0 220 190" focusable="false">
-      <path className="boat-mast" d="M150 18 L150 112" />
-      <path className="boat-flag" d="M152 20 L202 33 L152 46 Z" />
-      <text className="boat-flag-number" x="166" y="40">{tripNumber}</text>
-
-      <path className="boat-hull" d="M10 118 L210 118 L184 164 Q 110 178 36 164 Z" />
-      <path className="boat-deck" d="M10 110 L210 110 L208 122 L12 122 Z" />
-
-      <path className="boat-cabin" d="M108 84 L182 84 L186 112 L104 112 Z" />
-      <circle className="boat-window" cx="145" cy="98" r="10" />
-
-      <path className="angler-body" d="M28 112 L28 84 Q 28 76 38 76 L54 76 Q 64 76 64 84 L64 112 Z" />
-      <circle className="angler-head" cx="46" cy="62" r="13" />
-      <path className="angler-hat" d="M24 58 Q 46 38 68 58 Z" />
-      <path className="angler-hat" d="M22 58 L70 58 L70 65 L22 65 Z" />
-      <path className="angler-arm" d="M60 88 Q 66 84 70 80" />
-      <path className="boat-net" d="M96 108 Q 106 120 116 108 Z" />
-    </svg>
+    {sailing && <>
+      <span className="boat-wake" />
+      <span className="boat-wake boat-wake-far" />
+      <span className="boat-spray" />
+    </>}
+    <BoatArt tripNumber={tripNumber} />
   </div>;
 }
 
@@ -120,6 +105,21 @@ function LineLayer({ boat, target }) {
 // The float: a cast in flight, a float bobbing in the water, one being knocked
 // about – and, in the one moment it matters, a big tap ring around it, so a
 // child's finger cannot miss the fish that has taken the bait.
+//
+// The float itself is a little painted spool with an antenna, a band and a sheen,
+// and it drags a ripple ring on the surface while it lies there.
+function FloatArt() {
+  return <svg className="float-art" viewBox="0 0 26 38" aria-hidden="true" focusable="false">
+    <ellipse className="float-ripple" cx="13" cy="34" rx="12" ry="3.4" fill={paint('wake')} />
+    <path className="float-antenna" d="M13 4 L13 14" />
+    <circle className="float-tip" cx="13" cy="3.4" r="2.6" fill={paint('flag')} />
+    <path className="float-body" d="M13 7 C 19 7 22.4 15 22.4 23 C 22.4 30 18.6 34 13 34 C 7.4 34 3.6 30 3.6 23 C 3.6 15 7 7 13 7 Z" fill={paint('flag')} />
+    <path className="float-band" d="M4 21 C 8 23 18 23 22 21 L22.2 25 C 18 27 8 27 3.8 25 Z" fill={paint('hull-band')} />
+    <path className="float-band-thin" d="M4.6 17 C 8.6 19 17.4 19 21.4 17 L21.5 18.6 C 17.4 20.6 8.6 20.6 4.5 18.6 Z" fill={paint('hull-band')} opacity=".85" />
+    <ellipse className="float-sheen" cx="9" cy="14" rx="2.6" ry="4.6" fill="#ffffff" opacity=".45" />
+  </svg>;
+}
+
 function Float({ point, bait, canStrike, onStrike }) {
   if (!point) return null;
   const classes = ['fishing-float', `float-${bait.phase}`];
@@ -131,11 +131,13 @@ function Float({ point, bait, canStrike, onStrike }) {
       onClick={onStrike}
       aria-label="Napp! Trykk for å feste kroken"
     >
-      <span className={classes.join(' ')} aria-hidden="true" />
+      <span className={classes.join(' ')} aria-hidden="true"><FloatArt /></span>
       <span className="strike-call" aria-hidden="true">Napp!</span>
     </button>;
   }
-  return <span className={classes.join(' ')} style={{ left: `${point.x}%`, top: `${point.y}%` }} aria-hidden="true" />;
+  return <span className={classes.join(' ')} style={{ left: `${point.x}%`, top: `${point.y}%` }} aria-hidden="true">
+    <FloatArt />
+  </span>;
 }
 
 // The water itself is the sailing control: tap the spot the boat should sail to.
@@ -166,13 +168,15 @@ function SailSurface({ onSail, onStep }) {
 }
 
 export function SeaScene({
-  decorations, boat, bait, baitPoint, lineTo, canStrike, nudge, tripNumber,
+  decorations, newRewardId, boat, bait, baitPoint, lineTo, canStrike, nudge, tripNumber,
   onSail, onStep, onStrike, children,
 }) {
   return <>
-    <Sky />
-    <Water />
-    <SeaBed decorations={decorations} />
+    <SeaArtDefs />
+    <SkyLayer />
+    <WaterBody />
+    <WaveLine />
+    <SeaBed decorations={decorations} newRewardId={newRewardId} />
     <SailMarker boat={boat} nudge={nudge} />
     <Boat boat={boat} tripNumber={tripNumber} />
     <LineLayer boat={boat} target={lineTo} />

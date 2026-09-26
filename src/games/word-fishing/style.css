@@ -29,152 +29,270 @@
   box-shadow: 0 8px 0 rgba(20, 63, 78, .14);
 }
 
-/* Sky */
-.sea-sky { position: absolute; left: 0; right: 0; top: 0; height: var(--waterline, 22%); overflow: hidden; }
-.sea-sun {
-  position: absolute; left: 27%; top: 8%; width: 54px; height: 54px; border-radius: 50%;
-  background: radial-gradient(circle at 38% 34%, #ffe9a8, #f7c948 62%, #eeab2f);
-  box-shadow: 0 0 26px rgba(247, 201, 72, .55);
-  animation: sun-glow 6s ease-in-out infinite alternate;
-}
-@keyframes sun-glow { to { box-shadow: 0 0 40px rgba(247, 201, 72, .8); } }
-.sea-cloud { position: absolute; height: 18px; border-radius: 999px; background: #fffdf3; box-shadow: 0 3px 0 rgba(20, 63, 78, .06); }
-.sea-cloud::before, .sea-cloud::after { content: ""; position: absolute; border-radius: 50%; background: #fffdf3; }
-.sea-cloud::before { width: 26px; height: 26px; top: -12px; left: 12px; }
-.sea-cloud::after { width: 18px; height: 18px; top: -8px; left: 36px; }
-.cloud-a { left: 46%; top: 30%; width: 74px; animation: drift 34s linear infinite; }
-.cloud-b { left: 68%; top: 58%; width: 56px; scale: .8; animation: drift 46s linear infinite reverse; }
+/* Sky. The band is a CSS gradient (it simply fills whatever the box is), while
+   the sun, the clouds, the gulls and the far shore are fixed-size sprites placed
+   in percentages – a stretched drawing would squash the sun on a phone and crop
+   the shore away on a desktop screen. */
+.sea-sky { position: absolute; left: 0; right: 0; top: 0; height: var(--waterline, 22%); overflow: hidden; background: linear-gradient(#7cc4e6, #a9dcf1 45%, #d7eef8 80%, #eef9fc); }
+.sea-sun { position: absolute; left: 27%; top: 8%; width: 52px; height: 52px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #fffdf0, #ffe79b 45%, #f6bd46 82%, #e8a52e); box-shadow: 0 0 24px rgba(255, 226, 140, .6); animation: sun-glow 6s ease-in-out infinite alternate; }
+.sea-sun-glow { position: absolute; left: 27%; top: 8%; width: 132px; height: 132px; translate: -40px -40px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 236, 168, .5), rgba(255, 225, 140, 0) 70%); }
+@keyframes sun-glow { to { box-shadow: 0 0 40px rgba(255, 226, 140, .85); } }
+.sea-cloud { position: absolute; display: block; filter: drop-shadow(0 3px 0 rgba(20, 63, 78, .05)); animation: drift 34s linear infinite; }
+.cloud-a { left: 40%; top: 18%; width: 126px; }
+.cloud-b { left: 64%; top: 46%; width: 92px; scale: .78; animation-duration: 46s; animation-direction: reverse; }
+.cloud-c { left: 82%; top: 10%; width: 68px; opacity: .85; animation-duration: 40s; animation-delay: -12s; }
 @keyframes drift { to { translate: 40px 0; } }
-.sea-gull { position: absolute; width: 20px; height: 10px; border-top: 3px solid #2f5d6b; border-radius: 50%; opacity: .7; animation: glide 22s ease-in-out infinite alternate; }
-.gull-a { left: 58%; top: 20%; }
-.gull-b { left: 74%; top: 40%; scale: .7; animation-duration: 28s; }
+.sea-gull { position: absolute; display: block; animation: glide 22s ease-in-out infinite alternate; }
+.gull-wing { fill: none; stroke: #2f5d6b; stroke-width: 2.6; stroke-linecap: round; }
+.gull-body { fill: #2f5d6b; opacity: .75; }
+.gull-a { left: 55%; top: 30%; width: 26px; }
+.gull-b { left: 71%; top: 52%; width: 19px; animation-duration: 28s; animation-delay: -6s; }
+.gull-c { left: 88%; top: 24%; width: 15px; opacity: .7; animation-duration: 32s; animation-delay: -14s; }
 @keyframes glide { to { translate: 26px -8px; } }
+.sea-shore { position: absolute; right: 4%; bottom: -2px; width: clamp(118px, 20%, 206px); opacity: .92; }
+.shore-lamp { }
+.shore-beam { animation: shore-turn 7s ease-in-out infinite alternate; }
+@keyframes shore-turn { from { opacity: .35; } to { opacity: .7; } }
 
-/* Water */
-.sea-water { position: absolute; left: 0; right: 0; top: var(--waterline, 22%); bottom: 0; overflow: hidden; background: linear-gradient(#7cc9de, #3f9fc0 42%, #226f92 78%, #1b5b7c); }
-.sea-water::before { content: ""; position: absolute; left: -4%; right: -4%; top: -3px; height: 9px; border-radius: 50%; background: repeating-linear-gradient(90deg, rgba(255, 253, 243, .75) 0 26px, rgba(255, 253, 243, .2) 26px 52px); }
-.sea-beam { position: absolute; top: -6%; width: 74px; height: 120%; background: linear-gradient(rgba(255, 255, 255, .34), rgba(255, 255, 255, 0) 72%); transform: skewX(-11deg); filter: blur(5px); }
-.beam-a { left: 24%; }
-.beam-b { left: 58%; width: 46px; opacity: .7; }
-.sea-bubble { position: absolute; bottom: -16px; z-index: 3; width: 11px; height: 11px; border: 2px solid rgba(255, 253, 243, .7); border-radius: 50%; animation: bubble-rise 11s linear infinite; }
-.bubble-a { left: 14%; }
-.bubble-b { left: 35%; width: 8px; height: 8px; animation-delay: 2.4s; }
-.bubble-c { left: 62%; width: 13px; height: 13px; animation-delay: 5.1s; }
-.bubble-d { left: 84%; width: 9px; height: 9px; animation-delay: 7.6s; }
-@keyframes bubble-rise { 0% { transform: translateY(0); opacity: 0; } 12% { opacity: .85; } 100% { transform: translateY(-420px); opacity: 0; } }
-.lake-kelp { position: absolute; bottom: -6px; z-index: 3; width: 44px; opacity: .8; transform-origin: bottom center; animation: sway 7s ease-in-out infinite alternate; }
+/* Water. One depth gradient, the crests drawn across the waterline, and the
+   light that comes down through it – all of it still under prefers-reduced-motion. */
+.sea-water { position: absolute; left: 0; right: 0; top: var(--waterline, 22%); bottom: 0; overflow: hidden; background: linear-gradient(#83cee2, #4aa9c7 35%, #22708f 72%, #17506c); }
+.sea-waves { position: absolute; left: 0; top: var(--waterline, 22%); z-index: 3; width: 100%; height: 26px; margin-top: -12px; display: block; }
+.wave-shadow { fill: rgba(23, 80, 108, .32); }
+.sea-beam { position: absolute; top: -8%; width: 82px; height: 122%; background: linear-gradient(rgba(255, 253, 243, .4), rgba(255, 253, 243, 0) 74%); transform: skewX(-12deg); filter: blur(6px); animation: ray-breathe 9s ease-in-out infinite alternate; }
+.beam-a { left: 22%; }
+.beam-b { left: 44%; width: 52px; animation-duration: 11s; animation-delay: -3s; }
+.beam-c { left: 64%; width: 36px; opacity: .7; animation-duration: 13s; animation-delay: -6s; }
+.beam-d { left: 82%; width: 60px; opacity: .8; animation-delay: -8s; }
+@keyframes ray-breathe { from { opacity: .55; } to { opacity: .95; } }
+.sea-snow { position: absolute; inset: 0; z-index: 3; }
+.snow-flake { position: absolute; bottom: -14px; border-radius: 50%; background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, .95), rgba(255, 255, 255, .12)); animation-name: snow-rise; animation-timing-function: linear; animation-iteration-count: infinite; }
+@keyframes snow-rise { 0% { translate: 0 0; opacity: 0; } 12% { opacity: .8; } 100% { translate: 0 -460px; opacity: 0; } }
+.sea-shoal { position: absolute; left: 1%; top: 26%; width: 190px; opacity: .45; animation: shoal-drift 36s ease-in-out infinite alternate; }
+.shoal-fish path { fill: #c7e7f1; }
+@keyframes shoal-drift { to { translate: 70px 12px; } }
+.lake-kelp { position: absolute; bottom: -6px; z-index: 3; width: 48px; opacity: .9; transform-origin: bottom center; animation: sway 7s ease-in-out infinite alternate; }
 .lake-kelp svg { width: 100%; display: block; }
-.kelp-a { left: 6%; }
-.kelp-b { right: 9%; width: 34px; animation-duration: 9s; animation-delay: -2s; }
+.kelp-a { left: 5%; }
+.kelp-b { right: 8%; width: 38px; animation-duration: 9s; animation-delay: -2s; }
+.kelp-c { left: 29%; width: 30px; opacity: .75; animation-duration: 11s; animation-delay: -5s; }
 @keyframes sway { from { rotate: -5deg; } to { rotate: 6deg; } }
 
-/* The seabed and everything growing on it. The sand strip is its own band; the
-   decorations keep coordinates of the whole sea box, so trip.js and the scene
-   agree on where each reward lands. */
-.sea-bed { position: absolute; left: 0; right: 0; top: 86%; bottom: 0; z-index: 2; }
-.sea-bed svg { display: block; width: 100%; height: 100%; }
-.sea-floor { position: absolute; inset: 0; z-index: 2; }
-.sand-strip { position: absolute; inset: 0; color: #e9d9a8; }
+/* ---- The seabed ---------------------------------------------------------- */
+/* The sand is two stretched bands (abstract dune lines, so stretching costs
+   nothing) plus CSS tiles for the grain and the light dapples: a CSS tile stays
+   round where a pattern inside a stretched drawing would be squashed. The
+   decorations keep sea-box coordinates, so trip.js and the scene agree on where
+   each reward lands. */
+.sea-bed { position: absolute; left: 0; right: 0; top: 84%; bottom: 0; z-index: 2; }
+.sand-far, .sand-main { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.sand-ripple { fill: none; stroke: rgba(171, 144, 89, .45); stroke-width: 1.6; stroke-linecap: round; }
+.sand-ripple-faint { stroke: rgba(171, 144, 89, .28); }
+.sand-grain { position: absolute; inset: 0; opacity: .5; background-image: radial-gradient(rgba(150, 124, 74, .45) 1px, transparent 1.4px), radial-gradient(rgba(255, 253, 243, .65) 1px, transparent 1.4px); background-size: 13px 17px, 19px 23px; background-position: 0 0, 7px 9px; }
+.sand-light { position: absolute; inset: 0; opacity: .4; background-image: radial-gradient(ellipse 60px 18px at 20% 30%, rgba(255, 253, 243, .6), transparent 70%), radial-gradient(ellipse 80px 22px at 62% 20%, rgba(255, 253, 243, .5), transparent 72%), radial-gradient(ellipse 70px 20px at 88% 40%, rgba(255, 253, 243, .45), transparent 70%); animation: sand-shimmer 12s ease-in-out infinite alternate; }
+@keyframes sand-shimmer { from { opacity: .28; } to { opacity: .5; } }
+.sea-floor { position: absolute; inset: 0; z-index: 3; }
 .reef-art { display: block; }
 .reef-item { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
 .reef-item svg { display: block; width: 100%; height: auto; }
-.reef-rock { left: 47%; top: 91%; width: 104px; }
-.reef-anchor { left: 86%; top: 92%; width: 44px; opacity: .9; }
 
-/* Reef colours – every decoration paints itself from the shared palette. */
-.reef-sand path { fill: #ecdcab; }
-.rock path { fill: #a4b4bb; }
-.rock-light { fill: rgba(255, 253, 243, .5); }
-.kelp-blade { fill: none; stroke: #4f9a6b; stroke-width: 5; stroke-linecap: round; }
-.kelp-bud { fill: #8fd0a2; stroke: #3f7a55; stroke-width: 1.2; }
-.metal, .metal-bar { fill: none; stroke: #94a2ac; stroke-width: 4; stroke-linecap: round; }
-.reward path, .reward circle { filter: drop-shadow(0 2px 0 rgba(20, 63, 78, .16)); }
+/* The scenery that is always there: a rock cluster, the old anchor, driftwood and
+   a scatter of stones. A phone hides the rock and the anchor (see the media
+   query at the end) so the treasures keep their room. */
+.reef-rock { left: 66%; top: 90%; width: 132px; }
+.reef-anchor { left: 6%; top: 89%; width: 58px; opacity: .92; }
+.reef-driftwood { left: 39%; top: 89%; width: 104px; }
+.reef-stones { left: 87%; top: 96%; width: 118px; opacity: .95; }
 
-/* Each unlocked decoration, painted. */
-.reward-starfish path { fill: #e0745a; }
-.reward-starfish .star-belly { fill: #f2a184; }
-.star-dot { fill: rgba(255, 253, 243, .55); }
-.coral-base { fill: #b98a60; }
-.coral-arm { fill: none; stroke: #e2748c; stroke-width: 8; stroke-linecap: round; }
-.coral-tip { fill: #f8b7c8; stroke: #c9546e; stroke-width: 1.2; }
-.reef-bubble { fill: rgba(255, 253, 243, .75); stroke: rgba(255, 253, 243, .95); stroke-width: 1; }
-.reward-shell path { fill: #f4cda4; }
-.shell-rib { fill: none; stroke: rgba(176, 122, 78, .5); stroke-width: 2; }
-.shell-pearl { fill: #fffdf3; stroke: #d9a6b8; stroke-width: 1.4; }
-.reward-shell .shell-gleam { fill: none; stroke: #ffffff; stroke-width: 1.4; stroke-linecap: round; }
-.crab-body { fill: #d3553f; }
-.crab-shell { fill: #ef8663; stroke: #b8432f; stroke-width: 1.2; }
-.crab-claw { fill: #e46e4b; stroke: #b8432f; stroke-width: 1.4; }
-.crab-leg { fill: none; stroke: #b8432f; stroke-width: 4; stroke-linecap: round; }
-.crab-eye { fill: #2b3a42; }
-.crab-gleam { fill: #fffdf3; }
-.crab-smile { fill: none; stroke: #7e2a1c; stroke-width: 2; stroke-linecap: round; }
-.jelly-dome { fill: rgba(200, 166, 228, .78); stroke: #9b74c9; stroke-width: 1.4; }
-.jelly-spot { fill: rgba(255, 253, 243, .6); }
-.jelly-tentacle { fill: none; stroke: #b48edd; stroke-width: 3.5; stroke-linecap: round; }
-.octo-head { fill: #c2708f; stroke: #8e4d6a; stroke-width: 1.4; }
-.octo-arm { fill: none; stroke: #c2708f; stroke-width: 7; stroke-linecap: round; }
-.octo-eye { fill: #fffdf3; }
-.octo-pupil { fill: #3a2130; }
-.octo-smile { fill: none; stroke: #7e3f5c; stroke-width: 2; stroke-linecap: round; }
-.octo-sucker { fill: #efb6cb; }
-.sea-head { fill: #e2b165; stroke: #b5823c; stroke-width: 1.2; }
-.sea-body { fill: none; stroke: #d8a24a; stroke-width: 7; stroke-linecap: round; }
-.sea-ridge { fill: none; stroke: #b5823c; stroke-width: 3; stroke-linecap: round; }
-.sea-snout { fill: none; stroke: #d8a24a; stroke-width: 4; stroke-linecap: round; }
-.sea-fin { fill: #e2b165; stroke: #b5823c; stroke-width: 1.2; }
-.sea-eye { fill: #fffdf3; }
-.sea-pupil { fill: #3a2f1c; }
-.wreck-hull { fill: #6b5a49; stroke: #4a3d31; stroke-width: 2; }
-.wreck-rim { fill: #8a7660; }
-.wreck-mast { fill: none; stroke: #5d4e3f; stroke-width: 5; stroke-linecap: round; }
-.wreck-sail { fill: rgba(233, 227, 210, .6); stroke: #8a7660; stroke-width: 1.5; }
-.wreck-flag { fill: #e46e4b; }
-.wreck-hole { fill: #3d4a52; stroke: #8a7660; stroke-width: 2; }
-.wreck-weed { fill: none; stroke: #4f9a6b; stroke-width: 4; stroke-linecap: round; }
-.wreck-fish { fill: #f0c33c; stroke: #b57b1e; stroke-width: 1.2; }
-.wreck-fish-tail { fill: #e5ae45; }
-.chest-body { fill: #a9752f; stroke: #7d5518; stroke-width: 1.5; }
-.chest-lid { fill: #c08a3c; stroke: #7d5518; stroke-width: 1.5; }
-.chest-lid-light { fill: rgba(255, 243, 205, .5); }
-.chest-band { fill: none; stroke: #7d5518; stroke-width: 5; }
-.chest-lock { fill: #ffd95c; stroke: #7d5518; stroke-width: 2; }
-.chest-keyhole { fill: #7d5518; }
-.chest-sparkle { fill: #fff3b0; stroke: #f0c33c; stroke-width: 1; }
-.coin { fill: #f0c33c; stroke: #b57b1e; stroke-width: 1.5; }
+/* Every treasure is sized from `--reward-size` (trip.js) and scaled by
+   `--reward-scale`, so one media query shrinks the whole collection together on
+   a narrow screen instead of letting the big finds collide. */
+.reward { width: calc(var(--reward-size, 60px) * var(--reward-scale, 1)); }
+.reward .reef-art { transform-origin: 50% 100%; filter: drop-shadow(0 3px 2px rgba(20, 63, 78, .18)); }
+/* A find that sits on the sand gets a soft contact shadow under it. */
+.reward::after { content: ""; position: absolute; left: 8%; right: 8%; bottom: -2%; height: 9%; border-radius: 50%; background: radial-gradient(ellipse at 50% 50%, rgba(20, 63, 78, .28), rgba(20, 63, 78, 0) 70%); }
+/* Anything above the sand ridge is farther away: hazier and paler. */
+.reward.is-far { filter: saturate(.82) brightness(1.06); opacity: .94; }
+/* The find a finished trip just added glows where it landed, then settles. */
+.reward.is-new .reef-art { animation: reward-arrive 3.2s ease-out both; }
+@keyframes reward-arrive {
+  0% { scale: .5; opacity: 0; }
+  20% { scale: 1.12; opacity: 1; }
+  34% { scale: 1; }
+  76% { filter: drop-shadow(0 0 10px rgba(255, 217, 92, .95)); }
+  100% { filter: drop-shadow(0 3px 2px rgba(20, 63, 78, .18)); }
+}
 
-/* The seabed is the child's collection, so each finished trip adds something
-   that moves: coral sways, the jellyfish drifts, the crab scuttles sideways and
-   the chest twinkles. All of it is still under `prefers-reduced-motion`. */
-.reward .reef-art { transform-origin: 50% 100%; }
+/* Terrain detail: kelp blades, weed, barnacles, stones and the old anchor. The
+   anchor paints itself here because it is drawn as strokes, not as filled
+   shapes (see SeaFloor.jsx). */
+.kelp-mid { fill: none; stroke: rgba(43, 91, 61, .5); stroke-width: 2; stroke-linecap: round; }
+.kelp-root { fill: rgba(171, 144, 89, .5); }
+.reef-weed { fill: none; stroke: #4f9a6b; stroke-width: 4; stroke-linecap: round; opacity: .9; }
+.barnacle { fill: #d3cab0; stroke: #8f8873; stroke-width: 1; }
+.reef-shell-dot { fill: #f6ead0; stroke: #b09c6f; stroke-width: 1; }
+.stone-gleam { fill: none; stroke: rgba(255, 253, 243, .55); stroke-width: 2; stroke-linecap: round; }
+.rock-crack { fill: none; stroke: rgba(70, 86, 94, .45); stroke-width: 2.4; stroke-linecap: round; }
+.log-line { fill: none; stroke: rgba(111, 75, 34, .55); stroke-width: 1.6; stroke-linecap: round; }
+.log-knot { fill: rgba(111, 75, 34, .5); }
+.anchor-ring, .anchor-shank, .anchor-stock, .anchor-arm { fill: none; stroke: url(#wf-metal); stroke-width: 7; stroke-linecap: round; }
+.anchor-fluke { fill: url(#wf-metal); }
+.anchor-shine { fill: none; stroke: rgba(255, 253, 243, .5); stroke-width: 2; stroke-linecap: round; }
+
+/* ---- The textures, once ------------------------------------------------- */
+/* The shared paints live in an SVG that is never displayed – but must never be
+   `display: none` either: a paint reference has to stay resolvable. */
+.sea-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ---- The treasures ------------------------------------------------------ */
+/* Each treasure paints its own shapes from those shared paints (see
+   ReefRewards.jsx), so what is left here is the detail work: strokes, gleams and
+   the little motions. Only transforms and opacity are animated – never a filter,
+   never a gradient – so a floor holding sixteen finds stays cheap. */
+.reef-bubble { fill: rgba(255, 253, 243, .8); }
+/* Starfish: ridges along the arms, and the bumps between them. */
+.star-ridge { fill: none; stroke: #b8432a; stroke-width: 1.2; stroke-linecap: round; opacity: .45; }
+.star-bump { fill: #ffdcc8; opacity: .85; }
+/* Coral: branches are thick round strokes, the twigs thinner and softer. */
+.coral-branch { fill: none; stroke: #e2718f; stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
+.coral-twig { stroke-width: 7; opacity: .85; }
+.coral-polyp { fill: #ffd0de; }
+/* Shell: the spiral ribs, the lip and the gleam on the whorl. */
+.shell-spiral { fill: none; stroke: rgba(176, 122, 78, .55); stroke-width: 2.4; stroke-linecap: round; }
+.shell-spiral-faint { stroke: rgba(176, 122, 78, .32); stroke-width: 1.8; }
+.shell-lip { fill: none; stroke: rgba(176, 122, 78, .5); stroke-width: 2; }
+.shell-apex { stroke: rgba(176, 122, 78, .45); stroke-width: 1.4; }
+.shell-rib { fill: none; stroke: rgba(176, 122, 78, .45); stroke-width: 2; }
+.shell-shine { fill: none; stroke: rgba(255, 255, 255, .7); stroke-width: 2; stroke-linecap: round; }
+.shell-gleam { fill: rgba(255, 255, 255, .6); }
+/* The wreck: broken timbers, planking and the frames inside her. */
+.wreck-rib-line { fill: none; stroke: #c6ad8a; stroke-width: 9; stroke-linecap: round; }
+.wreck-rib-tip { fill: none; stroke: #e0cdaa; stroke-width: 5; stroke-linecap: round; }
+.wreck-frame { fill: none; stroke: rgba(216, 197, 166, .45); stroke-width: 6; stroke-linecap: round; }
+.wreck-plank { fill: none; stroke: rgba(60, 48, 38, .5); stroke-width: 1.8; }
+.wreck-hole-rim { fill: none; stroke: rgba(180, 158, 128, .6); stroke-width: 2.4; }
+.wreck-porthole-rim { fill: none; stroke: rgba(180, 158, 128, .9); stroke-width: 2.6; }
+.wreck-mast { fill: none; stroke: #a08a6e; stroke-width: 7; stroke-linecap: round; }
+.wreck-mast-splinter { fill: none; stroke: #d8c8a8; stroke-width: 3.4; stroke-linecap: round; }
+.wreck-yard { fill: none; stroke: #a08a6e; stroke-width: 5.5; stroke-linecap: round; }
+.wreck-barrel-hoop { fill: none; stroke: rgba(60, 48, 38, .55); stroke-width: 2.4; }
+.wreck-crate-line { fill: none; stroke: rgba(60, 48, 38, .55); stroke-width: 1.6; }
+.wreck-coin { stroke: #b57b1e; stroke-width: 1.2; }
+/* Seagrass: a midrib in every blade and a few floating seeds. */
+.grass-mid { fill: none; stroke: rgba(47, 91, 61, .45); stroke-width: 1.4; stroke-linecap: round; }
+.grass-seed { fill: #d8f0c0; opacity: .85; }
+/* Crab: legs, claws, shell ridges and the stalked eyes. */
+.crab-leg { fill: none; stroke: #b8432f; stroke-width: 3.6; stroke-linecap: round; }
+.crab-arm { fill: none; stroke: #d3553f; stroke-width: 5; stroke-linecap: round; }
+.crab-claw-slit { fill: none; stroke: #7e2a1c; stroke-width: 2; stroke-linecap: round; }
+.crab-shell-ridge { fill: none; stroke: rgba(160, 55, 36, .5); stroke-width: 2; stroke-linecap: round; }
+.crab-shell-ridge-faint { stroke: rgba(160, 55, 36, .3); }
+.crab-shell-scallop { fill: none; stroke: rgba(160, 55, 36, .45); stroke-width: 2; }
+.crab-spot { fill: rgba(255, 240, 232, .6); }
+.crab-stalk { fill: none; stroke: #cf5138; stroke-width: 3; stroke-linecap: round; }
+.crab-eye-white { fill: #fffdf3; }
+.crab-pupil { fill: #2b3a42; }
+.crab-gleam { fill: #ffffff; }
+.crab-mouth { fill: none; stroke: #7e2a1c; stroke-width: 2; stroke-linecap: round; }
+.crab-fringe { fill: none; stroke: rgba(160, 55, 36, .4); stroke-width: 1.8; }
+/* Octopus: brows over the eyes, and the suckers down the arms. */
+.octo-brow { fill: none; stroke: rgba(120, 50, 84, .55); stroke-width: 2.4; stroke-linecap: round; }
+.octo-sucker { fill: #f4c2d4; opacity: .9; }
+/* Chest: iron bands, plank seams and rivets. */
+.chest-band { fill: none; stroke: #6b5219; stroke-width: 3.4; stroke-linecap: round; }
+.chest-plank { fill: none; stroke: rgba(107, 82, 25, .35); stroke-width: 1.6; }
+.chest-frame { fill: none; stroke: rgba(107, 82, 25, .5); stroke-width: 2; }
+.chest-rivet { fill: #f0d38f; }
+
+/* Submarine: plate seams, porthole rims, rivets and the snorkel. */
+.sub-seam { fill: none; stroke: rgba(151, 104, 26, .45); stroke-width: 1.6; }
+.sub-rivet { fill: #c1932c; }
+.sub-porthole-rim { fill: none; stroke: #9c6d18; stroke-width: 2.6; }
+.sub-hub { stroke: #8d6a1e; stroke-width: 1.6; }
+.sub-blade { stroke: #6b8090; stroke-width: 1.4; }
+.sub-snorkel { fill: none; stroke: #b6c7cf; stroke-width: 4; stroke-linecap: round; }
+/* Seahorse: belly rings, fine fins and the spikes on its coronet. */
+.seahorse-ring { fill: none; stroke: rgba(150, 108, 36, .5); stroke-width: 1.8; stroke-linecap: round; }
+.seahorse-fin-ray { fill: none; stroke: rgba(150, 108, 36, .55); stroke-width: 1.4; }
+.seahorse-mouth { fill: none; stroke: #8a6224; stroke-width: 2; stroke-linecap: round; }
+.seahorse-coronet-spike { fill: none; stroke: #b8862f; stroke-width: 2.6; stroke-linecap: round; }
+.seahorse-mane { fill: none; stroke: rgba(150, 108, 36, .5); stroke-width: 2; stroke-linecap: round; }
+/* Jellyfish: the tentacles trailing under the bell. */
+.jelly-tentacle { fill: none; stroke: rgba(205, 180, 240, .9); stroke-width: 2.6; stroke-linecap: round; }
+/* The station, and the little submarine docked at it. */
+.station-bar { fill: none; stroke: rgba(255, 255, 255, .8); stroke-width: 3; }
+.station-bar-ring { stroke: rgba(255, 255, 255, .6); stroke-width: 2.4; }
+.station-dome-rim { fill: none; stroke: rgba(255, 255, 255, .9); stroke-width: 4; }
+.station-floor { fill: none; stroke: rgba(120, 150, 165, .5); stroke-width: 2.4; }
+.station-inner-lamp { fill: none; stroke: rgba(255, 240, 180, .85); stroke-width: 3; stroke-linecap: round; }
+.station-mast { fill: none; stroke: #93a3ad; stroke-width: 3.4; stroke-linecap: round; }
+.station-mast-arm { fill: none; stroke: #93a3ad; stroke-width: 2.6; stroke-linecap: round; }
+.station-pipe { fill: none; stroke: #8fa2ac; stroke-width: 4; stroke-linecap: round; }
+.station-leg { fill: none; stroke: #93a3ad; stroke-width: 7; stroke-linecap: round; }
+.station-mooring { fill: none; stroke: rgba(240, 220, 170, .8); stroke-width: 2.4; stroke-linecap: round; }
+.station-window-rim { fill: none; stroke: #7d9098; stroke-width: 2.4; }
+.station-bubble { fill: rgba(255, 253, 243, .75); }
+.mini-sub-porthole-rim { fill: none; stroke: #9c6d18; stroke-width: 2.2; }
+.mini-sub-stripe { fill: none; stroke: rgba(151, 104, 26, .45); stroke-width: 2; }
+/* Bell: the rope it hung from, the yoke, the cast bands and the clapper. */
+.bell-rope { fill: none; stroke: #d8c090; stroke-width: 4; stroke-linecap: round; }
+.bell-yoke { fill: none; stroke: #96a8b1; stroke-width: 5; stroke-linecap: round; }
+.bell-band { fill: none; stroke: rgba(120, 88, 18, .5); stroke-width: 2.2; }
+.bell-highlight { fill: none; stroke: rgba(255, 248, 210, .75); stroke-width: 3; stroke-linecap: round; }
+.bell-clapper-line { fill: none; stroke: #8d6a1e; stroke-width: 3; stroke-linecap: round; }
+/* Wheel: the spokes, the grain, and the brass ferrules on every handle. */
+.wheel-spoke { fill: none; stroke: #b3823f; stroke-width: 7; stroke-linecap: round; }
+.wheel-grain { fill: none; stroke: rgba(139, 94, 51, .5); stroke-width: 2; stroke-linecap: round; }
+/* Amphora: the bands around the belly and the cracks in the clay. */
+.amphora-band { fill: none; stroke: rgba(122, 76, 30, .5); stroke-width: 2.2; }
+.amphora-band-faint { stroke: rgba(122, 76, 30, .3); stroke-width: 1.8; }
+.amphora-crack { fill: none; stroke: rgba(96, 58, 22, .65); stroke-width: 1.8; stroke-linecap: round; }
+/* A message in a bottle: the lines of writing showing through the glass. */
+.message-line { fill: none; stroke: rgba(150, 130, 90, .7); stroke-width: 1.6; stroke-linecap: round; }
+.bottle-rim { fill: none; stroke: rgba(85, 160, 155, .7); stroke-width: 2; }
+.bottle-line { fill: none; stroke: rgba(255, 255, 255, .55); stroke-width: 1.6; stroke-linecap: round; }
+/* ---- Each find keeps its own little life -------------------------------- */
+/* Coral sways, the jellyfish drifts, the crab scuttles, the wreck settles and the
+   station breathes. Only transforms and opacity move, so no filter is ever
+   re-rendered – and `prefers-reduced-motion` stills the lot of them. */
 .reward-coral .reef-art, .reward-seagrass .reef-art { animation: reef-sway 5.5s ease-in-out infinite alternate; }
 .reward-seagrass .reef-art { animation-duration: 7s; }
 @keyframes reef-sway { from { rotate: -4deg; } to { rotate: 5deg; } }
 .reward-starfish .reef-art { animation: reef-pulse 2.8s ease-in-out infinite alternate; }
-@keyframes reef-pulse { to { scale: 1.12; rotate: 8deg; } }
+@keyframes reef-pulse { to { scale: 1.1; rotate: 7deg; } }
 .reward-jellyfish .reef-art { animation: jelly-drift 4.6s ease-in-out infinite alternate; }
 @keyframes jelly-drift { to { translate: 0 -12px; rotate: 5deg; } }
 .reward-crab .reef-art { animation: crab-scuttle 3.4s ease-in-out infinite alternate; }
 @keyframes crab-scuttle { to { translate: 8px 0; rotate: -5deg; } }
 .reward-octopus .reef-art { animation: octo-wave 4.2s ease-in-out infinite alternate; }
-@keyframes octo-wave { to { rotate: 5deg; scale: 1.06; } }
+@keyframes octo-wave { to { rotate: 5deg; scale: 1.05; } }
 .reward-seahorse .reef-art { animation: seahorse-bob 3.8s ease-in-out infinite alternate; }
 @keyframes seahorse-bob { to { translate: 0 -10px; rotate: -4deg; } }
 .reward-wreck .reef-art { animation: wreck-settle 7s ease-in-out infinite alternate; }
-@keyframes wreck-settle { to { rotate: 2deg; translate: 0 -3px; } }
+@keyframes wreck-settle { to { rotate: 1.6deg; translate: 0 -3px; } }
 .reward-chest .reef-art { animation: chest-glow 2.6s ease-in-out infinite alternate; }
-@keyframes chest-glow { from { filter: drop-shadow(0 0 0 rgba(255, 217, 92, 0)); } to { filter: drop-shadow(0 0 8px rgba(255, 217, 92, .85)); } }
+@keyframes chest-glow { to { translate: 0 -2px; scale: 1.03; } }
+.reward-bell .reef-art { animation: bell-sway 6s ease-in-out infinite alternate; }
+@keyframes bell-sway { from { rotate: -2.5deg; } to { rotate: 2.5deg; } }
+.reward-submarine .reef-art { animation: sub-hover 6.4s ease-in-out infinite alternate; }
+@keyframes sub-hover { to { translate: 0 -7px; rotate: -1deg; } }
+.reward-station .reef-art { animation: station-breathe 7.6s ease-in-out infinite alternate; }
+@keyframes station-breathe { to { scale: 1.015; translate: 0 -2px; } }
+.reward-amphora .reef-art, .reward-bottle .reef-art, .reward-wheel .reef-art { animation: find-rest 9s ease-in-out infinite alternate; }
+@keyframes find-rest { to { translate: 0 -1.5px; } }
 
 
 
 /* ---- The boat, the angler and the fishing line --------------------------- */
 /* The boat sails along the surface: its own waterline sits at 78% of the
    drawing, so the hull always floats at the surface. Its `left` comes from the
-   game (`boat.x`), and the rod, the float and the net hang off the same anchor
-   (see RIG_DX in sea.js), so the whole rig travels as one. */
+   game (`boat.x`), and the rod, the float and the crate at the bow hang off the
+   same anchor (see RIG_DX in rig.js), so the whole rig travels as one. The
+   drawing itself is BoatArt.jsx – planked hull, boot-top stripe, framed glass and
+   the crew's gear – painted from the shared paints. */
 .boat {
   position: absolute; top: var(--waterline, 22%);
-  height: clamp(86px, 21%, 128px); width: auto; aspect-ratio: 220 / 190;
+  height: clamp(96px, 23%, 148px); width: auto; aspect-ratio: 220 / 190;
   transform: translateY(-78%);
   z-index: 4; pointer-events: none;
   /* The boat sails on the same heartbeat as the fish, and glides between ticks
@@ -183,7 +301,7 @@
   animation: boat-bob 4.5s ease-in-out infinite alternate;
 }
 @keyframes boat-bob { to { translate: 0 -5px; } }
-/* Under way: the hull leans into its heading and drags a wake along. */
+/* Under way: the hull leans into its heading and drags a wake and a little spray along. */
 .boat-drawing { width: 100%; height: 100%; display: block; transition: rotate 260ms ease; }
 .boat.is-sailing .boat-drawing { rotate: calc(var(--facing, 1) * 1.6deg); }
 .boat-wake {
@@ -191,20 +309,35 @@
   border-radius: 50%; background: radial-gradient(ellipse at 50% 60%, rgba(255, 253, 243, .85), rgba(255, 253, 243, 0) 72%);
   animation: wake-spread .9s ease-out infinite;
 }
+.boat-wake-far { left: 12%; right: 14%; bottom: 21%; height: 9px; opacity: .6; animation-duration: 1.3s; animation-delay: .3s; }
 @keyframes wake-spread { from { opacity: .7; scale: .7 1; } to { opacity: 0; scale: 1.25 1; } }
-.boat-drawing { width: 100%; height: 100%; display: block; }
-.boat-hull { fill: #b8533a; }
-.boat-deck { fill: #f0e0bd; }
-.boat-mast { fill: none; stroke: #8a6a45; stroke-width: 4; stroke-linecap: round; }
-.boat-flag { fill: #e46e4b; }
+.boat-spray {
+  position: absolute; left: 2%; bottom: 24%; width: 10px; height: 10px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, rgba(255, 253, 243, .95), rgba(255, 253, 243, .1));
+  animation: spray-hop .8s ease-out infinite;
+}
+@keyframes spray-hop { from { opacity: .9; translate: 0 0; scale: .6; } to { opacity: 0; translate: -14px -12px; scale: 1.1; } }
+/* Boat detail: strokes only – every filled shape carries its own paint in
+   BoatArt.jsx, so nothing here can fight with it. */
+.boat-rigging { fill: none; stroke: rgba(120, 96, 62, .65); stroke-width: 1.6; }
+.boat-sail-tie { fill: none; stroke: rgba(150, 118, 74, .6); stroke-width: 1.4; }
 .boat-flag-number { fill: #fffdf3; font-size: 22px; font-weight: 900; font-family: inherit; }
-.boat-cabin { fill: #f3d9a5; }
-.boat-window { fill: #7cc9de; stroke: #8a6a45; stroke-width: 3; }
-.angler-body { fill: #2f6f8f; }
-.angler-head { fill: #f6cfa6; }
-.angler-hat { fill: #e5ae45; }
-.angler-arm { fill: none; stroke: #2f6f8f; stroke-width: 7; stroke-linecap: round; }
-.boat-net { fill: none; stroke: #8a6a45; stroke-width: 3; }
+.boat-window-frame { fill: none; stroke: #7d5f36; stroke-width: 2.4; }
+.boat-strake { fill: none; stroke: rgba(122, 62, 40, .45); stroke-width: 1.6; }
+.boat-rivet { fill: #7c4a2f; }
+.boat-porthole-rim { fill: none; stroke: #8a6a45; stroke-width: 2.2; }
+.boat-lifering-band { fill: none; stroke: #d24d31; stroke-width: 2.4; }
+.boat-plank-seam { fill: none; stroke: rgba(122, 90, 48, .35); stroke-width: 1.2; }
+.boat-deck-grain { fill: none; stroke: rgba(122, 90, 48, .22); stroke-width: 1.2; }
+.boat-gunwale { fill: none; stroke: #8a6a45; stroke-width: 5; stroke-linecap: round; }
+.boat-gunwale-inner { fill: none; stroke: rgba(255, 253, 243, .7); stroke-width: 2; }
+.boat-fishbox-slats { fill: none; stroke: rgba(74, 61, 49, .5); stroke-width: 1.4; }
+.boat-net-line { fill: none; stroke: rgba(150, 118, 74, .75); stroke-width: 1.2; }
+.boat-bucket-handle { fill: none; stroke: #6b8090; stroke-width: 1.8; }
+.boat-rope, .boat-rope-tail { fill: none; stroke: #d8c090; stroke-width: 2.6; }
+.angler-boot { fill: #3c4c55; }
+.angler-belt { fill: none; stroke: rgba(20, 50, 70, .5); stroke-width: 2.4; }
+.angler-arm { fill: none; stroke: #3f7f9f; stroke-width: 7; stroke-linecap: round; }
 
 /* Where the boat is headed: a dashed ring on the surface, visible only while it
    is really moving, so a tap is clearly an instruction. */
@@ -244,15 +377,17 @@
 
 /* The float: it falls out of the rod, bobs in the water, gets knocked about,
    and plunges when a fish commits. It glides between ticks like everything else
-   on the water, so the drop reads as one smooth fall rather than five steps. */
+   on the water, so the drop reads as one smooth fall rather than five steps.
+   The little spool itself is drawn in SeaScene.jsx: an antenna, a painted band,
+   a sheen and a ripple ring on the surface under it. */
 .fishing-float {
-  position: absolute; z-index: 7; width: 16px; height: 16px;
-  transform: translate(-50%, -50%); border-radius: 50%;
-  background: radial-gradient(circle at 34% 30%, #fffdf3 0 38%, #e0463c 40%);
-  border: 2px solid #fffdf3;
+  position: absolute; z-index: 7; width: 20px; height: 29px;
+  transform: translate(-50%, -50%);
   transition: left 120ms linear, top 120ms linear;
   animation: float-bob 1.8s ease-in-out infinite alternate;
 }
+.float-art { display: block; width: 100%; height: 100%; overflow: visible; }
+.float-antenna { fill: none; stroke: #d24d31; stroke-width: 2; stroke-linecap: round; }
 @keyframes float-bob { to { translate: 0 4px; } }
 /* On the way down the float is still above the water, a little smaller than it
    will be when it floats. */
@@ -309,11 +444,19 @@
      the sailing surface beneath it. */
   pointer-events: none;
 }
+/* The shoal's palette: five colours, one CSS line each, and each species has its
+   own size so the shoal is never five copies of one fish. */
 .fish-coral { --f1: #e46e4b; --f2: #f6ab8b; --f3: #a8431f; }
 .fish-blue { --f1: #0c9fc4; --f2: #83cee2; --f3: #076d8b; }
 .fish-ochre { --f1: #d09b45; --f2: #eec987; --f3: #95661a; }
 .fish-green { --f1: #63a375; --f2: #a3ceae; --f3: #3c6b4b; }
 .fish-plum { --f1: #8e6bb5; --f2: #bfa4dc; --f3: #5f4585; }
+.fish { width: calc(var(--fish-w, 104px) * var(--fish-scale, 1)); }
+.fish.species-flounder { --fish-scale: 1.1; }
+.fish.species-mackerel { --fish-scale: 1.04; }
+.fish.species-tropical { --fish-scale: .96; }
+.fish.species-puffer { --fish-scale: .92; }
+.fish.species-seahorse { --fish-scale: 1; }
 
 .fish-art {
   display: block; width: 100%; padding: 0; border: 0; background: none;
@@ -323,13 +466,28 @@
 }
 @keyframes fish-bob { to { translate: 0 -6px; } }
 .fish-drawing { width: 100%; height: auto; display: block; filter: drop-shadow(0 3px 0 rgba(20, 63, 78, .18)); }
-.fish-body { fill: var(--f1); transition: filter .12s ease; }
-.fish-tail, .fish-dorsal, .fish-pectoral { fill: var(--f2); }
-.fish-spot { fill: var(--f3); opacity: .45; }
-.fish-gill { fill: none; stroke: var(--f3); stroke-width: 3; opacity: .5; }
-.fish-mouth { fill: none; stroke: var(--f3); stroke-width: 3; stroke-linecap: round; }
+/* Body, fins and pattern come from the fish's own colour; the tone shapes give
+   every species a darker back, a pale belly and a rim light along the top, so a
+   fish reads as a rounded creature rather than as a flat sticker. */
+.fish-body { fill: var(--f1); }
+.fish-fin { fill: var(--f2); }
+.fish-fin-ray { fill: none; stroke: var(--f3); stroke-width: 1.6; stroke-linecap: round; opacity: .45; }
+.fish-back { fill: #123c4d; opacity: .2; }
+.fish-belly { fill: #fffdf3; opacity: .3; }
+.fish-rim { fill: none; stroke: #fffdf3; stroke-width: 2.2; stroke-linecap: round; opacity: .45; }
+.fish-stripe { fill: none; stroke: var(--f3); stroke-width: 4; stroke-linecap: round; opacity: .38; }
+.fish-pattern { fill: var(--f3); opacity: .38; }
+.fish-pattern-warm { fill: #f2a45c; opacity: .6; }
+.fish-gill { fill: none; stroke: var(--f3); stroke-width: 2.6; opacity: .5; }
+.fish-lateral { fill: none; stroke: var(--f3); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 3 4; opacity: .35; }
+.fish-fringe { stroke: var(--f3); stroke-width: 1.6; stroke-dasharray: 3 4; opacity: .4; }
+.fish-spines { fill: var(--f3); opacity: .7; }
 .fish-eye { fill: #fffdf3; }
+.fish-iris { fill: var(--f3); }
 .fish-pupil { fill: #143f4e; }
+.fish-glint { fill: #ffffff; }
+.fish-mouth { fill: none; stroke: var(--f3); stroke-width: 2.6; stroke-linecap: round; }
+.fish-cheek { fill: #ffffff; opacity: .25; }
 
 /* The word the fish carries – written on a little wooden tag above it. */
 .fish-tag {
@@ -452,6 +610,11 @@
 .trip-done p { margin: 0; color: #285362; line-height: 1.4; }
 .trip-done-mascot { font-size: 2.6rem !important; line-height: 1 !important; animation: mascot-hop .7s ease infinite alternate; }
 @keyframes mascot-hop { to { translate: 0 -8px; rotate: -6deg; } }
+/* The find on the card: the treasure itself, at a size a child can recognise,
+   popping the same way it pops on the seabed. */
+.trip-done-art { width: 108px; height: 78px; display: grid; place-items: center; }
+.trip-done-art .reef-art { width: 100%; height: auto; max-height: 78px; animation: done-art-pop 1.1s ease-in-out infinite alternate; filter: drop-shadow(0 4px 3px rgba(20, 63, 78, .22)); }
+@keyframes done-art-pop { from { scale: .96; } to { scale: 1.04; } }
 .trip-done-reward { font-weight: 900; color: #95661a !important; }
 .trip-done-tally { font-size: .88rem; }
 
@@ -672,12 +835,18 @@
 .primary-button:focus-visible, .outline-button:focus-visible,
 .book-close:focus-visible, .back-link:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
 
+@media (min-width: 641px) and (max-width: 950px) {
+  /* A narrower sea box: pull the whole collection in a little, so the showpieces
+     never cover the finds in front of them. */
+  .sea-floor { --reward-scale: .8; }
+}
+
 @media (max-width: 640px) {
   .game-controls { position: static; justify-content: flex-start; margin-top: 4px; }
   .sea { height: clamp(360px, 58vh, 470px); }
   .fish { --fish-w: 84px; }
   .fish-tag { font-size: .88rem; padding: 1px 9px; }
-  .boat { height: clamp(74px, 20%, 104px); }
+  .boat { height: clamp(78px, 21%, 112px); }
   .trip-order { width: min(58%, 200px); padding: 5px 8px 6px; }
   .trip-order-request { font-size: .82rem; }
   .catch-card { top: 52%; padding: 12px 14px 11px; }
@@ -690,10 +859,16 @@
   .crate-dock { gap: 8px; }
   .crate { flex: 1 1 44%; min-height: 88px; padding: 13px 6px 8px; }
   .crate-label { font-size: .95rem; }
-  .reef-item.reef-rock, .reef-item.reef-anchor { display: none; }
+  /* The scenery steps aside and the whole collection shrinks together, so sixteen
+     finds still fit a phone's seabed. */
+  .reef-item.reef-rock, .reef-item.reef-anchor, .reef-item.reef-driftwood { display: none; }
+  .reef-stones { width: 86px; left: 84%; }
+  .sea-floor { --reward-scale: .58; }
+  .trip-done-art { width: 84px; height: 62px; }
   .dock-hint-stage { font-size: .92rem; }
   .book { padding: 13px; }
   .book-pages { grid-template-columns: 1fr; }
+  .reef-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 }
 
 /* A tablet held in landscape has little height: the sea takes what there is,

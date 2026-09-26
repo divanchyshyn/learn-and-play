@@ -178,6 +178,33 @@ describe('word-fishing the opening screen', () => {
     expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
   });
 
+  it('mounts the whole stage: the shared paints, the seabed and its scenery', () => {
+    const view = render(<WordFishing />);
+
+    // The paints the whole scene is built from are mounted with it, so a sprite
+    // can never end up transparent because its gradient is missing.
+    expect(view.container.querySelector('.sea-defs')).toBeTruthy();
+    expect(view.container.querySelector('.sea-bed svg')).toBeTruthy();
+    expect(view.container.querySelector('.sea-floor .reef-rock svg')).toBeTruthy();
+    expect(view.container.querySelector('.sea-floor .reef-anchor svg')).toBeTruthy();
+    expect(view.container.querySelector('.sea-waves')).toBeTruthy();
+    expect(view.container.querySelector('.sea-snow .snow-flake')).toBeTruthy();
+
+    // Every paint the mounted scene points at exists in the document.
+    const references = new Set();
+    for (const element of view.container.querySelectorAll('*')) {
+      for (const name of ['fill', 'stroke']) {
+        for (const match of (element.getAttribute(name) ?? '').matchAll(/url\(#([^)]+)\)/g)) {
+          references.add(match[1]);
+        }
+      }
+    }
+    expect(references.size).toBeGreaterThan(40);
+    for (const id of references) {
+      expect(document.getElementById(id), `${id} is missing from the scene`).toBeTruthy();
+    }
+  });
+
   it('has no description paragraph: the hint line and the controls say what to do', () => {
     const view = render(<WordFishing />);
     // The long intro is gone, so the sea gets the space it needs.
@@ -715,9 +742,20 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(view.container.querySelectorAll('.fish button')).toHaveLength(0);
     expect(view.container.querySelector('.action-bar')).toBeNull();
     expect(screen.queryByRole('button', { name: /feste kroken|Sveiv inn/ })).toBeNull();
-    // The reef grew: the first reward is painted on the seabed.
+    // The reef grew: the first reward is painted on the seabed, with the trip's
+    // own find shown on the card, and the newest find glows where it landed.
     expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
     expect(view.container.querySelector('.reward-coral')).toBeNull();
+    expect(done.querySelector('.trip-done-art svg.reef-art')).toBeTruthy();
+    expect(view.container.querySelector('.reward-starfish.is-new')).toBeTruthy();
+
+    // The glow is a moment, not a state: once its time is up the find settles
+    // into the collection like every other one.
+    act(() => {
+      vi.advanceTimersByTime(TIMING.REWARD_POP_MS + TICK_MS);
+    });
+    expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
+    expect(view.container.querySelector('.reward-starfish.is-new')).toBeNull();
 
     fireEvent.click(within(done).getByRole('button', { name: /Ny tur/ }));
 

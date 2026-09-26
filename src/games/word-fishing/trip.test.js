@@ -76,6 +76,55 @@ describe('word-fishing reef rewards', () => {
     expect(unlockedRewards([0, 99])).toEqual([REEF_REWARDS[0]]);
     expect(unlockedRewards([])).toEqual([]);
   });
+
+  it('names every find exactly once', () => {
+    const labels = REEF_REWARDS.map((reward) => reward.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it('keeps the seabed readable: showpieces apart, finds apart, nothing buried', () => {
+    // The floor is laid out in three depth bands (see REEF_REWARDS): the big
+    // showpieces stand behind the sand ridge and the small finds sit in front.
+    // Measured as squares in the sea box the scene is designed at, that means:
+    // no two showpieces may cover each other, no two finds may cover each other,
+    // and a find that overlaps a showpiece may only ever stand in front of that
+    // showpiece's base – never over the structure itself.
+    const SEA = { width: 1080, height: 640 };
+    const boxes = REEF_REWARDS.map((reward) => {
+      const centreX = (reward.x / 100) * SEA.width;
+      const centreY = (reward.y / 100) * SEA.height;
+      return {
+        id: reward.id,
+        showpiece: reward.size >= 100,
+        size: reward.size,
+        centreY,
+        left: centreX - reward.size / 2,
+        right: centreX + reward.size / 2,
+        top: centreY - reward.size / 2,
+        bottom: centreY + reward.size / 2,
+      };
+    });
+    const overlaps = (a, b) => Math.min(a.right, b.right) > Math.max(a.left, b.left)
+      && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
+
+    // At least one showpiece has to exist, or this rule tests nothing.
+    expect(boxes.filter((box) => box.showpiece).length).toBeGreaterThanOrEqual(3);
+
+    for (const first of boxes) {
+      for (const second of boxes) {
+        if (first.id === second.id || first.showpiece !== second.showpiece) continue;
+        expect(overlaps(first, second), `${first.id} covers ${second.id}`).toBe(false);
+      }
+    }
+
+    for (const showpiece of boxes.filter((box) => box.showpiece)) {
+      for (const find of boxes.filter((box) => !box.showpiece)) {
+        if (!overlaps(showpiece, find)) continue;
+        const baseLine = showpiece.centreY + showpiece.size * 0.1;
+        expect(find.top, `${find.id} stands over ${showpiece.id}`).toBeGreaterThan(baseLine);
+      }
+    }
+  });
 });
 
 describe('reading a saved trip back', () => {

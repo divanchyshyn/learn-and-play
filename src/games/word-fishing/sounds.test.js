@@ -38,6 +38,7 @@ describe('word-fishing sound settings', () => {
       sounds.select();
       sounds.stamp();
       sounds.fanfare();
+      sounds.discovery();
     }).not.toThrow();
 
     setMuted(true);

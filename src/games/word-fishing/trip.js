@@ -72,26 +72,44 @@ export function tripRequest() {
 }
 
 // ---- The reef -------------------------------------------------------------
-// Every finished trip decorates the seabed a little more, in this fixed order.
+// Every finished trip decorates the seabed a little more, in this fixed order:
+// the small finds a child meets first, and the big discoveries – the wreck on
+// trip four, then the submarine and the station – spread out so something
+// exciting is never far away.
+//
 // Positions are percentages of the sea box, so the scene and the tests agree on
-// where each reward lands. Only indices are ever stored (see journal.js), and an
-// index past the end of this list is simply skipped when painting – so this list
-// may grow or shrink without breaking a saved game.
-
-// Sizes are generous on purpose: the seabed is the child's own collection, and
-// a small decoration is easy to miss. Each one also carries a little motion
-// (see the `.reward-*` rules in style.css), so the floor feels alive.
+// where each reward lands. The list is laid out in three depth bands, which is
+// what makes the floor read as a floor rather than a row of stickers:
+//
+//   * floaters (y 56–80) – jellyfish, seahorse and octopus drift above the sand;
+//   * showpieces (y 84–86) – the wreck, the submarine and the station stand
+//     behind the sand ridge, generously spread so they never cover each other;
+//   * finds (y 92–95) – the small treasures sit on the sand in front, in the gaps
+//     between the showpieces, so a find may stand in front of a structure's base
+//     but the structure itself always stays readable.
+//
+// Only indices are ever stored (see journal.js), and an index past the end of
+// this list is simply skipped when painting – so this list may grow or shrink
+// without breaking a saved game. Sizes are generous on purpose: the seabed is the
+// child's own collection, and a small find is easy to miss; `--reward-scale` in
+// style.css shrinks every one of them together on a narrow screen.
 export const REEF_REWARDS = [
-  { id: 'starfish', label: 'Sjøstjernen', x: 8, y: 91, size: 44 },
-  { id: 'coral', label: 'Korallen', x: 23, y: 87, size: 72 },
-  { id: 'shell', label: 'Skjellet', x: 57, y: 93, size: 34 },
-  { id: 'seagrass', label: 'Sjøgresset', x: 39, y: 85, size: 78 },
-  { id: 'crab', label: 'Krabben', x: 71, y: 92, size: 46 },
-  { id: 'jellyfish', label: 'Maneten', x: 87, y: 66, size: 56 },
-  { id: 'octopus', label: 'Blekkspruten', x: 5, y: 79, size: 64 },
-  { id: 'seahorse', label: 'Sjøhesten', x: 94, y: 80, size: 52 },
-  { id: 'wreck', label: 'Skipsvraket', x: 64, y: 80, size: 128 },
-  { id: 'chest', label: 'Skattekisten', x: 31, y: 92, size: 58 },
+  { id: 'starfish', label: 'Sjøstjernen', x: 3.5, y: 94, size: 46 },
+  { id: 'coral', label: 'Korallen', x: 22.5, y: 93, size: 74 },
+  { id: 'shell', label: 'Skjellet', x: 8.5, y: 95, size: 38 },
+  { id: 'wreck', label: 'Skipsvraket', x: 50, y: 85, size: 148 },
+  { id: 'seagrass', label: 'Sjøgresset', x: 31, y: 94.5, size: 70 },
+  { id: 'crab', label: 'Krabben', x: 38, y: 93, size: 52 },
+  { id: 'octopus', label: 'Blekkspruten', x: 4.5, y: 78, size: 66 },
+  { id: 'chest', label: 'Skattekisten', x: 92, y: 93, size: 58 },
+  { id: 'submarine', label: 'Undervannsbåten', x: 82, y: 86, size: 156 },
+  { id: 'seahorse', label: 'Sjøhesten', x: 97, y: 72, size: 52 },
+  { id: 'jellyfish', label: 'Maneten', x: 91, y: 58, size: 58 },
+  { id: 'station', label: 'Undervannsstasjonen', x: 16, y: 84, size: 168 },
+  { id: 'bell', label: 'Skipsklokken', x: 14, y: 92.5, size: 46 },
+  { id: 'wheel', label: 'Skipsrattet', x: 45.5, y: 95, size: 54 },
+  { id: 'amphora', label: 'Amforaen', x: 58.5, y: 94.5, size: 50 },
+  { id: 'bottle', label: 'Flaskeposten', x: 52, y: 93.5, size: 42 },
 ];
 
 export function rewardForTrip(tripNumber) {

@@ -78,6 +78,15 @@ export const sounds = {
   fanfare() {
     [523, 659, 784, 1047, 1319].forEach((freq, index) => tone({ freq, delay: index * 0.1, duration: 0.22, type: 'triangle', volume: 0.14 }));
   },
+  // A treasure arriving on the seabed: a bubble rising, then a bright little
+  // chime on top of it. It plays just after the trip's fanfare, so the two read
+  // as one moment – the trip is over, and look what it left behind.
+  discovery() {
+    tone({ freq: 300, freqEnd: 760, duration: 0.24, type: 'sine', volume: 0.1 });
+    [784, 1047, 1319, 1568].forEach((freq, index) => tone({
+      freq, delay: 0.2 + index * 0.08, duration: 0.22, type: 'triangle', volume: 0.12,
+    }));
+  },
 };
 
 export { engineIsMuted as isMuted };
