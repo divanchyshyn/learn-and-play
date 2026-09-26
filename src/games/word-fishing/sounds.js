@@ -35,11 +35,34 @@ export const sounds = {
   newWord() {
     [880, 1174, 1568].forEach((freq, index) => tone({ freq, delay: index * 0.07, duration: 0.16, type: 'triangle', volume: 0.11 }));
   },
-  // The hook comes loose and the fish gets away – a quick downward flick, soft
-  // and playful rather than sad. It only means the fish swims on.
-  escape() {
-    tone({ freq: 540, freqEnd: 190, duration: 0.18, type: 'triangle', volume: 0.14 });
-    tone({ freq: 900, freqEnd: 330, delay: 0.06, duration: 0.13, type: 'sine', volume: 0.08 });
+  // The boat sets off: a low, calm swell.
+  sail() {
+    tone({ freq: 180, freqEnd: 270, duration: 0.32, type: 'sine', volume: 0.1 });
+  },
+  // The bait is cast: a soft whoosh out over the water.
+  cast() {
+    tone({ freq: 900, freqEnd: 320, duration: 0.2, type: 'sine', volume: 0.12 });
+  },
+  // The bait lands: a round little plop with a small ring on top of it.
+  splash() {
+    tone({ freq: 420, freqEnd: 190, duration: 0.16, type: 'sine', volume: 0.16 });
+    tone({ freq: 760, freqEnd: 400, delay: 0.03, duration: 0.1, type: 'triangle', volume: 0.08 });
+  },
+  // A fish takes a nibble at the bait: two tiny, close taps.
+  nibble() {
+    tone({ freq: 300, duration: 0.05, type: 'sine', volume: 0.1 });
+    tone({ freq: 340, delay: 0.07, duration: 0.05, type: 'sine', volume: 0.08 });
+  },
+  // The float goes under: one clear, bright call – the signal to strike.
+  bite() {
+    tone({ freq: 620, freqEnd: 1180, duration: 0.18, type: 'triangle', volume: 0.18 });
+    tone({ freq: 1240, delay: 0.1, duration: 0.16, type: 'sine', volume: 0.12 });
+  },
+  // The line snaps: a sharp downward flick, playful rather than sad. It only
+  // means the fish swims on and the line can be cast again.
+  snap() {
+    tone({ freq: 700, freqEnd: 150, duration: 0.2, type: 'square', volume: 0.1 });
+    tone({ freq: 1100, freqEnd: 300, delay: 0.05, duration: 0.14, type: 'sine', volume: 0.08 });
   },
   // Neutral little blub for "the fish swims on" – deliberately tiny and soft.
   blub() {

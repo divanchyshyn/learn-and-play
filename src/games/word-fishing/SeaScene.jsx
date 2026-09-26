@@ -1,13 +1,14 @@
-import { FLOAT_POINT, ROD_BASE, ROD_TIP } from './sea.js';
+import { RIG_DX, RIG_Y } from './rig.js';
 import { Anchor, Kelp, ReefArt, Rock, Sand } from './ReefArt.jsx';
 
 // The whole stage: sky and water, the seabed with whatever the child has
-// unlocked, the boat with its angler, the rod and the fishing line. All of it is
-// decorative (aria-hidden) – the fish, the crates and the cards carry the game.
+// unlocked, the boat with its angler, the rod, the float and the line. All of it
+// except the controls is decorative (aria-hidden) – the water surface, the float
+// and the crank carry the game.
 //
-// Positions are percentages of the sea box, and the boat is anchored to the
-// waterline (see `--waterline` in style.css), so the whole scene keeps its shape
-// from a phone up to a desktop.
+// Positions are percentages of the sea box and everything follows `boat.x`, the
+// boat's own left edge, so the whole rig keeps its shape and its place from a
+// phone up to a desktop screen (see `RIG_DX` in sea.js).
 
 function Sky() {
   return <div className="sea-sky" aria-hidden="true">
@@ -54,10 +55,17 @@ function SeaBed({ decorations }) {
 }
 
 // The boat: hull, cabin, mast with the trip flag, and the angler whose hands
-// hold the rod. The rod itself lives in the line layer, exactly where the line
-// starts, so the two always meet.
-function Boat({ tripNumber }) {
-  return <div className="boat" aria-hidden="true">
+// hold the rod. It sails by its own `left`, so its wake and its heading follow
+// it, and the rod (drawn in the line layer off the same anchor) always meets the
+// angler's hands.
+function Boat({ boat, tripNumber }) {
+  const sailing = boat.x !== boat.targetX;
+  return <div
+    className={`boat${sailing ? ' is-sailing' : ''}`}
+    style={{ left: `${boat.x}%`, '--facing': boat.targetX < boat.x ? -1 : 1 }}
+    aria-hidden="true"
+  >
+    {sailing && <span className="boat-wake" />}
     <svg className="boat-drawing" viewBox="0 0 220 190" focusable="false">
       <path className="boat-mast" d="M150 18 L150 112" />
       <path className="boat-flag" d="M152 20 L202 33 L152 46 Z" />
@@ -79,28 +87,97 @@ function Boat({ tripNumber }) {
   </div>;
 }
 
-function LineLayer({ target, onLine, slack }) {
-  const midX = (ROD_TIP.x + target.x) / 2 + 1.5;
-  // A slack line sags: the less grip the rod has on the fish, the deeper the
-  // curve, which is the child's first sign that the fish is about to get away.
-  const midY = (ROD_TIP.y + target.y) / 2 + 4.5 * slack;
-  return <svg className="line-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-    <line className="rod-line" x1={ROD_BASE.x} y1={ROD_BASE.y} x2={ROD_TIP.x} y2={ROD_TIP.y} />
-    <path
-      className={`fishing-line${onLine && slack < 0.5 ? ' taut' : ''}`}
-      d={`M ${ROD_TIP.x} ${ROD_TIP.y} Q ${midX} ${midY} ${target.x} ${target.y}`}
-    />
-  </svg>;
+// Where the boat is headed: a dashed ring on the surface at the tapped spot, so
+// a tap is visibly an instruction the child can change their mind about. When a
+// tap cannot sail – the line is out, say – a small nudge says why instead of
+// leaving the child with a tap that did nothing.
+function SailMarker({ boat, nudge }) {
+  const sailing = boat.x !== boat.targetX;
+  return <>
+    {sailing && <span className="sail-marker" style={{ left: `${boat.targetX}%` }} aria-hidden="true" />}
+    {nudge && <span className="sea-nudge" key={nudge.key}>{nudge.text}</span>}
+  </>;
 }
 
-export function SeaScene({ decorations, lineTo, tripNumber, onLine, slack = 0, children }) {
+// The rod and the line, in a layer that sails with the boat: its own `left` is
+// the boat's, so the rod stays glued to the angler's hands and glides along with
+// them, while the line's far end reaches the float below it or the fish that is
+// being fought. Its coordinates are the sea box's, measured from the boat's left
+// edge, which is exactly what the rig anchors are (see RIG_DX in rig.js).
+function LineLayer({ boat, target }) {
+  const tip = { x: RIG_DX.rodTip, y: RIG_Y.rodTip };
+  const end = target ? { x: target.x - boat.x, y: target.y } : null;
+  const midX = end ? (tip.x + end.x) / 2 + 1.5 : tip.x;
+  const midY = end ? (tip.y + end.y) / 2 + 2.5 : tip.y + 6;
+  return <div className="line-layer" style={{ left: `${boat.x}%` }}>
+    <svg className="line-drawing" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <line className="rod-line" x1={RIG_DX.rodBase} y1={RIG_Y.rodBase} x2={tip.x} y2={tip.y} />
+      {end && <path className="fishing-line" d={`M ${tip.x} ${tip.y} Q ${midX} ${midY} ${end.x} ${end.y}`} />}
+    </svg>
+  </div>;
+}
+
+// The float: a cast in flight, a float bobbing in the water, one being knocked
+// about – and, in the one moment it matters, a big tap ring around it, so a
+// child's finger cannot miss the fish that has taken the bait.
+function Float({ point, bait, canStrike, onStrike }) {
+  if (!point) return null;
+  const classes = ['fishing-float', `float-${bait.phase}`];
+  if (canStrike) {
+    return <button
+      type="button"
+      className="strike-ring"
+      style={{ left: `${point.x}%`, top: `${point.y}%` }}
+      onClick={onStrike}
+      aria-label="Napp! Trykk for å feste kroken"
+    >
+      <span className={classes.join(' ')} aria-hidden="true" />
+      <span className="strike-call" aria-hidden="true">Napp!</span>
+    </button>;
+  }
+  return <span className={classes.join(' ')} style={{ left: `${point.x}%`, top: `${point.y}%` }} aria-hidden="true" />;
+}
+
+// The water itself is the sailing control: tap the spot the boat should sail to.
+// It is a real button, so a keyboard or switch user can sail too – the arrow
+// keys move the boat's target one hop at a time. What a tap means is the game's
+// decision, not the surface's: the parent nudges when the line is out.
+function SailSurface({ onSail, onStep }) {
+  function handleClick(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const width = rect.width || 1;
+    onSail(((event.clientX - rect.left) / width) * 100);
+  }
+
+  function handleKeyDown(event) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    onStep(event.key === 'ArrowLeft' ? -1 : 1);
+  }
+
+  return <button
+    type="button"
+    className="sea-surface"
+    aria-label="Vannet – trykk der båten skal seile"
+    aria-describedby="sea-hint"
+    onClick={handleClick}
+    onKeyDown={handleKeyDown}
+  />;
+}
+
+export function SeaScene({
+  decorations, boat, bait, baitPoint, lineTo, canStrike, nudge, tripNumber,
+  onSail, onStep, onStrike, children,
+}) {
   return <>
     <Sky />
     <Water />
     <SeaBed decorations={decorations} />
-    <Boat tripNumber={tripNumber} />
-    {!onLine && <span className="fishing-float" style={{ left: `${FLOAT_POINT.x}%`, top: `${FLOAT_POINT.y}%` }} aria-hidden="true" />}
-    <LineLayer target={lineTo} onLine={onLine} slack={slack} />
+    <SailMarker boat={boat} nudge={nudge} />
+    <Boat boat={boat} tripNumber={tripNumber} />
+    <LineLayer boat={boat} target={lineTo} />
+    <SailSurface onSail={onSail} onStep={onStep} />
+    <Float point={baitPoint} bait={bait} canStrike={canStrike} onStrike={onStrike} />
     {children}
   </>;
 }
