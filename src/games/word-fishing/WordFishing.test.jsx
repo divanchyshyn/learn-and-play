@@ -770,7 +770,10 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(screen.getByText(`4 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - 4} igjen.`)).toBeInTheDocument();
     // The decoration stays on the seabed while the next trip starts.
     expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
-  });
+    // Four full catches – cast, bite, fight and delivery, each tick rendered –
+    // are slow when every test file runs at once, so give this the same
+    // generous timeout as the other long game tests.
+  }, 20000);
 
   it('never celebrates a trip a second time after a reload', () => {
     // A trip that was already full when the page was closed: the next catch is
