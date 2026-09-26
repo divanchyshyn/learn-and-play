@@ -23,11 +23,16 @@ describe('word-fishing sound settings', () => {
   it('treats every effect as a safe no-op without Web Audio or when muted', () => {
     // jsdom has no AudioContext – playing effects must never throw.
     expect(() => {
+      sounds.sail();
+      sounds.cast();
+      sounds.splash();
+      sounds.nibble();
+      sounds.bite();
       sounds.hook();
       sounds.reel();
+      sounds.snap();
       sounds.plop();
       sounds.crate();
-      sounds.escape();
       sounds.newWord();
       sounds.blub();
       sounds.select();

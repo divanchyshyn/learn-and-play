@@ -1,17 +1,14 @@
-import { REEL_STEPS, fishPosition, fishWord } from './sea.js';
+import { fishPosition, fishWord } from './sea.js';
 
 // One fish, drawn as SVG so it actually looks like a fish: forked tail, dorsal
 // and pectoral fins, a gill line and a proper eye. The colours come from the
 // `fish-<colour>` class in style.css, so a new colour is one CSS line and
 // nothing binary ever ships with the game.
 //
-// A fish is a button only while tapping it would really do something: a fish
-// swimming freely is tapped to put it on the line, a fish on the line is tapped
-// to wind the reel. A fish that has landed, is sinking into a crate, or is busy
-// because a catch already waits on deck is scenery – the catch card and the
-// crates are what the child acts on then, and nothing should look tappable
-// while it is not. A decorative fish is a non-interactive span for a screen
-// reader as well, so nothing useless is announced.
+// A fish is never a button any more: it is the world, not a control. What the
+// child reads is the word on its tag, and what the child acts on is the water,
+// the float and the crank. Every mark here is decorative and hidden from a
+// screen reader – the sea's own narration carries the story (see WordFishing).
 function FishArt() {
   return <svg className="fish-drawing" viewBox="0 0 120 72" aria-hidden="true" focusable="false">
     <path className="fish-tail" d="M34 36 L4 8 L14 36 L4 64 Z" />
@@ -27,43 +24,33 @@ function FishArt() {
   </svg>;
 }
 
-// How far along the reel this fish is: one dot per turn, filled as they go. When
-// the line starts to slip the dots pulse – the child can see the fish winning.
-function ReelMeter({ step, slack }) {
-  return <span className={`reel-meter${slack ? ' slack' : ''}`} aria-hidden="true">
-    {Array.from({ length: REEL_STEPS }, (_, index) => (
-      <span className={`reel-dot${index < step ? ' filled' : ''}`} key={index} />
-    ))}
-  </span>;
-}
+// The word stays readable while the fish swims, notices the bait and tastes it,
+// so the child can see which word is on its way; once the hook bites, the word
+// belongs to the catch card instead.
+const WORD_VISIBLE = ['swim', 'chasing', 'nibbling', 'biting'];
 
-export function FishSprite({ fish, onTap, tappable = true }) {
+export function FishSprite({ fish, boat }) {
   const word = fishWord(fish);
-  const { x, y } = fishPosition(fish);
-  const swimming = fish.status === 'swim';
-  const onLine = fish.status === 'hooked';
-  const aboard = fish.status === 'aboard';
-  const busy = fish.status === 'delivered';
-  const pressable = tappable && (swimming || onLine);
-  const className = `fish fish-${fish.color} fish-${fish.status}${busy ? ' is-away' : ''}`;
+  const { x, y } = fishPosition(fish, boat);
+  const classes = [
+    'fish',
+    `fish-${fish.color}`,
+    `fish-${fish.status}`,
+    fish.status === 'delivered' ? 'is-away' : '',
+    fish.escaped || fish.thrown || fish.spat ? 'is-splashing' : '',
+  ].filter(Boolean).join(' ');
 
-  return <div className={className} style={{ left: `${x}%`, top: `${y}%`, '--dir': fish.dir }}>
-    {pressable
-      ? <button
-        type="button"
-        className="fish-art"
-        onClick={() => onTap(fish)}
-        aria-label={swimming
-          ? `Fisk som bærer ordet ${word} – trykk for å feste kroken`
-          : `Sveiv inn fisken med ordet ${word} – ${fish.reelStep} av ${REEL_STEPS}`}
-      >
-        <FishArt />
-      </button>
-      : <span className="fish-art" aria-hidden="true"><FishArt /></span>}
+  return <div className={classes} style={{ left: `${x}%`, top: `${y}%`, '--dir': fish.dir }}>
+    <span className="fish-art"><FishArt /></span>
 
-    {swimming && <span className="fish-tag" aria-hidden="true">{word}</span>}
-    {onLine && <ReelMeter step={fish.reelStep} slack={fish.grip < 0.45} />}
-    {aboard && <span className="aboard-mark" aria-hidden="true">🎣</span>}
-    {fish.escaped && <span className="fish-splash" aria-hidden="true" />}
+    {WORD_VISIBLE.includes(fish.status) && <span className="fish-tag" aria-hidden="true">{word}</span>}
+
+    {/* It has noticed the bait and is coming over. */}
+    {fish.status === 'chasing' && <span className="fish-mark chase-mark" aria-hidden="true">!</span>}
+    {/* It is tasting the bait – and then the float goes under. */}
+    {(fish.status === 'nibbling' || fish.status === 'biting') && <span className="fish-bubbles" aria-hidden="true">{'°◦'}</span>}
+    {fish.status === 'biting' && <span className="fish-mark bite-mark" aria-hidden="true">❗</span>}
+    {fish.status === 'aboard' && <span className="aboard-mark" aria-hidden="true">🎣</span>}
+    {(fish.escaped || fish.thrown || fish.spat) && <span className="fish-splash" aria-hidden="true" />}
   </div>;
 }
