@@ -5,7 +5,7 @@ import {
   aboardFish, activeFish, canHookFish, createSea, deliverFish, fishPosition, fishWord, hookedFish,
   hookFish, lineTarget, reelFish, slipFish, tickSea,
 } from './sea.js';
-import { acceptsWord, createTripPlan } from './trip.js';
+import { createTripPlan } from './trip.js';
 import { WORD_BANK } from './words.js';
 
 beforeEach(() => {
@@ -471,16 +471,6 @@ describe('word-fishing invariants', () => {
       for (const fish of sea.fishes) {
         expect(['swim', 'hooked', 'aboard', 'delivered']).toContain(fish.status);
       }
-    }
-  });
-
-  it('always leaves a fish worth catching on an ordered trip', () => {
-    const orderTrip = createTripPlan(4);
-    let sea = createSea(orderTrip);
-    for (let tick = 0; tick < 600; tick += 1) {
-      sea = tickSea(sea);
-      expect(sea.fishes.some((fish) => acceptsWord(orderTrip, fishWord(fish)))).toBe(true);
-      expect(sea.fishes).toHaveLength(FISH_ON_SCREEN);
     }
   });
 });
