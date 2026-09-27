@@ -1,26 +1,15 @@
-import { paint } from './SeaArtDefs.jsx';
+import { PHOTOS } from './photos.js';
 import { Kelp } from './SeaFloor.jsx';
 
-// The water itself: the surface line with its crests, the light that falls
-// through it, drifting snow, the kelp at the edge, and a dim shoal far away.
+// The water itself: a photograph of the water column with the light falling in
+// from the surface at the top, the surface line as a repeating strip of real
+// water, drifting marine snow, the kelp at the edge, and a dim shoal far away.
 //
-// The surface is the one stretched drawing in the scene: a wave crest is an
-// abstract line, so letting it stretch across the sea box costs nothing. The
-// sun keeps its round shape because it is a CSS sprite in the sky band.
-
-function waveBand({ from, amp, step = 150, width = 1200, depth = 46 }) {
-  let d = `M0 ${from + amp} Q ${step / 2} ${from - amp} ${step} ${from}`;
-  for (let x = step; x < width; x += step) d += ` T ${x + step} ${from}`;
-  return `${d} L${width} ${depth} L0 ${depth} Z`;
-}
-
-export function WaveLine() {
-  return <svg className="sea-waves" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-    <path className="wave-shadow" d={waveBand({ from: 16, amp: 7 })} />
-    <path className="wave-crest" d={waveBand({ from: 10, amp: 6, step: 150 })} fill={paint('wave-crest')} />
-    <path className="wave-foam" d={waveBand({ from: 7, amp: 4, step: 300 })} fill={paint('foam')} opacity=".7" />
-  </svg>;
-}
+// The water plate is pasted with `cover`, anchored to its top edge, so the sunlit
+// surface stays where the surface strip puts the waterline and the picture is
+// never stretched. The strip repeats sideways – its own two halves are mirrors of
+// each other (see the asset pipeline) – and drifts slowly, which is what gives a
+// still photograph its movement.
 
 const SNOW = [
   { left: 7, size: 5, delay: 0, duration: 15 },
@@ -53,7 +42,7 @@ export function MarineSnow() {
   </div>;
 }
 
-// A shoal far away: pale, blurry fish that swim where the water is deep, outside
+// A shoal far away: pale fish that swim where the water is deep, outside
 // everything the child can reach.
 export function DistantShoal() {
   return <svg className="sea-shoal" viewBox="0 0 220 96" aria-hidden="true" focusable="false">
@@ -77,12 +66,27 @@ export function GodRays() {
 }
 
 export function WaterBody() {
-  return <div className="sea-water" aria-hidden="true">
+  return <div
+    className="sea-water"
+    aria-hidden="true"
+    style={{ '--water-photo': `url(${PHOTOS.water})` }}
+  >
+    <span className="water-depth" />
     <GodRays />
     <DistantShoal />
     <MarineSnow />
-    <span className="lake-kelp kelp-a"><Kelp /></span>
-    <span className="lake-kelp kelp-b"><Kelp /></span>
-    <span className="lake-kelp kelp-c"><Kelp /></span>
+    <span className="lake-kelp kelp-a"><Kelp variant="a" /></span>
+    <span className="lake-kelp kelp-b"><Kelp variant="b" /></span>
+    <span className="lake-kelp kelp-c"><Kelp variant="b" /></span>
   </div>;
+}
+
+// The surface: a strip of real water, repeated sideways and drifting. It is the
+// only strip in the scene, and it is what tells a child where the water starts.
+export function WaveLine() {
+  return <span
+    className="sea-waves"
+    aria-hidden="true"
+    style={{ '--surface-photo': `url(${PHOTOS.surface})` }}
+  />;
 }

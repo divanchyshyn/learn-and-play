@@ -4,39 +4,39 @@ import { REEF_REWARDS } from './trip.js';
 import { REWARD_IDS, ReefArt } from './ReefRewards.jsx';
 
 // The treasures are the reward a child comes back for, so they are worth guarding:
-// every decoration the reef hands out must have a drawing, and that drawing must
-// be a small scene rather than a glyph.
+// every decoration the reef hands out must have a picture, that picture must be one
+// of the game's own photographs, and no two finds may be the same picture.
 describe('word-fishing treasure art', () => {
-  it('draws every treasure the reef hands out', () => {
+  it('paints every treasure the reef hands out', () => {
     for (const reward of REEF_REWARDS) {
       expect(REWARD_IDS, `${reward.id} has no art`).toContain(reward.id);
     }
   });
 
-  it('keeps no drawing the game never hands out', () => {
+  it('keeps no picture the game never hands out', () => {
     const handedOut = new Set(REEF_REWARDS.map((reward) => reward.id));
     for (const id of REWARD_IDS) {
       expect(handedOut.has(id), `${id} can never be unlocked`).toBe(true);
     }
   });
 
-  it('paints a detailed sprite with shared paints for every treasure', () => {
+  it('gives every treasure its own photograph, silent and never stretched', () => {
+    const sources = new Set();
     for (const id of REWARD_IDS) {
       const { container, unmount } = render(<ReefArt id={id} />);
-      const svg = container.querySelector('svg.reef-art');
-      expect(svg, `${id} is not drawn`).toBeTruthy();
-      // A treasure is a scene: several shapes, and at least one of them painted
-      // from the shared palette rather than from a flat colour.
-      expect(svg.querySelectorAll('path, circle, ellipse, rect').length, `${id} is too simple`)
-        .toBeGreaterThanOrEqual(8);
-      expect(svg.querySelectorAll('[fill^="url(#"], [stroke^="url(#"]').length, `${id} uses no shared paint`)
-        .toBeGreaterThan(0);
+      const photo = container.querySelector('img.reef-art');
+      expect(photo, `${id} has no picture`).toBeTruthy();
+      expect(photo.getAttribute('src'), `${id} has no source`).toMatch(new RegExp(`photo-assets/${id}\\.webp$`));
+      expect(photo.getAttribute('alt'), `${id} must stay silent`).toBe('');
+      // Ten finds, ten different photographs: no treasure is another one twice.
+      sources.add(photo.getAttribute('src'));
       unmount();
     }
+    expect(sources.size).toBe(REWARD_IDS.length);
   });
 
-  it('skips an id this version does not draw', () => {
+  it('skips an id this version does not paint', () => {
     const { container } = render(<ReefArt id="finnesikke" />);
-    expect(container.querySelector('svg')).toBeNull();
+    expect(container.querySelector('img')).toBeNull();
   });
 });

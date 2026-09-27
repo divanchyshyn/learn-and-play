@@ -54,6 +54,7 @@ src/games/<game-slug>/<Game>.jsx        Game component and game logic
 src/games/<game-slug>/*.test.js(x)      Tests for one game (logic + rendered behaviour)
 src/games/<game-slug>/style.css         Game-specific styles
 src/games/<game-slug>/puzzle-assets/    Committed game artwork imported by the component (Sound Labyrinth's puzzle pictures)
+src/games/<game-slug>/photo-assets/     Committed photographic artwork imported through that game's photos.js (Word Fishing's whole scene)
 src/styles/base.css                     Shared reset and base styles
 src/test/setup.js                       Vitest setup (jest-dom matchers)
 vite.config.js                          Multi-page build entry points and test config
@@ -160,6 +161,48 @@ Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`
 - Pick subjects a child recognises and keep new artwork in that friendly, everyday
   spirit; see Design direction before adding anything that leans on the former
   military theme.
+
+### Photographic art (Word Fishing)
+
+Word Fishing's whole scene is photographs: the sky, the water, the seabed, the
+boat, the angler, the shoal of six fish species, the ten treasures, the props and
+the float. They live in `src/games/word-fishing/photo-assets/`, imported by
+`photos.js` and drawn through `PhotoSprite.jsx`.
+
+- A sprite is a **cut-out**: the subject with an alpha channel, cropped to its own
+  bounds. A plate (a backdrop) is a full frame **without** alpha. Both are WebP
+  lossy (`VP8 ` chunk), and the cut-outs are `RGBA`.
+- Sizes are chosen per subject at the long side that its on-page box needs (fish
+  and boat 900 px, plates 1536 px wide, a float 320 px), and a sprite stays within
+  roughly 30-100 KB. The plates are the only files that may weigh more.
+- A photograph is **never stretched**: a sprite box changes size, the picture
+  inside keeps its proportions (`height: auto` or `background-size: contain`), and
+  a plate is `cover` with the position that keeps the part that matters. A plate's
+  top or bottom edge that must vanish into the next layer is faded with a CSS
+  `mask-image`, not baked into the file, so the fade always matches its box.
+- Photographs come from different places, so the scene is tied together by grading:
+  one shared colour pass over every sprite and plate at build time, plus the depth,
+  grain and vignette layers the scene paints over everything.
+- Filenames are English kebab-case and describe the subject (`rock-cluster.webp`,
+  `plate-seabed.webp`), and a photo file's name matches the reward id or the
+  `PHOTOS` key it is imported under.
+- **Nothing animates a `filter`.** A sprite is either still and graded once, or it
+  moves (drift, bob, sway) and carries no filter at all - an animated filter is a
+  repaint per frame on a moving element. Animations move only `transform`/`scale`
+  and `opacity`.
+- The pictures are generated and processed **outside the repository**, in a
+  throwaway folder: no image library and no network tool is added to the project,
+  and only the finished `.webp` files are copied in (with `Copy-Item`, never
+  through PowerShell redirection, which would re-encode the bytes). The recipe is a
+  rewrite of the one above: square crop where the subject needs it, cut out against
+  the plain background, light grade, resize with LANCZOS, save as WebP lossy
+  (`quality` 84-86, `method=6`), then re-open the result and print size, format,
+  mode and the chunk bytes to confirm the contract.
+- Adding, replacing or removing a picture is the same four-step change as above:
+  copy the `.webp` in, import it in `photos.js` and reference it from the module
+  that draws it, extend the test that guards it (`FishArt.test.jsx`,
+  `ReefRewards.test.jsx`), then run lint, tests and the build and confirm the file
+  is emitted to `dist/assets/`.
 
 ## Testing
 
