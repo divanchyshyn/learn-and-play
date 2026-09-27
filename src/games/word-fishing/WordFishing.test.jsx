@@ -213,30 +213,32 @@ describe('word-fishing the opening screen', () => {
     expect(boatProgress(view)).toBe('0 av 4');
   });
 
-  it('mounts the whole stage: the shared paints, the seabed and its scenery', () => {
+  it('mounts the whole stage: every sprite a photograph, none of them stretched', () => {
     const view = render(<WordFishing />);
 
-    // The paints the whole scene is built from are mounted with it, so a sprite
-    // can never end up transparent because its gradient is missing.
-    expect(view.container.querySelector('.sea-defs')).toBeTruthy();
-    expect(view.container.querySelector('.sea-bed svg')).toBeTruthy();
-    expect(view.container.querySelector('.sea-floor .reef-rock svg')).toBeTruthy();
-    expect(view.container.querySelector('.sea-floor .reef-anchor svg')).toBeTruthy();
+    expect(view.container.querySelector('.sea-bed')).toBeTruthy();
+    expect(view.container.querySelector('.sea-floor .reef-rock img')).toBeTruthy();
+    expect(view.container.querySelector('.sea-floor .reef-anchor img')).toBeTruthy();
     expect(view.container.querySelector('.sea-waves')).toBeTruthy();
     expect(view.container.querySelector('.sea-snow .snow-flake')).toBeTruthy();
 
-    // Every paint the mounted scene points at exists in the document.
-    const references = new Set();
-    for (const element of view.container.querySelectorAll('*')) {
-      for (const name of ['fill', 'stroke']) {
-        for (const match of (element.getAttribute(name) ?? '').matchAll(/url\(#([^)]+)\)/g)) {
-          references.add(match[1]);
-        }
-      }
+    // Every photograph the scene mounts comes from the game's own asset folder,
+    // and every one of them is decorative: a sprite is the world, never a control
+    // and never a label, so it carries no alt text and no title.
+    const sprites = [...view.container.querySelectorAll('img')];
+    expect(sprites.length).toBeGreaterThanOrEqual(6);
+    for (const sprite of sprites) {
+      expect(sprite.getAttribute('src'), 'a sprite with no picture').toMatch(/photo-assets\/[\w-]+\.webp$/);
+      expect(sprite.getAttribute('alt'), 'a sprite must stay silent').toBe('');
+      expect(sprite.getAttribute('aria-hidden')).toBe('true');
     }
-    expect(references.size).toBeGreaterThan(40);
-    for (const id of references) {
-      expect(document.getElementById(id), `${id} is missing from the scene`).toBeTruthy();
+    // The plates are CSS backgrounds, so each one is handed to the scene as a
+    // custom property - a plate that never arrives would leave a black sea.
+    for (const property of ['--sky-photo', '--water-photo', '--seabed-photo', '--surface-photo']) {
+      const holder = [...view.container.querySelectorAll('*')]
+        .find((element) => (element.getAttribute('style') ?? '').includes(property));
+      expect(holder, `${property} is never set`).toBeTruthy();
+      expect(holder.getAttribute('style')).toContain('photo-assets/');
     }
   });
 
@@ -852,7 +854,7 @@ describe('word-fishing rewards and the fishing book', () => {
     // own find shown on the card, and the newest find glows where it landed.
     expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeTruthy();
     expect(view.container.querySelector(`.reward-${SECOND_FIND.id}`)).toBeNull();
-    expect(done.querySelector('.trip-done-art svg.reef-art')).toBeTruthy();
+    expect(done.querySelector('.trip-done-art img.reef-art')).toBeTruthy();
     expect(view.container.querySelector(`.reward-${FIRST_FIND.id}.is-new`)).toBeTruthy();
 
     // The glow is a moment, not a state: once its time is up the find settles

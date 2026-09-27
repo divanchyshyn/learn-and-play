@@ -1,6 +1,7 @@
+import { PHOTOS } from './photos.js';
+import { PhotoSprite } from './PhotoSprite.jsx';
 import { RIG_DX, RIG_Y } from './rig.js';
 import { BoatArt } from './BoatArt.jsx';
-import { SeaArtDefs, paint } from './SeaArtDefs.jsx';
 import { Anchor, Driftwood, RockCluster, SandFloor, Stones } from './SeaFloor.jsx';
 import { SkyLayer } from './SeaSky.jsx';
 import { WaterBody, WaveLine } from './SeaWater.jsx';
@@ -15,14 +16,14 @@ import { ReefArt } from './ReefRewards.jsx';
 // boat's own left edge, so the whole rig keeps its shape and its place from a
 // phone up to a desktop screen (see `RIG_DX` in rig.js).
 //
-// The art lives in its own modules, each one painted from the shared paints
-// (SeaArtDefs) so no gradient is ever defined twice:
+// The art lives in its own modules, every sprite a photograph cut out of its own
+// picture (see photos.js):
 //
-//   SeaSky      – sun, clouds, gulls and the far shore
-//   SeaWater    – the surface line, the light, the drifting snow, the kelp
-//   SeaFloor    – sand, rocks, the old anchor, driftwood, stones
+//   SeaSky      – the sky, the drifting clouds and the gulls
+//   SeaWater    – the water column, the surface strip, the light, the snow, the kelp
+//   SeaFloor    – the sand, rocks, the old anchor, driftwood, stones
 //   ReefRewards – the ten treasures a finished trip unlocks
-//   BoatArt     – the boat, its crew and the gear on deck
+//   BoatArt     – the boat, the angler, the flag and the counter on the hull
 //   FishArt     – the six fish species (worn by FishSprite)
 
 // The seabed, with everything the child has found so far. A reward above the sand
@@ -136,18 +137,15 @@ function LineLayer({ boat, target, taut }) {
 // about – and, in the one moment it matters, a big tap ring around it, so a
 // child's finger cannot miss the fish that has taken the bait.
 //
-// The float itself is a little painted spool with an antenna, a band and a sheen,
-// and it drags a ripple ring on the surface while it lies there.
+// The float: a photograph of a real float, with a ripple ring drawn in CSS on the
+// surface under it. It is small and simple on purpose - what the child watches is
+// its movement: it bobs in the water, it is knocked about when a fish tastes the
+// bait, and it dives when the fish commits.
 function FloatArt() {
-  return <svg className="float-art" viewBox="0 0 26 38" aria-hidden="true" focusable="false">
-    <ellipse className="float-ripple" cx="13" cy="34" rx="12" ry="3.4" fill={paint('wake')} />
-    <path className="float-antenna" d="M13 4 L13 14" />
-    <circle className="float-tip" cx="13" cy="3.4" r="2.6" fill={paint('flag')} />
-    <path className="float-body" d="M13 7 C 19 7 22.4 15 22.4 23 C 22.4 30 18.6 34 13 34 C 7.4 34 3.6 30 3.6 23 C 3.6 15 7 7 13 7 Z" fill={paint('flag')} />
-    <path className="float-band" d="M4 21 C 8 23 18 23 22 21 L22.2 25 C 18 27 8 27 3.8 25 Z" fill={paint('hull-band')} />
-    <path className="float-band-thin" d="M4.6 17 C 8.6 19 17.4 19 21.4 17 L21.5 18.6 C 17.4 20.6 8.6 20.6 4.5 18.6 Z" fill={paint('hull-band')} opacity=".85" />
-    <ellipse className="float-sheen" cx="9" cy="14" rx="2.6" ry="4.6" fill="#ffffff" opacity=".45" />
-  </svg>;
+  return <>
+    <span className="float-ripple" />
+    <PhotoSprite className="float-art" photo={PHOTOS.float} />
+  </>;
 }
 
 function Float({ point, bait, canStrike, onStrike }) {
@@ -202,7 +200,6 @@ export function SeaScene({
   onSail, onStep, onStrike, children,
 }) {
   return <>
-    <SeaArtDefs />
     <SkyLayer />
     <WaterBody />
     <WaveLine />

@@ -1,11 +1,10 @@
 import { fishPosition, fishWord } from './sea.js';
 import { FishArt, speciesForWord } from './FishArt.jsx';
 
-// One fish, drawn as SVG so it actually looks like the fish it is: six species
-// (see FishArt), each with its own silhouette, fins, pattern and eyes. The colours
-// come from the `fish-<colour>` class in style.css, so a new colour is one CSS
-// line and nothing binary ever ships with the game; the species comes from the
-// word the fish carries, so a fish keeps its shape for its whole visible life.
+// One fish, drawn as a photograph so it actually looks like the fish it is: six
+// species (see FishArt), each a real fish cut out of its own picture. The species
+// comes from the word the fish carries, so a fish keeps its shape for its whole
+// visible life, and the sprite flips with `--dir` when it changes direction.
 //
 // A fish is never a button any more: it is the world, not a control. What the
 // child reads is the word on its tag, and what the child acts on is the water,
@@ -23,7 +22,6 @@ export function FishSprite({ fish, boat }) {
   const { x, y } = fishPosition(fish, boat);
   const classes = [
     'fish',
-    `fish-${fish.color}`,
     `species-${species}`,
     `fish-${fish.status}`,
     fish.status === 'delivered' ? 'is-away' : '',
