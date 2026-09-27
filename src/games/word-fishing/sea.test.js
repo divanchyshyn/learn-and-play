@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  CHASE_TICKS, DELIVER_TICKS, FISH_ON_SCREEN, LANES, OFFER_TICKS, SPEED_MAX, SPEED_MIN, WATERLINE,
+  CHASE_TICKS, DELIVER_TICKS, FISH_COLORS, FISH_ON_SCREEN, LANES, OFFER_TICKS, SPEED_MAX, SPEED_MIN, WATERLINE,
   aboardFish, baitFish, baitPosition, canCastBait, canPullIn, canSail, canStrike, castBait, createSea,
   deliverFish, fishPosition, fishWord, hookedFish, lineTarget, netPoint, pullInBait, rodTipPoint, sailBoat,
   setReelHold, slipFish, strikeFish, tickSea,
@@ -111,6 +111,24 @@ describe('word-fishing sea setup', () => {
     expect(new Set(sea.fishes.map((fish) => fish.lane)).size).toBe(FISH_ON_SCREEN);
     const entries = sea.fishes.map((fish) => fishPosition(fish).x);
     expect(new Set(entries).size).toBe(FISH_ON_SCREEN);
+  });
+
+  it('keeps the whole palette turning as fish come and go', () => {
+    let sea = createSea(freeSortTrip());
+    // The opening shoal already wears every colour once.
+    expect(new Set(sea.fishes.map((fish) => fish.color)).size).toBe(FISH_COLORS.length);
+    const openingIds = new Set(sea.fishes.map((fish) => fish.id));
+
+    // Every fish arriving later takes the next colour in the cycle instead of
+    // all wearing the same one, so over a long session the whole palette shows.
+    const replacementColors = new Set();
+    for (let tick = 0; tick < 2500; tick += 1) {
+      sea = tickSea(sea);
+      for (const fish of sea.fishes) {
+        if (!openingIds.has(fish.id)) replacementColors.add(fish.color);
+      }
+    }
+    expect(replacementColors.size).toBe(FISH_COLORS.length);
   });
 });
 
