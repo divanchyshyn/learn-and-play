@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   CHASE_TICKS, DELIVER_TICKS, FISH_COLORS, FISH_ON_SCREEN, LANES, OFFER_TICKS, SPEED_MAX, SPEED_MIN, WATERLINE,
   aboardFish, baitFish, baitPosition, canCastBait, canPullIn, canSail, canStrike, castBait, createSea,
-  deliverFish, fishPosition, fishWord, hookedFish, lineTarget, netPoint, pullInBait, rodTipPoint, sailBoat,
-  setReelHold, slipFish, strikeFish, tickSea,
+  deliverFish, fishPosition, fishWord, hookedFish, lineTarget, netPoint, pullInBait, rodTipPoint, rotateReel,
+  sailBoat, slipFish, strikeFish, tickSea,
 } from './sea.js';
 import {
   BITE_TICKS, BOAT_MAX_X, BOAT_SPEED, BOAT_START_X, CAST_TICKS, DROP_MAX_DEPTH, DROP_MIN_DEPTH, DROP_SWAY,
@@ -49,12 +49,13 @@ function biteReady(sea) {
   return next;
 }
 
-// Hold the crank while the line has room, ease it while it does not – the pump
-// a child plays. Returns the sea with the fight over.
+// Turn the reel while the line has room, let it rest while it does not – the
+// pump a child plays. Returns the sea with the fight over.
 function windIn(sea) {
   let next = sea;
   for (let guard = 0; guard < 400 && next.fight; guard += 1) {
-    next = tickSea(setReelHold(next, next.fight.tension < TENSION_NEAR));
+    if (next.fight.tension < TENSION_NEAR) next = rotateReel(next, 360);
+    next = tickSea(next);
   }
   return next;
 }
@@ -345,16 +346,16 @@ describe('word-fishing the fight', () => {
     // The float is gone the moment the hook bites: the line runs to the fish.
     expect(hooked.bait).toBeNull();
     expect(hookedFish(hooked).id).toBe(fishId);
-    expect(hooked.fight).toMatchObject({ fishId, distance: 0, tension: 0, holding: false });
+    expect(hooked.fight).toMatchObject({ fishId, distance: 0, tension: 0, angle: 0, turned: 0 });
     expect(hookedFish(hooked).hookX).toBe(biting.bait.x);
     expect(hookedFish(hooked).hookY).toBe(biting.bait.y);
     expect(lineTarget(hooked)).toEqual(fishPosition(hookedFish(hooked), hooked.boat));
   });
 
-  it('winds the fish in and tightens the line while the crank is held', () => {
+  it('winds the fish in and tightens the line while the reel is turned', () => {
     const hooked = strikeFish(biteReady(createSea(freeSortTrip())));
-    const pulled = tickSea(setReelHold(hooked, true));
-    expect(pulled.fight.holding).toBe(true);
+    const pulled = tickSea(rotateReel(hooked, 360));
+    expect(pulled.fight.turned).toBe(0);
     expect(pulled.fight.distance).toBeGreaterThan(0);
     expect(pulled.fight.tension).toBeGreaterThan(0);
     // The fight is mirrored onto the fish, so the scene paints one object.
@@ -364,32 +365,33 @@ describe('word-fishing the fight', () => {
     // The fish really does come closer to the boat as the line is wound in:
     // after a few turns it is clearly nearer the net than where it took the bait.
     // (One tick is not enough to compare – the thrashing swings it about as much
-    // as one turn of the crank pulls it in.)
+    // as one turn of the reel pulls it in.)
     let wound = hooked;
-    for (let tick = 0; tick < 12; tick += 1) wound = tickSea(setReelHold(wound, true));
+    for (let tick = 0; tick < 3; tick += 1) wound = tickSea(rotateReel(wound, 360));
     const start = fishPosition(hookedFish(hooked), hooked.boat);
     const end = fishPosition(hookedFish(wound), wound.boat);
     expect(Math.abs(end.x - netPoint(wound.boat).x)).toBeLessThan(Math.abs(start.x - netPoint(hooked.boat).x));
     expect(Math.abs(end.y - netPoint(wound.boat).y)).toBeLessThan(Math.abs(start.y - netPoint(hooked.boat).y));
   });
 
-  it('eases the line and loses a little of it when the crank is let go', () => {
+  it('eases the line and loses a little of it when the reel is left alone', () => {
     let sea = strikeFish(biteReady(createSea(freeSortTrip())));
-    for (let tick = 0; tick < 8; tick += 1) sea = tickSea(setReelHold(sea, true));
+    for (let tick = 0; tick < 3; tick += 1) sea = tickSea(rotateReel(sea, 360));
     const strained = sea.fight;
-    const eased = tickSea(setReelHold(sea, false));
+    const eased = tickSea(sea);
     expect(eased.fight.tension).toBeLessThan(strained.tension);
     expect(eased.fight.distance).toBeLessThan(strained.distance);
-    // The crank answers the finger at once, without waiting for a sea tick.
-    expect(setReelHold(sea, true).fight.holding).toBe(true);
-    expect(setReelHold(sea, false).fight.holding).toBe(false);
+    // The reel answers the finger at once, without waiting for a sea tick.
+    expect(rotateReel(sea, 90).fight.turned).toBe(90);
+    expect(rotateReel(sea, 90).fight.angle).toBe(sea.fight.angle + 90);
+    expect(rotateReel(sea, 0)).toBe(sea);
   });
 
   it('lets the fish throw the hook when the line is left slack', () => {
     const hooked = strikeFish(biteReady(createSea(freeSortTrip())));
     const fishId = hooked.fight.fishId;
 
-    // Nobody touches the crank for the whole slack window: the hook is not being
+    // Nobody touches the reel for the whole slack window: the hook is not being
     // pulled on, so the fish works it out.
     let sea = hooked;
     for (let tick = 0; tick < SLACK_TICKS; tick += 1) sea = tickSea(sea);
@@ -415,8 +417,10 @@ describe('word-fishing the fight', () => {
     // Wind in fits and starts, never letting the line lie slack for long: the
     // hook stays in, and the fish really does come closer to the boat.
     for (let cycle = 0; cycle < 2; cycle += 1) {
-      for (let tick = 0; tick < 7; tick += 1) sea = tickSea(setReelHold(sea, true));
-      for (let tick = 0; tick < 4; tick += 1) sea = tickSea(setReelHold(sea, false));
+      for (let tick = 0; tick < 4; tick += 1) {
+        if (sea.fight.tension < TENSION_NEAR) sea = rotateReel(sea, 360);
+        sea = tickSea(sea);
+      }
     }
     expect(sea.fight).not.toBeNull();
     expect(sea.fight.slack).toBeLessThan(SLACK_TICKS);
@@ -434,10 +438,10 @@ describe('word-fishing the fight', () => {
     expect(canCastBait(won)).toBe(false); // the catch comes first
   });
 
-  it('frees the fish with a splash when the line is held until it snaps', () => {
+  it('frees the fish with a splash when the line is wound until it snaps', () => {
     let sea = strikeFish(biteReady(createSea(freeSortTrip())));
     const fishId = sea.fight.fishId;
-    for (let guard = 0; guard < 200 && sea.fight; guard += 1) sea = tickSea(setReelHold(sea, true));
+    for (let guard = 0; guard < 200 && sea.fight; guard += 1) sea = tickSea(rotateReel(sea, 360));
 
     expect(sea.fight).toBeNull();
     expect(aboardFish(sea)).toBeNull();
@@ -451,7 +455,7 @@ describe('word-fishing the fight', () => {
 
   it('lets a whole trip be fished again from the start after a snapped line', () => {
     let sea = strikeFish(biteReady(createSea(freeSortTrip())));
-    for (let guard = 0; guard < 200 && sea.fight; guard += 1) sea = tickSea(setReelHold(sea, true));
+    for (let guard = 0; guard < 200 && sea.fight; guard += 1) sea = tickSea(rotateReel(sea, 360));
     const hooked = strikeFish(biteReady(sea));
     expect(hookedFish(hooked)).toBeTruthy();
     expect(aboardFish(windIn(hooked))).toBeTruthy();

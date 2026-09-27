@@ -15,7 +15,7 @@
 import { pickOne } from '../../shared/random.js';
 import {
   CAST_TICKS, FIGHT_SWING, RIG_DX, RIG_Y, createBait, createBoat, createFight, dropPoint, dropSpot,
-  sailTo, setHolding, startNibble, stepBait, stepBoat, stepFight,
+  sailTo, startNibble, stepBait, stepBoat, stepFight, turnReel,
 } from './rig.js';
 import { drawWordIndexWhere, pickWordOrder, WORD_BANK } from './words.js';
 import { acceptsWord } from './trip.js';
@@ -370,9 +370,9 @@ export function tickSea(sea) {
       : fish));
   }
 
-  // The fight: the child's crank against the fish.
+  // The fight: the child's reel against the fish.
   if (fight) {
-    const step = stepFight(fight, fight.holding);
+    const step = stepFight(fight);
     fight = step.fight;
     // Mirror the fight onto the fish, so the scene paints one fish from one
     // object – how far it has come, and how tight the line is.
@@ -494,11 +494,11 @@ export function strikeFish(sea) {
   return { ...sea, fishes, bait: null, fight: createFight(fishId) };
 }
 
-// Hold or release the crank – its own moment, so the button answers the finger
-// at once. The next sea tick then winds the fish in or lets the line out.
-export function setReelHold(sea, holding) {
+// Turning the reel is its own moment, so the spool answers the finger at once.
+// The next sea tick then turns the degrees it collected into line and tension.
+export function rotateReel(sea, degrees) {
   if (!sea.fight) return sea;
-  const fight = setHolding(sea.fight, holding);
+  const fight = turnReel(sea.fight, degrees);
   return fight === sea.fight ? sea : { ...sea, fight };
 }
 

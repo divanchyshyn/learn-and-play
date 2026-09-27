@@ -9,7 +9,7 @@ import { ReefArt } from './ReefRewards.jsx';
 // The whole stage: sky and water, the seabed with whatever the child has
 // unlocked, the boat with its angler, the rod, the float and the line. All of it
 // except the controls is decorative (aria-hidden) – the water surface, the float
-// and the crank carry the game.
+// and the reel carry the game.
 //
 // Positions are percentages of the sea box and everything follows `boat.x`, the
 // boat's own left edge, so the whole rig keeps its shape and its place from a

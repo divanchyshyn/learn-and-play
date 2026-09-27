@@ -12,7 +12,7 @@ import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
 import { BOAT_KEY_STEP, sailTargetForTap, tensionLevel } from './rig.js';
 import {
   TICK_MS, WATERLINE, aboardFish, baitPosition, canSail, canStrike, castBait, createSea, deliverFish,
-  fishWord, lineTarget, pullInBait, sailBoat, setReelHold, slipFish, strikeFish, tickSea,
+  fishWord, lineTarget, pullInBait, rotateReel, sailBoat, slipFish, strikeFish, tickSea,
 } from './sea.js';
 import {
   createTripPlan, crateForWord, rewardForTrip, tripComplete, tripProgress, tripRequest, unlockedRewards,
@@ -36,6 +36,8 @@ const NUDGE_MS = 2000;
 // How long a treasure that has just been found keeps its arrival glow on the
 // seabed, so the child sees what their trip added.
 const REWARD_POP_MS = 3200;
+// How far the reel turns between its little clicks while the child winds.
+const REEL_CLICK_DEGREES = 90;
 
 // Kept close to the constants above so tests and CSS stay in step with the
 // component's timing (see sea.js and rig.js for the fishing itself).
@@ -47,7 +49,7 @@ export const TIMING = { TICK_MS, LANDED_MS, NUDGE_MS, REWARD_POP_MS };
 //   sail   – no line in the water: tap the sea to sail, cast to start fishing
 //   bait   – the float is out (flying, waiting or being tasted)
 //   bite   – the float is under: there is a moment to strike, and only a moment
-//   fight  – a fish is hooked: hold the crank, ease off before the line breaks
+//   fight  – a fish is hooked: turn the reel, ease off before the line breaks
 //   aboard – the catch is on deck: read the word and put it in its crate
 //   card   – the trip is finished; finale – the whole fishing book is full
 export function seaStage(sea, tripCard = null, finale = false) {
@@ -69,9 +71,9 @@ export function stageHint(sea, tripCard = null, finale = false) {
   if (stage === 'aboard') return 'Hvilken kasse hører ordet til?';
   if (stage === 'fight') {
     const level = tensionLevel(sea.fight.tension);
-    if (level === 'danger') return 'Slipp sveiven – linjen strammer seg!';
-    if (level === 'slack') return 'Stram snøret – fisken slipper kroken!';
-    return 'Hold sveiven og sveiv fisken inn!';
+    if (level === 'danger') return 'Slipp hjulet – linjen strammer seg!';
+    if (level === 'slack') return 'Stram snøret – drei hjulet rundt!';
+    return 'Sveiv hjulet rundt og dra fisken inn!';
   }
   if (stage === 'bite') return 'Napp! Trykk på duppen!';
   if (stage === 'bait') {
@@ -95,7 +97,7 @@ export function statusLine(sea, trip, finale = false) {
     const fight = sea.fight;
     const level = tensionLevel(fight.tension);
     const warning = level === 'danger' ? ' Linjen strammer seg – slipp!' : '';
-    const slack = level === 'slack' ? ' Linjen er slakk – stram!' : '';
+    const slack = level === 'slack' ? ' Linjen er slakk – drei hjulet rundt!' : '';
     return `Fisken er på kroken, ${Math.round(fight.distance * 100)} prosent inne.${warning}${slack}`;
   }
   if (stage === 'bite') return 'Napp! Trykk på duppen for å feste kroken.';
@@ -158,6 +160,7 @@ export function WordFishing() {
   // A fish landing on deck, and the line giving way (or a fish letting go of the
   // bait), are moments too: both are read off the one-tick marks the sea leaves.
   const hadFish = useRef(false);
+  const reelClicks = useRef(0);
   useEffect(() => {
     const onDeck = Boolean(aboardFish(sea));
     if (onDeck && !hadFish.current) sounds.plop();
@@ -165,9 +168,15 @@ export function WordFishing() {
     if (sea.fishes.some((fish) => fish.escaped)) sounds.snap();
     if (sea.fishes.some((fish) => fish.thrown)) sounds.blub();
     if (sea.fishes.some((fish) => fish.spat)) sounds.blub();
-    // The crank clicks as it turns, about every half second of winding.
+    // The reel clicks as the child turns it, once for every quarter turn.
     const fight = sea.fight;
-    if (fight && fight.holding && fight.ticks % 4 === 1) sounds.reel();
+    if (fight) {
+      const clicks = Math.floor(Math.abs(fight.angle) / REEL_CLICK_DEGREES);
+      if (clicks !== reelClicks.current) sounds.reel();
+      reelClicks.current = clicks;
+    } else {
+      reelClicks.current = 0;
+    }
   }, [sea]);
 
   // The "try another crate" glow is a moment, not a state: it fades by itself.
@@ -270,8 +279,10 @@ export function WordFishing() {
     setSea((prev) => strikeFish(prev));
   }
 
-  function holdReel(holding) {
-    setSea((prev) => setReelHold(prev, holding));
+  // The reel answers the finger at once: every degree it turns is collected in
+  // the fight, and the next sea tick turns it into line and tension (see rig.js).
+  function turnReel(degrees) {
+    setSea((prev) => rotateReel(prev, degrees));
   }
 
   // The reading task: the catch goes into the crate the word belongs in. A crate
@@ -403,7 +414,7 @@ export function WordFishing() {
           onCast={castLine}
           onPullIn={pullInLine}
           onStrike={strike}
-          onHoldChange={holdReel}
+          onTurn={turnReel}
         />
 
         {aboard && <div className="catch-card">
