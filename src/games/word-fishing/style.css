@@ -148,23 +148,8 @@
 /* Each treasure paints its own shapes from those shared paints (see
    ReefRewards.jsx), so what is left here is the detail work: strokes, gleams and
    the little motions. Only transforms and opacity are animated – never a filter,
-   never a gradient – so a floor holding sixteen finds stays cheap. */
+   never a gradient – so a floor holding ten finds stays cheap. */
 .reef-bubble { fill: rgba(255, 253, 243, .8); }
-/* Starfish: ridges along the arms, and the bumps between them. */
-.star-ridge { fill: none; stroke: #b8432a; stroke-width: 1.2; stroke-linecap: round; opacity: .45; }
-.star-bump { fill: #ffdcc8; opacity: .85; }
-/* Coral: branches are thick round strokes, the twigs thinner and softer. */
-.coral-branch { fill: none; stroke: #e2718f; stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
-.coral-twig { stroke-width: 7; opacity: .85; }
-.coral-polyp { fill: #ffd0de; }
-/* Shell: the spiral ribs, the lip and the gleam on the whorl. */
-.shell-spiral { fill: none; stroke: rgba(176, 122, 78, .55); stroke-width: 2.4; stroke-linecap: round; }
-.shell-spiral-faint { stroke: rgba(176, 122, 78, .32); stroke-width: 1.8; }
-.shell-lip { fill: none; stroke: rgba(176, 122, 78, .5); stroke-width: 2; }
-.shell-apex { stroke: rgba(176, 122, 78, .45); stroke-width: 1.4; }
-.shell-rib { fill: none; stroke: rgba(176, 122, 78, .45); stroke-width: 2; }
-.shell-shine { fill: none; stroke: rgba(255, 255, 255, .7); stroke-width: 2; stroke-linecap: round; }
-.shell-gleam { fill: rgba(255, 255, 255, .6); }
 /* The wreck: broken timbers, planking and the frames inside her. */
 .wreck-rib-line { fill: none; stroke: #c6ad8a; stroke-width: 9; stroke-linecap: round; }
 .wreck-rib-tip { fill: none; stroke: #e0cdaa; stroke-width: 5; stroke-linecap: round; }
@@ -178,26 +163,6 @@
 .wreck-barrel-hoop { fill: none; stroke: rgba(60, 48, 38, .55); stroke-width: 2.4; }
 .wreck-crate-line { fill: none; stroke: rgba(60, 48, 38, .55); stroke-width: 1.6; }
 .wreck-coin { stroke: #b57b1e; stroke-width: 1.2; }
-/* Seagrass: a midrib in every blade and a few floating seeds. */
-.grass-mid { fill: none; stroke: rgba(47, 91, 61, .45); stroke-width: 1.4; stroke-linecap: round; }
-.grass-seed { fill: #d8f0c0; opacity: .85; }
-/* Crab: legs, claws, shell ridges and the stalked eyes. */
-.crab-leg { fill: none; stroke: #b8432f; stroke-width: 3.6; stroke-linecap: round; }
-.crab-arm { fill: none; stroke: #d3553f; stroke-width: 5; stroke-linecap: round; }
-.crab-claw-slit { fill: none; stroke: #7e2a1c; stroke-width: 2; stroke-linecap: round; }
-.crab-shell-ridge { fill: none; stroke: rgba(160, 55, 36, .5); stroke-width: 2; stroke-linecap: round; }
-.crab-shell-ridge-faint { stroke: rgba(160, 55, 36, .3); }
-.crab-shell-scallop { fill: none; stroke: rgba(160, 55, 36, .45); stroke-width: 2; }
-.crab-spot { fill: rgba(255, 240, 232, .6); }
-.crab-stalk { fill: none; stroke: #cf5138; stroke-width: 3; stroke-linecap: round; }
-.crab-eye-white { fill: #fffdf3; }
-.crab-pupil { fill: #2b3a42; }
-.crab-gleam { fill: #ffffff; }
-.crab-mouth { fill: none; stroke: #7e2a1c; stroke-width: 2; stroke-linecap: round; }
-.crab-fringe { fill: none; stroke: rgba(160, 55, 36, .4); stroke-width: 1.8; }
-/* Octopus: brows over the eyes, and the suckers down the arms. */
-.octo-brow { fill: none; stroke: rgba(120, 50, 84, .55); stroke-width: 2.4; stroke-linecap: round; }
-.octo-sucker { fill: #f4c2d4; opacity: .9; }
 /* Chest: iron bands, plank seams and rivets. */
 .chest-band { fill: none; stroke: #6b5219; stroke-width: 3.4; stroke-linecap: round; }
 .chest-plank { fill: none; stroke: rgba(107, 82, 25, .35); stroke-width: 1.6; }
@@ -252,20 +217,11 @@
 .bottle-rim { fill: none; stroke: rgba(85, 160, 155, .7); stroke-width: 2; }
 .bottle-line { fill: none; stroke: rgba(255, 255, 255, .55); stroke-width: 1.6; stroke-linecap: round; }
 /* ---- Each find keeps its own little life -------------------------------- */
-/* Coral sways, the jellyfish drifts, the crab scuttles, the wreck settles and the
-   station breathes. Only transforms and opacity move, so no filter is ever
-   re-rendered – and `prefers-reduced-motion` stills the lot of them. */
-.reward-coral .reef-art, .reward-seagrass .reef-art { animation: reef-sway 5.5s ease-in-out infinite alternate; }
-.reward-seagrass .reef-art { animation-duration: 7s; }
-@keyframes reef-sway { from { rotate: -4deg; } to { rotate: 5deg; } }
-.reward-starfish .reef-art { animation: reef-pulse 2.8s ease-in-out infinite alternate; }
-@keyframes reef-pulse { to { scale: 1.1; rotate: 7deg; } }
+/* The jellyfish drifts, the seahorse bobs, the wreck settles and the station
+   breathes. Only transforms and opacity move, so no filter is ever re-rendered –
+   and `prefers-reduced-motion` stills the lot of them. */
 .reward-jellyfish .reef-art { animation: jelly-drift 4.6s ease-in-out infinite alternate; }
 @keyframes jelly-drift { to { translate: 0 -12px; rotate: 5deg; } }
-.reward-crab .reef-art { animation: crab-scuttle 3.4s ease-in-out infinite alternate; }
-@keyframes crab-scuttle { to { translate: 8px 0; rotate: -5deg; } }
-.reward-octopus .reef-art { animation: octo-wave 4.2s ease-in-out infinite alternate; }
-@keyframes octo-wave { to { rotate: 5deg; scale: 1.05; } }
 .reward-seahorse .reef-art { animation: seahorse-bob 3.8s ease-in-out infinite alternate; }
 @keyframes seahorse-bob { to { translate: 0 -10px; rotate: -4deg; } }
 .reward-wreck .reef-art { animation: wreck-settle 7s ease-in-out infinite alternate; }
@@ -860,8 +816,8 @@
 .reef-row li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 5px 8px; border: 2px solid #cfe3ea; border-radius: 10px; background: #fbfdfe; font-size: .86rem; font-weight: 900; color: #285362; }
 .reef-row li.found { border-color: #63a375; background: #eef8f0; color: #2e8b57; }
 .reef-preview { flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; }
-/* Names like "Blekkspruten" are long: they wrap inside the box instead of
-   spilling out of it on a narrow screen. */
+/* Names like "Undervannsstasjonen" are long: they wrap inside the box instead
+   of spilling out of it on a narrow screen. */
 .reef-name { flex: 1 1 70px; min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
 .reef-preview svg { width: 100%; height: auto; }
 .reef-row li.missing .reef-preview { filter: brightness(0) opacity(.22); }
@@ -899,8 +855,8 @@
   .crate-dock { gap: 8px; }
   .crate { flex: 1 1 44%; min-height: 88px; padding: 13px 6px 8px; }
   .crate-label { font-size: .95rem; }
-  /* The scenery steps aside and the whole collection shrinks together, so sixteen
-     finds still fit a phone's seabed. */
+  /* The scenery steps aside and the whole collection shrinks together, so every
+     find still fits a phone's seabed. */
   .reef-item.reef-rock, .reef-item.reef-anchor, .reef-item.reef-driftwood { display: none; }
   .reef-stones { width: 86px; left: 84%; }
   .sea-floor { --reward-scale: .58; }

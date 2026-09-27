@@ -73,15 +73,15 @@ export function tripRequest() {
 
 // ---- The reef -------------------------------------------------------------
 // Every finished trip decorates the seabed a little more, in this fixed order:
-// the small finds a child meets first, and the big discoveries – the wreck on
-// trip four, then the submarine and the station – spread out so something
-// exciting is never far away.
+// the wreck first, then the big discoveries – the treasure chest, the submarine
+// and the station – with the smaller finds spread between them so something
+// exciting is never far away. Ten treasures in all.
 //
 // Positions are percentages of the sea box, so the scene and the tests agree on
 // where each reward lands. The list is laid out in three depth bands, which is
 // what makes the floor read as a floor rather than a row of stickers:
 //
-//   * floaters (y 56–80) – jellyfish, seahorse and octopus drift above the sand;
+//   * floaters (y 56–80) – the seahorse and the jellyfish drift above the sand;
 //   * showpieces (y 84–86) – the wreck, the submarine and the station stand
 //     behind the sand ridge, generously spread so they never cover each other;
 //   * finds (y 92–95) – the small treasures sit on the sand in front, in the gaps
@@ -94,13 +94,7 @@ export function tripRequest() {
 // child's own collection, and a small find is easy to miss; `--reward-scale` in
 // style.css shrinks every one of them together on a narrow screen.
 export const REEF_REWARDS = [
-  { id: 'starfish', label: 'Sjøstjernen', x: 3.5, y: 94, size: 46 },
-  { id: 'coral', label: 'Korallen', x: 22.5, y: 93, size: 74 },
-  { id: 'shell', label: 'Skjellet', x: 8.5, y: 95, size: 38 },
   { id: 'wreck', label: 'Skipsvraket', x: 50, y: 85, size: 148 },
-  { id: 'seagrass', label: 'Sjøgresset', x: 31, y: 94.5, size: 70 },
-  { id: 'crab', label: 'Krabben', x: 38, y: 93, size: 52 },
-  { id: 'octopus', label: 'Blekkspruten', x: 4.5, y: 78, size: 66 },
   { id: 'chest', label: 'Skattekisten', x: 92, y: 93, size: 58 },
   { id: 'submarine', label: 'Undervannsbåten', x: 82, y: 86, size: 156 },
   { id: 'seahorse', label: 'Sjøhesten', x: 97, y: 72, size: 52 },

@@ -8,7 +8,7 @@ import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, RIG_
 import {
   ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, createJournal, journalCodec, tripCodec,
 } from './journal.js';
-import { createTripPlan, tripRequest } from './trip.js';
+import { REEF_REWARDS, createTripPlan, tripRequest } from './trip.js';
 import { sounds } from './sounds.js';
 import {
   CATEGORY_CRATE_IDS, CRATE_TARGET, TARGET_WORD_COUNT, WORD_BANK, crateById, crateTarget, wordsInCrate,
@@ -19,6 +19,10 @@ import {
 // takes the first free lane, a cast leans left, and the first keepable fish in
 // the shoal is the one that comes to the bait.
 const SEA_WIDTH = 1000;
+
+// The ten treasures lead with the wreck (see REEF_REWARDS in trip.js).
+const FIRST_FIND = REEF_REWARDS[0];
+const SECOND_FIND = REEF_REWARDS[1];
 
 beforeEach(() => {
   vi.spyOn(Math, 'random').mockReturnValue(0);
@@ -766,7 +770,7 @@ describe('word-fishing rewards and the fishing book', () => {
     const done = view.container.querySelector('.trip-done');
     expect(done).toBeTruthy();
     expect(done.textContent).toContain('Tur 1 er ferdig!');
-    expect(done.textContent).toContain('Du fant sjøstjernen på sjøbunnen!');
+    expect(done.textContent).toContain(`Du fant ${FIRST_FIND.label.toLowerCase()} på sjøbunnen!`);
     expect(document.querySelector('.confetti-layer')).toBeTruthy();
     // The dock says why nothing can be answered until the next trip starts.
     expect(hintText(view)).toMatch(/ny tur/i);
@@ -776,18 +780,18 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(screen.queryByRole('button', { name: /feste kroken|Sveiv inn/ })).toBeNull();
     // The reef grew: the first reward is painted on the seabed, with the trip's
     // own find shown on the card, and the newest find glows where it landed.
-    expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
-    expect(view.container.querySelector('.reward-coral')).toBeNull();
+    expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeTruthy();
+    expect(view.container.querySelector(`.reward-${SECOND_FIND.id}`)).toBeNull();
     expect(done.querySelector('.trip-done-art svg.reef-art')).toBeTruthy();
-    expect(view.container.querySelector('.reward-starfish.is-new')).toBeTruthy();
+    expect(view.container.querySelector(`.reward-${FIRST_FIND.id}.is-new`)).toBeTruthy();
 
     // The glow is a moment, not a state: once its time is up the find settles
     // into the collection like every other one.
     act(() => {
       vi.advanceTimersByTime(TIMING.REWARD_POP_MS + TICK_MS);
     });
-    expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
-    expect(view.container.querySelector('.reward-starfish.is-new')).toBeNull();
+    expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeTruthy();
+    expect(view.container.querySelector(`.reward-${FIRST_FIND.id}.is-new`)).toBeNull();
 
     fireEvent.click(within(done).getByRole('button', { name: /Ny tur/ }));
 
@@ -795,7 +799,7 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
     expect(screen.getByText(`4 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - 4} igjen.`)).toBeInTheDocument();
     // The decoration stays on the seabed while the next trip starts.
-    expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
+    expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeTruthy();
     // Four full catches – cast, bite, fight and delivery, each tick rendered –
     // are slow when every test file runs at once, so give this the same
     // generous timeout as the other long game tests.
@@ -815,8 +819,8 @@ describe('word-fishing rewards and the fishing book', () => {
 
     expect(view.container.querySelector('.trip-done')).toBeNull();
     expect(screen.getByText(`1 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - 1} igjen.`)).toBeInTheDocument();
-    expect(view.container.querySelector('.reward-starfish')).toBeTruthy();
-    expect(view.container.querySelector('.reward-coral')).toBeNull();
+    expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeTruthy();
+    expect(view.container.querySelector(`.reward-${SECOND_FIND.id}`)).toBeNull();
   });
 });
 
@@ -889,7 +893,7 @@ describe('word-fishing the very last word', () => {
     expect(screen.getByText('Tur 1')).toBeInTheDocument();
     expect(view.container.querySelectorAll('.crate')).toHaveLength(4);
     expect(crateProgress(view, CATEGORY_CRATE_IDS[0])).toBe(`0 av ${CRATE_TARGET} ord`);
-    expect(view.container.querySelector('.reward-starfish')).toBeNull();
+    expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeNull();
   });
 });
 
@@ -920,10 +924,12 @@ describe('word-fishing the fishing book dialog', () => {
     // Every category page counts against its ten-word target.
     expect(within(book).getAllByText(`1 av ${CRATE_TARGET}`)).toHaveLength(3);
     expect(within(book).getAllByText(`0 av ${CRATE_TARGET}`)).toHaveLength(1);
-    // Two finished trips left two stamps and two decorations.
+    // Two finished trips left two stamps and two decorations, counted against
+    // the ten treasures the seabed now holds.
     expect(within(book).getByText('Tur 1')).toBeInTheDocument();
     expect(within(book).getByText('Tur 2')).toBeInTheDocument();
-    expect(within(book).getByText('Sjøstjernen')).toBeInTheDocument();
+    expect(within(book).getByText(FIRST_FIND.label)).toBeInTheDocument();
+    expect(within(book).getByText(`2 av ${REEF_REWARDS.length}`)).toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));

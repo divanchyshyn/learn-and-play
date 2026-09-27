@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   CATCHES_PER_TRIP, REEF_REWARDS,
-  acceptsWord, crateAcceptsWord, crateForWord, createTripPlan, isValidTripShape, readTrip,
-  rewardForTrip, tripComplete, tripRequest, unlockedRewards, withDelivery,
+  acceptsWord, crateAcceptsWord, crateForWord, createTripPlan, isValidTripShape,
+  readTrip, rewardForTrip,
+  tripComplete, tripRequest, unlockedRewards, withDelivery,
 } from './trip.js';
 import { CATEGORY_CRATE_IDS, WORD_BANK, crateById } from './words.js';
 
@@ -54,16 +55,24 @@ describe('word-fishing trips', () => {
 });
 
 describe('word-fishing reef rewards', () => {
-  it('unlocks one reef decoration per finished trip, in a fixed order', () => {
-    expect(REEF_REWARDS.length).toBeGreaterThanOrEqual(8);
+  it('hands out the ten treasures, wreck first and bottle last', () => {
+    expect(REEF_REWARDS.map((reward) => reward.id)).toEqual([
+      'wreck', 'chest', 'submarine', 'seahorse', 'jellyfish',
+      'station', 'bell', 'wheel', 'amphora', 'bottle',
+    ]);
     expect(new Set(REEF_REWARDS.map((reward) => reward.id)).size).toBe(REEF_REWARDS.length);
-    for (const [index, reward] of REEF_REWARDS.entries()) {
+    for (const reward of REEF_REWARDS) {
       expect(reward.label.length).toBeGreaterThan(2);
       expect(reward.x).toBeGreaterThan(0);
       expect(reward.x).toBeLessThan(100);
       expect(reward.y).toBeGreaterThan(0);
       expect(reward.y).toBeLessThan(100);
       expect(reward.size).toBeGreaterThan(10);
+    }
+  });
+
+  it('unlocks one reef decoration per finished trip, in a fixed order', () => {
+    for (const [index, reward] of REEF_REWARDS.entries()) {
       expect(rewardForTrip(index + 1)).toBe(reward);
     }
     // Past the end of the list a trip still counts, it just decorates nothing.

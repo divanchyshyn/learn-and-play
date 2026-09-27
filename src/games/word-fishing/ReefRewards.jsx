@@ -1,7 +1,7 @@
 import { paint } from './SeaArtDefs.jsx';
 
-// The treasures the seabed grows: one finished trip, one discovery. Sixteen of
-// them, from the starfish a child meets first to the sunken station that ends the
+// The treasures the seabed grows: one finished trip, one discovery. Ten of them,
+// from the wreck a child meets first to the message in a bottle that ends the
 // collection. Each is a small scene rather than a glyph – the wreck has ribs, a
 // snapped mast and cargo spilling out, the submarine has lit portholes and a
 // turning propeller, the station has a docked mini-sub – because this is the
@@ -12,51 +12,6 @@ import { paint } from './SeaArtDefs.jsx';
 // never catches a pointer and never reaches assistive tech.
 
 const BASE = { 'aria-hidden': 'true', focusable: 'false' };
-
-export function Starfish() {
-  return <svg className="reef-art" viewBox="0 0 62 62" {...BASE}>
-    <path className="star-arms" d="M31 5 L37.5 23 L57 23.5 L42 35 L47.5 54 L31 43 L14.5 54 L20 35 L5 23.5 L24.5 23 Z" fill={paint('star-body')} stroke={paint('star-body')} strokeWidth="5" strokeLinejoin="round" />
-    <path className="star-belly" d="M31 16 L34.6 26.6 L46 27 L37 34.4 L40 46.4 L31 39.6 L22 46.4 L25 34.4 L16 27 L27.4 26.6 Z" fill={paint('star-belly')} opacity=".9" />
-    <path className="star-ridge" d="M31 31 L31 10 M31 31 L54 24 M31 31 L44 52 M31 31 L18 52 M31 31 L8 24" />
-    <circle className="star-centre" cx="31" cy="31" r="5.6" fill={paint('star-belly')} />
-    <circle className="star-bump" cx="31" cy="17" r="1.7" />
-    <circle className="star-bump" cx="31" cy="24" r="1.4" />
-    <circle className="star-bump" cx="43" cy="28" r="1.6" />
-    <circle className="star-bump" cx="49" cy="23" r="1.3" />
-    <circle className="star-bump" cx="38" cy="43" r="1.5" />
-    <circle className="star-bump" cx="24" cy="43" r="1.5" />
-    <circle className="star-bump" cx="13" cy="23" r="1.3" />
-    <circle className="star-bump" cx="19" cy="28" r="1.6" />
-  </svg>;
-}
-
-export function Coral() {
-  return <svg className="reef-art" viewBox="0 0 100 100" {...BASE}>
-    <path className="coral-base" d="M14 92 Q 32 78 50 82 Q 70 78 88 92 Q 70 100 50 100 Q 30 100 14 92 Z" fill={paint('coral-bud')} opacity=".55" />
-    <path className="coral-branch" d="M50 92 C 44 72 30 66 22 48" />
-    <path className="coral-branch" d="M50 92 C 54 70 68 62 74 40" />
-    <path className="coral-branch" d="M50 92 C 48 74 50 60 49 30" />
-    <path className="coral-branch coral-twig" d="M38 74 C 30 66 30 54 24 46" />
-    <path className="coral-branch coral-twig" d="M62 70 C 70 62 70 52 76 44" />
-    <path className="coral-branch coral-twig" d="M50 62 C 58 56 59 44 64 34" />
-    <path className="coral-branch coral-twig" d="M50 58 C 42 50 41 40 36 30" />
-    <circle className="coral-tip" cx="22" cy="47" r="5" fill={paint('coral-bud')} />
-    <circle className="coral-tip" cx="74" cy="39" r="5" fill={paint('coral-bud')} />
-    <circle className="coral-tip" cx="49" cy="28" r="5.4" fill={paint('coral-bud')} />
-    <circle className="coral-tip" cx="24" cy="45" r="3.2" fill={paint('coral-bud')} opacity=".9" />
-    <circle className="coral-tip" cx="76" cy="43" r="3.2" fill={paint('coral-bud')} opacity=".9" />
-    <circle className="coral-tip" cx="64" cy="33" r="3.4" fill={paint('coral-bud')} opacity=".9" />
-    <circle className="coral-tip" cx="36" cy="29" r="3.4" fill={paint('coral-bud')} opacity=".9" />
-    <circle className="coral-polyp" cx="30" cy="58" r="1.8" />
-    <circle className="coral-polyp" cx="36" cy="72" r="1.6" />
-    <circle className="coral-polyp" cx="68" cy="56" r="1.8" />
-    <circle className="coral-polyp" cx="62" cy="76" r="1.6" />
-    <circle className="coral-polyp" cx="46" cy="46" r="1.7" />
-    <circle className="coral-polyp" cx="54" cy="40" r="1.5" />
-    <circle className="reef-bubble" cx="86" cy="66" r="2.4" />
-    <circle className="reef-bubble" cx="90" cy="56" r="1.6" />
-  </svg>;
-}
 
 // The wreck: the first big discovery, and the one the collection is built around.
 export function Wreck() {
@@ -105,122 +60,6 @@ export function Wreck() {
     <circle className="reef-bubble" cx="88" cy="30" r="2.6" />
     <circle className="reef-bubble" cx="96" cy="22" r="1.8" />
     <path className="wreck-sand" d="M2 102 Q 40 92 86 96 Q 130 100 168 92 L168 112 L2 112 Z" fill={paint('sand')} opacity=".85" />
-  </svg>;
-}
-
-export function Shell() {
-  return <svg className="reef-art" viewBox="0 0 68 60" {...BASE}>
-    <path className="shell-body" d="M8 46 C 6 28 22 14 42 14 C 58 14 66 26 60 36 C 70 40 68 54 52 56 C 34 58 14 56 8 46 Z" fill={paint('shell-body')} />
-    <path className="shell-spiral" d="M62 34 C 46 24 24 26 10 44" />
-    <path className="shell-spiral" d="M60 44 C 44 36 26 38 12 50" />
-    <path className="shell-spiral shell-spiral-faint" d="M56 52 C 40 46 26 48 16 54" />
-    <ellipse className="shell-mouth" cx="50" cy="46" rx="7" ry="12" transform="rotate(-38 50 46)" fill={paint('shell-inner')} />
-    <path className="shell-lip" d="M56 34 Q 64 44 54 58" />
-    <path className="shell-apex" d="M42 16 Q 40 6 48 4 Q 52 10 48 16 Z" fill={paint('shell-body')} />
-    <path className="shell-rib" d="M22 20 L18 30 M34 16 L32 28 M46 15 L44 28" />
-    <circle className="shell-gleam" cx="30" cy="26" r="2.4" />
-    <path className="shell-shine" d="M20 26 Q 30 18 42 18" />
-    <circle className="reef-bubble" cx="10" cy="18" r="2.4" />
-    <circle className="reef-bubble" cx="16" cy="10" r="1.6" />
-  </svg>;
-}
-
-export function Seagrass() {
-  return <svg className="reef-art" viewBox="0 0 76 112" {...BASE}>
-    <path className="grass-blade" d="M14 110 C 2 88 18 70 8 48 C 2 32 10 16 16 4 C 24 20 26 38 20 56 C 12 78 26 92 14 110 Z" fill={paint('grass-body')} />
-    <path className="grass-blade" d="M34 110 C 24 86 38 66 28 44 C 22 28 30 12 36 2 C 44 18 46 36 40 54 C 32 78 46 92 34 110 Z" fill={paint('grass-body')} />
-    <path className="grass-blade" d="M54 110 C 44 90 58 72 48 52 C 42 38 48 24 54 14 C 62 28 64 44 58 60 C 50 80 64 94 54 110 Z" fill={paint('grass-body')} opacity=".95" />
-    <path className="grass-blade grass-blade-back" d="M6 110 C -2 92 10 78 4 60 C 0 48 4 36 8 26 C 14 40 16 54 12 68 C 6 84 14 98 6 110 Z" fill={paint('weed-dark')} opacity=".8" />
-    <path className="grass-blade grass-blade-back" d="M66 110 C 60 94 70 80 64 64 C 60 52 64 40 68 32 C 74 44 76 58 72 70 C 66 86 74 98 66 110 Z" fill={paint('weed-dark')} opacity=".8" />
-    <path className="grass-mid" d="M15 106 C 8 86 20 68 12 48 C 7 34 12 20 16 8" />
-    <path className="grass-mid" d="M35 106 C 28 84 40 64 32 44 C 27 30 32 16 36 6" />
-    <path className="grass-mid" d="M55 106 C 48 88 60 70 52 52 C 47 40 52 28 55 18" />
-    <circle className="grass-seed" cx="20" cy="60" r="3" />
-    <circle className="grass-seed" cx="42" cy="34" r="2.6" />
-    <circle className="grass-seed" cx="60" cy="72" r="2.8" />
-    <path className="grass-base" d="M8 110 Q 38 102 68 110 Q 38 114 8 110 Z" fill={paint('sand-deep')} opacity=".7" />
-    <circle className="reef-bubble" cx="72" cy="46" r="2.2" />
-  </svg>;
-}
-
-export function Crab() {
-  return <svg className="reef-art" viewBox="-6 -10 92 78" {...BASE}>
-    {/* Legs, two joints each, four to a side. */}
-    <path className="crab-leg" d="M16 34 L4 42 L12 48 M20 40 L10 50 L20 54 M26 44 L18 54 L28 58 M34 46 L28 56 L38 60" />
-    <path className="crab-leg" d="M64 34 L76 42 L68 48 M60 40 L70 50 L60 54 M54 44 L62 54 L52 58 M46 46 L52 56 L42 60" />
-    {/* Claws held up and out. */}
-    <path className="crab-arm" d="M18 28 L6 18" />
-    <path className="crab-arm" d="M62 28 L74 18" />
-    <path className="crab-claw" d="M9 20 C 0 14 -2 4 6 -1 C 14 -5 20 2 18 10 Z" fill={paint('crab-claw')} />
-    <path className="crab-claw" d="M71 20 C 80 14 82 4 74 -1 C 66 -5 60 2 62 10 Z" fill={paint('crab-claw')} />
-    <path className="crab-claw-slit" d="M2 8 L16 8 M78 8 L64 8" />
-    {/* The shell: a scalloped edge at the front, a ridge across the back. */}
-    <path className="crab-body" d="M40 22 C 56 22 68 30 68 42 C 68 54 56 60 40 60 C 24 60 12 54 12 42 C 12 30 24 22 40 22 Z" fill={paint('crab-shell')} />
-    <path className="crab-shell-ridge" d="M16 34 C 26 26 54 26 64 34" />
-    <path className="crab-shell-ridge crab-shell-ridge-faint" d="M20 44 C 30 38 50 38 60 44" />
-    <path className="crab-shell-scallop" d="M18 52 Q 24 56 30 52 Q 36 57 42 52 Q 48 57 54 52 Q 60 56 62 50" />
-    <path className="crab-under" d="M20 56 Q 40 66 60 56 Q 40 62 20 56 Z" fill={paint('crab-under')} opacity=".9" />
-    <circle className="crab-spot" cx="30" cy="30" r="1.6" />
-    <circle className="crab-spot" cx="50" cy="30" r="1.6" />
-    <circle className="crab-spot" cx="40" cy="28" r="1.4" />
-    {/* Stalked eyes, and a little mouth. */}
-    <path className="crab-stalk" d="M31 22 L28 12 M49 22 L52 12" />
-    <circle className="crab-eye" cx="27" cy="10" r="4.4" fill={paint('crab-shell')} />
-    <circle className="crab-eye" cx="53" cy="10" r="4.4" fill={paint('crab-shell')} />
-    <circle className="crab-eye-white" cx="27" cy="10" r="2.8" />
-    <circle className="crab-eye-white" cx="53" cy="10" r="2.8" />
-    <circle className="crab-pupil" cx="27.6" cy="10.4" r="1.4" />
-    <circle className="crab-pupil" cx="53.6" cy="10.4" r="1.4" />
-    <circle className="crab-gleam" cx="26" cy="8.6" r="0.9" />
-    <circle className="crab-gleam" cx="52" cy="8.6" r="0.9" />
-    <path className="crab-mouth" d="M34 54 Q 40 58 46 54" />
-    <path className="crab-fringe" d="M22 50 Q 28 54 34 50 Q 40 55 46 50 Q 52 54 58 50" />
-    <circle className="reef-bubble" cx="6" cy="4" r="2.4" />
-    <circle className="reef-bubble" cx="12" cy="-2" r="1.6" />
-  </svg>;
-}
-
-export function Octopus() {
-  return <svg className="reef-art" viewBox="0 0 100 100" {...BASE}>
-    {/* Arms: filled ribbons so each one can taper, with suckers along them. */}
-    <path className="octo-arm" d="M22 52 C 6 56 4 74 14 90 C 20 96 30 96 34 90 C 26 86 20 74 26 62 Z" fill={paint('octo-body')} />
-    <path className="octo-arm" d="M30 56 C 14 66 16 84 28 94 C 34 98 44 96 46 90 C 36 84 28 76 36 66 Z" fill={paint('octo-body')} />
-    <path className="octo-arm" d="M40 58 C 28 74 36 90 50 96 C 58 98 66 94 66 88 C 52 84 44 76 50 64 Z" fill={paint('octo-body')} />
-    <path className="octo-arm" d="M56 58 C 52 76 64 90 78 92 C 86 92 92 86 90 80 C 76 78 66 70 68 58 Z" fill={paint('octo-body')} />
-    <path className="octo-arm" d="M70 54 C 78 66 94 68 98 80 C 100 88 94 94 88 92 C 86 82 78 76 68 70 Z" fill={paint('octo-body')} opacity=".95" />
-    <path className="octo-arm" d="M16 46 C 4 50 -2 62 2 76 C 4 84 12 88 16 84 C 10 74 8 60 18 52 Z" fill={paint('octo-body')} opacity=".95" />
-    {/* The mantle: a big head with a domed top. */}
-    <path className="octo-head" d="M50 4 C 76 4 90 22 90 44 C 90 60 76 68 50 68 C 24 68 10 60 10 44 C 10 22 24 4 50 4 Z" fill={paint('octo-body')} />
-    <path className="octo-head-shade" d="M50 4 C 24 4 10 22 10 44 C 10 60 24 68 50 68 C 34 62 26 54 26 42 C 26 26 36 10 50 4 Z" fill={paint('rock-dark')} opacity=".16" />
-    <path className="octo-head-light" d="M40 12 C 58 8 74 16 80 30 C 68 16 52 12 40 16 Z" fill="#fffdf3" opacity=".35" />
-    <circle className="octo-spot" cx="26" cy="30" r="4.4" fill={paint('octo-spot')} />
-    <circle className="octo-spot" cx="34" cy="18" r="3.2" fill={paint('octo-spot')} />
-    <circle className="octo-spot" cx="70" cy="26" r="4" fill={paint('octo-spot')} />
-    <circle className="octo-spot" cx="62" cy="52" r="3.4" fill={paint('octo-spot')} />
-    <circle className="octo-spot" cx="34" cy="56" r="3.8" fill={paint('octo-spot')} />
-    {/* Eyes with lids, and the siphon. */}
-    <ellipse className="octo-eye" cx="33" cy="38" rx="9" ry="9.6" fill="#fffdf3" />
-    <ellipse className="octo-eye" cx="67" cy="38" rx="9" ry="9.6" fill="#fffdf3" />
-    <ellipse className="octo-iris" cx="34" cy="39" rx="5.4" ry="6.2" fill={paint('crab-shell')} />
-    <ellipse className="octo-iris" cx="68" cy="39" rx="5.4" ry="6.2" fill={paint('crab-shell')} />
-    <ellipse className="octo-pupil" cx="34.6" cy="39.6" rx="3" ry="4.4" fill="#2e1b26" />
-    <ellipse className="octo-pupil" cx="68.6" cy="39.6" rx="3" ry="4.4" fill="#2e1b26" />
-    <circle className="octo-gleam" cx="31" cy="34" r="2.4" fill="#ffffff" />
-    <circle className="octo-gleam" cx="65" cy="34" r="2.4" fill="#ffffff" />
-    <path className="octo-brow" d="M22 28 Q 33 22 44 27 M56 27 Q 67 22 78 28" />
-    <path className="octo-siphon" d="M88 46 C 96 44 100 50 96 56 C 92 54 88 54 84 56 Z" fill={paint('octo-body')} />
-    {/* Suckers along the two front arms. */}
-    <circle className="octo-sucker" cx="16" cy="66" r="2" />
-    <circle className="octo-sucker" cx="14" cy="76" r="1.8" />
-    <circle className="octo-sucker" cx="18" cy="85" r="1.6" />
-    <circle className="octo-sucker" cx="30" cy="74" r="2" />
-    <circle className="octo-sucker" cx="34" cy="84" r="1.8" />
-    <circle className="octo-sucker" cx="48" cy="78" r="2" />
-    <circle className="octo-sucker" cx="54" cy="88" r="1.8" />
-    <circle className="octo-sucker" cx="68" cy="78" r="1.8" />
-    <circle className="octo-sucker" cx="78" cy="86" r="1.6" />
-    <circle className="reef-bubble" cx="8" cy="14" r="2.6" />
-    <circle className="reef-bubble" cx="14" cy="4" r="1.8" />
   </svg>;
 }
 
@@ -535,13 +374,7 @@ export function Bottle() {
 
 // Every treasure a finished trip can unlock, by id (see REEF_REWARDS in trip.js).
 const REWARD_ART = {
-  starfish: Starfish,
-  coral: Coral,
-  shell: Shell,
   wreck: Wreck,
-  seagrass: Seagrass,
-  crab: Crab,
-  octopus: Octopus,
   chest: Chest,
   submarine: Submarine,
   seahorse: Seahorse,
