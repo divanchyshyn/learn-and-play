@@ -337,6 +337,40 @@ describe('word-fishing the fight', () => {
     expect(fight.slack).toBe(0);
   });
 
+  it('resets the slack clock on every turn, however gently the line is wound', () => {
+    // A quarter turn every other tick never lifts the tension out of the slack
+    // band before the clock would expire – but the line is still being pulled,
+    // so a child doing exactly what the prompt asks never loses the fish.
+    let fight = stepFight(turnReel(createFight(1), KEY_TURN_DEGREES)).fight;
+    expect(fight.tension).toBeLessThanOrEqual(SLACK_TENSION);
+    expect(fight.slack).toBe(0);
+
+    for (let tick = 0; tick < SLACK_TICKS * 2; tick += 1) {
+      const step = stepFight(tick % 2 === 0 ? turnReel(fight, KEY_TURN_DEGREES) : fight);
+      fight = step.fight;
+      expect(step.ended).toBeNull();
+    }
+    expect(fight.slack).toBeLessThan(SLACK_TICKS);
+    expect(fight.distance).toBeGreaterThan(0);
+  });
+
+  it('still throws the hook on the tick the child stops turning', () => {
+    // A quarter turn resets the clock, but a reel nobody keeps pulling on gives
+    // the fish the whole slack window to work the hook free.
+    let fight = stepFight(turnReel(createFight(1), KEY_TURN_DEGREES)).fight;
+    expect(fight.slack).toBe(0);
+    let thrown = false;
+    let ticks = 0;
+    for (let step = 0; step < SLACK_TICKS && !thrown; step += 1) {
+      const next = stepFight(fight);
+      fight = next.fight;
+      ticks += 1;
+      thrown = next.ended === 'thrown';
+    }
+    expect(thrown).toBe(true);
+    expect(ticks).toBe(SLACK_TICKS);
+  });
+
   it('paints the fight as a plain 0–1 progress', () => {
     expect(fightProgress({ distance: 0.4 })).toBeCloseTo(0.4);
     expect(fightProgress({ distance: 3 })).toBe(1);

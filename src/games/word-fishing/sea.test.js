@@ -7,7 +7,7 @@ import {
 } from './sea.js';
 import {
   BITE_TICKS, BOAT_MAX_X, BOAT_SPEED, BOAT_START_X, CAST_TICKS, DROP_MAX_DEPTH, DROP_MIN_DEPTH, DROP_SWAY,
-  NIBBLE_EACH, NIBBLES_MIN, RIG_DX, RIG_Y, SLACK_TICKS, TENSION_NEAR,
+  KEY_TURN_DEGREES, NIBBLE_EACH, NIBBLES_MIN, RIG_DX, RIG_Y, SLACK_TICKS, TENSION_NEAR,
 } from './rig.js';
 import { createTripPlan } from './trip.js';
 import { WORD_BANK } from './words.js';
@@ -425,6 +425,20 @@ describe('word-fishing the fight', () => {
     expect(sea.fight).not.toBeNull();
     expect(sea.fight.slack).toBeLessThan(SLACK_TICKS);
     expect(hookedFish(sea).distance).toBeGreaterThan(hooked.fight.distance);
+  });
+
+  it('keeps the hook in for a slow, gentle wind that stays in the slack band', () => {
+    let sea = strikeFish(biteReady(createSea(freeSortTrip())));
+    // A quarter turn every other tick for far longer than the slack window:
+    // the line stays loose, but the child is constantly pulling on it, so the
+    // fish must not work the hook free.
+    for (let tick = 0; tick < SLACK_TICKS * 2 && sea.fight; tick += 1) {
+      if (tick % 2 === 0) sea = rotateReel(sea, KEY_TURN_DEGREES);
+      sea = tickSea(sea);
+    }
+    expect(sea.fight).not.toBeNull();
+    expect(sea.fight.slack).toBeLessThan(SLACK_TICKS);
+    expect(aboardFish(sea)).toBeNull();
   });
 
   it('lands the fish in the net when the fight is won', () => {

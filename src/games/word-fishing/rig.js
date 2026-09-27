@@ -183,7 +183,7 @@ export function stepBait(bait) {
 // before the red, turn again before the line goes slack – which is what makes a
 // fish worth catching.
 // One full 360 degree turn of the reel is the fight's unit of work, worth three
-// of the old held-crank ticks: a fish takes about six calm turns to land, and
+// of the old hold-to-wind ticks: a fish takes about six calm turns to land, and
 // the line reaches the red after about three, so the pump stays the same.
 export const WIND_PER_TURN = 0.165; // distance won per full turn of the reel
 export const TENSION_PER_TURN = 0.225; // tension gained per full turn
@@ -254,7 +254,10 @@ export function stepFight(fight) {
     return { fight: { ...next, distance: LAND_DISTANCE }, ended: 'landed' };
   }
   // And a line nobody is pulling on holds nothing: the hook works itself free.
-  next.slack = next.tension <= SLACK_TENSION ? fight.slack + 1 : 0;
+  // A reel that is really being turned is pulling, however gently – the slack
+  // band only matters while the child is not winding, so a slow, steady turn
+  // never throws a fish they are doing exactly what the prompt asks for.
+  next.slack = turns > 0 || next.tension > SLACK_TENSION ? 0 : fight.slack + 1;
   if (next.slack >= SLACK_TICKS) {
     return { fight: next, ended: 'thrown' };
   }

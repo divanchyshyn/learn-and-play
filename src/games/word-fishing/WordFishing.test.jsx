@@ -75,8 +75,8 @@ function tapWater(view, percent) {
   fireEvent.click(view.container.querySelector('.sea-surface'), { clientX: (percent / 100) * SEA_WIDTH });
 }
 
-function crank(view) {
-  return view.container.querySelector('.reel-crank');
+function spool(view) {
+  return view.container.querySelector('.reel-spool');
 }
 
 // The spool's centre as the mounted component sees it: jsdom has no layout, so
@@ -96,7 +96,7 @@ function reelPoint(degrees) {
 // Turn the spool the way a finger does: press it and draw a circle in quarter
 // turns. The reel answers every step at once; the sea tick then winds.
 function spinReel(view, degrees = 360) {
-  const button = crank(view);
+  const button = spool(view);
   fireEvent.pointerDown(button, reelPoint(0));
   for (let turned = 90; turned <= degrees; turned += 90) {
     fireEvent.pointerMove(button, reelPoint(turned));
@@ -124,7 +124,7 @@ function castAndWaitForBite(view, guard = 400) {
 // red, leave it alone while it is. Returns when the fight is over either way.
 function pump(view, guard = 400) {
   for (let step = 0; step < guard; step += 1) {
-    if (!crank(view)) return true;
+    if (!spool(view)) return true;
     const danger = view.container.querySelector('.reel[data-level="danger"]');
     if (!danger) spinReel(view, 360);
     ticks(1);
@@ -138,7 +138,7 @@ function pump(view, guard = 400) {
 function catchWord(view) {
   expect(castAndWaitForBite(view)).toBe(true);
   fireEvent.click(view.container.querySelector('.strike-ring'));
-  expect(view.container.querySelector('.reel-crank')).toBeTruthy();
+  expect(view.container.querySelector('.reel-spool')).toBeTruthy();
   expect(pump(view)).toBe(true);
   const card = view.container.querySelector('.catch-card');
   expect(card).toBeTruthy();
@@ -478,7 +478,7 @@ describe('word-fishing the fight and the landing', () => {
     expect(view.container.querySelector('.fishing-line')).toBeTruthy();
 
     // A finger on the spool answers at once…
-    const button = crank(view);
+    const button = spool(view);
     fireEvent.pointerDown(button, reelPoint(0));
     expect(view.container.querySelector('.reel.turning')).toBeTruthy();
     fireEvent.pointerMove(button, reelPoint(90));
@@ -497,7 +497,7 @@ describe('word-fishing the fight and the landing', () => {
     const card = view.container.querySelector('.catch-card');
     expect(card).toBeTruthy();
     expect(view.container.querySelector('.fish-aboard')).toBeTruthy();
-    expect(view.container.querySelector('.reel-crank')).toBeNull();
+    expect(view.container.querySelector('.reel-spool')).toBeNull();
     // The word is there to be read, not tapped: plain text, no control – and
     // nothing anywhere in the game reads it aloud.
     expect(card.querySelector('.catch-word').tagName).toBe('P');
@@ -515,7 +515,7 @@ describe('word-fishing the fight and the landing', () => {
     // The thumb covers the spool, so the meter must live beside it: a sibling of
     // the button, never part of the box the finger draws circles on.
     const meter = view.container.querySelector('.tension-meter');
-    const button = crank(view);
+    const button = spool(view);
     expect(meter).toBeTruthy();
     expect(button.contains(meter)).toBe(false);
     expect(meter.contains(button)).toBe(false);
@@ -547,7 +547,7 @@ describe('word-fishing the fight and the landing', () => {
     // Nothing is touched at all: the line is not pulling, so the fish works the
     // hook out – and it is gone.
     ticks(SLACK_TICKS);
-    expect(view.container.querySelector('.reel-crank')).toBeNull();
+    expect(view.container.querySelector('.reel-spool')).toBeNull();
     expect(view.container.querySelector('.fish-splash')).toBeTruthy();
     expect(view.container.querySelector('.catch-card')).toBeNull();
     expect(view.container.querySelector('.fish-aboard')).toBeNull();
@@ -568,16 +568,18 @@ describe('word-fishing the fight and the landing', () => {
     expect(castAndWaitForBite(view)).toBe(true);
     fireEvent.click(view.container.querySelector('.strike-ring'));
 
-    let sawWarning = false;
-    for (let step = 0; step < 60 && view.container.querySelector('.reel-crank'); step += 1) {
+    let sawDangerWarning = false;
+    for (let step = 0; step < 60 && spool(view); step += 1) {
       spinReel(view, 180);
       ticks(1);
-      sawWarning = sawWarning || Boolean(view.container.querySelector('.reel-warning'));
+      // The slack warning is showing from the start, so only the red one counts.
+      sawDangerWarning = sawDangerWarning
+        || view.container.querySelector('.reel[data-level="danger"] .reel-warning')?.textContent === 'Slipp!';
     }
 
     // The bar turned red, the warning showed, and then the line gave way.
-    expect(sawWarning).toBe(true);
-    expect(view.container.querySelector('.reel-crank')).toBeNull();
+    expect(sawDangerWarning).toBe(true);
+    expect(view.container.querySelector('.reel-spool')).toBeNull();
     expect(view.container.querySelector('.fish-splash')).toBeTruthy();
     expect(snapSound).toHaveBeenCalled();
     expect(view.container.querySelector('.catch-card')).toBeNull();
@@ -597,9 +599,15 @@ describe('word-fishing the fight and the landing', () => {
     expect(castAndWaitForBite(view)).toBe(true);
     fireEvent.click(view.container.querySelector('.strike-ring'));
 
-    const button = crank(view);
+    const button = spool(view);
     const turning = () => Boolean(view.container.querySelector('.reel.turning'));
-    const handle = () => view.container.querySelector('.crank-handle').style.rotate;
+    const handle = () => view.container.querySelector('.reel-handle').style.rotate;
+
+    // A tap on the spool – the same click a switch, a screen reader or Enter and
+    // Space send a button – is one deliberate quarter turn, like the arrows.
+    const tapped = handle();
+    fireEvent.click(button);
+    expect(handle()).not.toBe(tapped);
 
     // A finger on the spool starts the turn, and a circle feeds the fight.
     fireEvent.pointerDown(button, reelPoint(0));
@@ -629,13 +637,26 @@ describe('word-fishing the fight and the landing', () => {
     expect(turning()).toBe(true);
     fireEvent.pointerLeave(button);
     expect(turning()).toBe(false);
+
+    // A drag already wound the line, so the click the browser fires when it ends
+    // must not add an extra quarter turn…
+    fireEvent.pointerDown(button, reelPoint(0));
+    fireEvent.pointerMove(button, reelPoint(90));
+    fireEvent.pointerMove(button, reelPoint(180));
+    fireEvent.pointerUp(button);
+    const dragged = handle();
+    fireEvent.click(button);
+    expect(handle()).toBe(dragged);
+    // …while a real tap straight after still winds.
+    fireEvent.click(button);
+    expect(handle()).not.toBe(dragged);
   });
 
   it('holds the boat still for the whole fight', () => {
     const view = render(<WordFishing />);
     expect(castAndWaitForBite(view)).toBe(true);
     fireEvent.click(view.container.querySelector('.strike-ring'));
-    expect(view.container.querySelector('.reel-crank')).toBeTruthy();
+    expect(view.container.querySelector('.reel-spool')).toBeTruthy();
 
     tapWater(view, 80);
     expect(view.container.querySelector('.sea-nudge')).toBeTruthy();
