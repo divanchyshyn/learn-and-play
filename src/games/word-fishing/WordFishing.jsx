@@ -15,7 +15,7 @@ import {
   fishWord, lineTarget, pullInBait, sailBoat, setReelHold, slipFish, strikeFish, tickSea,
 } from './sea.js';
 import {
-  createTripPlan, crateForWord, rewardForTrip, tripComplete, tripRequest, unlockedRewards,
+  createTripPlan, crateForWord, rewardForTrip, tripComplete, tripProgress, tripRequest, unlockedRewards,
   withDelivery,
 } from './trip.js';
 import {
@@ -99,7 +99,7 @@ export function statusLine(sea, trip, finale = false) {
     return `Fisken er på kroken, ${Math.round(fight.distance * 100)} prosent inne.${warning}${slack}`;
   }
   if (stage === 'bite') return 'Napp! Trykk på duppen for å feste kroken.';
-  return `${tripRequest()}. ${trip.collected} av ${trip.goal} i dag.`;
+  return `${tripRequest()}. ${tripProgress(trip)} i dag.`;
 }
 
 
@@ -389,18 +389,13 @@ export function WordFishing() {
           canStrike={canStrike(sea) && !tripCard && !finale}
           nudge={nudge}
           tripNumber={trip.number}
+          tripProgress={tripProgress(trip)}
           onSail={sailTo}
           onStep={sailStep}
           onStrike={strike}
         >
           {sea.fishes.map((fish) => <FishSprite key={fish.id} fish={fish} boat={sea.boat} />)}
         </SeaScene>
-
-        <div className="trip-order">
-          <p className="trip-order-badge">Tur {trip.number}</p>
-          <p className="trip-order-request">{tripRequest(trip)}</p>
-          <p className="trip-order-progress">{trip.collected} av {trip.goal} i dag</p>
-        </div>
 
         <ActionBar
           stage={stage}

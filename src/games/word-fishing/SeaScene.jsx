@@ -55,8 +55,9 @@ function SeaBed({ decorations, newRewardId }) {
 }
 
 // The boat, plus the wake and the spray it drags along when it is under way. The
-// drawing itself is BoatArt; this only decides how it moves.
-function Boat({ boat, tripNumber }) {
+// drawing itself is BoatArt; this only decides how it moves. The trip counter
+// sails with the boat (see the sign on the hull in BoatArt).
+function Boat({ boat, tripNumber, tripProgress }) {
   const sailing = boat.x !== boat.targetX;
   return <div
     className={`boat${sailing ? ' is-sailing' : ''}`}
@@ -68,7 +69,7 @@ function Boat({ boat, tripNumber }) {
       <span className="boat-wake boat-wake-far" />
       <span className="boat-spray" />
     </>}
-    <BoatArt tripNumber={tripNumber} />
+    <BoatArt tripNumber={tripNumber} tripProgress={tripProgress} />
   </div>;
 }
 
@@ -197,7 +198,7 @@ function SailSurface({ onSail, onStep }) {
 }
 
 export function SeaScene({
-  decorations, newRewardId, boat, bait, baitPoint, lineTo, taut, canStrike, nudge, tripNumber,
+  decorations, newRewardId, boat, bait, baitPoint, lineTo, taut, canStrike, nudge, tripNumber, tripProgress,
   onSail, onStep, onStrike, children,
 }) {
   return <>
@@ -207,7 +208,7 @@ export function SeaScene({
     <WaveLine />
     <SeaBed decorations={decorations} newRewardId={newRewardId} />
     <SailMarker boat={boat} nudge={nudge} />
-    <Boat boat={boat} tripNumber={tripNumber} />
+    <Boat boat={boat} tripNumber={tripNumber} tripProgress={tripProgress} />
     <LineLayer boat={boat} target={lineTo} taut={taut} />
     <SailSurface onSail={onSail} onStep={onStep} />
     <Float point={baitPoint} bait={bait} canStrike={canStrike} onStrike={onStrike} />

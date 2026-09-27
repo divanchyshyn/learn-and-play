@@ -36,7 +36,7 @@ function SeaCanvas() {
     <Anchor />
     <Driftwood />
     <Stones />
-    <BoatArt tripNumber={3} />
+    <BoatArt tripNumber={3} tripProgress="0 av 4" />
     {FISH_SPECIES.map((species) => <FishArt key={species} species={species} />)}
     {REWARD_IDS.map((id) => <ReefArt key={id} id={id} />)}
   </>;

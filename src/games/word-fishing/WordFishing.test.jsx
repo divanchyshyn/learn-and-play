@@ -8,7 +8,7 @@ import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, RIG_
 import {
   ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, createJournal, journalCodec, tripCodec,
 } from './journal.js';
-import { REEF_REWARDS, createTripPlan, tripRequest } from './trip.js';
+import { REEF_REWARDS, createTripPlan } from './trip.js';
 import { sounds } from './sounds.js';
 import {
   CATEGORY_CRATE_IDS, CRATE_TARGET, TARGET_WORD_COUNT, WORD_BANK, crateById, crateTarget, wordsInCrate,
@@ -58,6 +58,12 @@ function tagWord(fishElement) {
 
 function boatLeft(view) {
   return view.container.querySelector('.boat').style.left;
+}
+
+// The trip counter painted on the boat's hull: the one piece of the old order
+// card that is still on screen.
+function boatProgress(view) {
+  return view.container.querySelector('.boat-trip-progress').textContent;
 }
 
 function hintText(view) {
@@ -178,8 +184,9 @@ describe('word-fishing the opening screen', () => {
       expect(crate.getAttribute('aria-label')).toMatch(/^Kassen .+: 0 av \d+ ord$/);
     }
 
-    expect(screen.getByText(tripRequest())).toBeInTheDocument();
-    expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+    // The order card is gone: the boat itself carries the day's counter.
+    expect(view.container.querySelector('.trip-order')).toBeNull();
+    expect(boatProgress(view)).toBe('0 av 4');
   });
 
   it('mounts the whole stage: the shared paints, the seabed and its scenery', () => {
@@ -422,7 +429,7 @@ describe('word-fishing the bait and the bite', () => {
 
     // Nothing is counted, nothing is scolded, and the day is untouched.
     expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
-    expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+    expect(boatProgress(view)).toBe('0 av 4');
     expect(screen.queryByText(/feil|galt|straff|mistet|stakk av/i)).not.toBeInTheDocument();
 
     // Another fish takes an interest: a missed bite is never a dead end.
@@ -516,7 +523,7 @@ describe('word-fishing the fight and the landing', () => {
 
     // Nothing is counted, nothing is scolded, nothing is lost.
     expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
-    expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+    expect(boatProgress(view)).toBe('0 av 4');
     expect(screen.queryByText(/feil|galt|straff|mistet|stakk av/i)).not.toBeInTheDocument();
 
     // And the line can go out again straight away.
@@ -546,7 +553,7 @@ describe('word-fishing the fight and the landing', () => {
     expect(view.container.querySelector('.fish-aboard')).toBeNull();
     // Nothing is counted, nothing is scolded, nothing is lost.
     expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
-    expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+    expect(boatProgress(view)).toBe('0 av 4');
     expect(screen.queryByText(/feil|galt|straff|mistet|stakk av/i)).not.toBeInTheDocument();
 
     // The line can be cast again at once.
@@ -722,7 +729,7 @@ describe('word-fishing catch and reward', () => {
     expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
     // No failure language anywhere, and the day's order still stands.
     expect(screen.queryByText(/feil|galt|straff|mistet/i)).not.toBeInTheDocument();
-    expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+    expect(boatProgress(view)).toBe('0 av 4');
   });
 });
 
@@ -796,7 +803,7 @@ describe('word-fishing rewards and the fishing book', () => {
     fireEvent.click(within(done).getByRole('button', { name: /Ny tur/ }));
 
     expect(view.container.querySelector('.trip-done')).toBeNull();
-    expect(screen.getByText('0 av 4 i dag')).toBeInTheDocument();
+    expect(boatProgress(view)).toBe('0 av 4');
     expect(screen.getByText(`4 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT - 4} igjen.`)).toBeInTheDocument();
     // The decoration stays on the seabed while the next trip starts.
     expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeTruthy();
@@ -812,7 +819,7 @@ describe('word-fishing rewards and the fishing book', () => {
     window.localStorage.setItem(JOURNAL_KEY, journalCodec.serialize({ ...createJournal(), trips: 1, decorations: [0] }));
 
     const view = render(<WordFishing />);
-    expect(screen.getByText('4 av 4 i dag')).toBeInTheDocument();
+    expect(boatProgress(view)).toBe('4 av 4');
     expect(view.container.querySelector('.trip-done')).toBeNull();
 
     catchAndSort(view);
@@ -838,18 +845,18 @@ describe('word-fishing saved trips', () => {
 
     const view = render(<WordFishing />);
 
-    // The boat keeps its number and its two catches, but carries all four
-    // crates: badge, order card and the next «Ny tur» can never disagree.
-    expect(screen.getByText('Tur 4')).toBeInTheDocument();
+    // The boat keeps its number on the flag and its two catches, but carries
+    // all four crates: the flag, the counter on the hull and the next «Ny tur»
+    // can never disagree.
+    expect(view.container.querySelector('.boat-flag-number').textContent).toBe('4');
     expect(view.container.querySelectorAll('.crate')).toHaveLength(4);
-    expect(screen.getByText('2 av 4 i dag')).toBeInTheDocument();
-    expect(screen.getByText(tripRequest())).toBeInTheDocument();
+    expect(boatProgress(view)).toBe('2 av 4');
     expect(fishElements(view)).toHaveLength(FISH_ON_SCREEN);
     expect(view.container.querySelector('.trip-done')).toBeNull();
 
     // A catch from any category sorts as usual.
     catchAndSort(view);
-    expect(screen.getByText('3 av 4 i dag')).toBeInTheDocument();
+    expect(boatProgress(view)).toBe('3 av 4');
   });
 });
 
@@ -890,7 +897,7 @@ describe('word-fishing the very last word', () => {
     fireEvent.click(within(finale).getByRole('button', { name: /Start på nytt/ }));
 
     expect(view.container.querySelector('.finale-done')).toBeNull();
-    expect(screen.getByText('Tur 1')).toBeInTheDocument();
+    expect(view.container.querySelector('.boat-flag-number').textContent).toBe('1');
     expect(view.container.querySelectorAll('.crate')).toHaveLength(4);
     expect(crateProgress(view, CATEGORY_CRATE_IDS[0])).toBe(`0 av ${CRATE_TARGET} ord`);
     expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeNull();
@@ -907,8 +914,8 @@ describe('word-fishing the fishing book dialog', () => {
     }));
     window.localStorage.setItem(TRIP_KEY, tripCodec.serialize({ ...createTripPlan(1), collected: 2 }));
 
-    render(<WordFishing />);
-    expect(screen.getByText('2 av 4 i dag')).toBeInTheDocument();
+    const view = render(<WordFishing />);
+    expect(boatProgress(view)).toBe('2 av 4');
 
     fireEvent.click(screen.getByRole('button', { name: /Fangstboka/ }));
 
