@@ -37,11 +37,19 @@
 .sea-sun { position: absolute; left: 27%; top: 8%; width: 52px; height: 52px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #fffdf0, #ffe79b 45%, #f6bd46 82%, #e8a52e); box-shadow: 0 0 24px rgba(255, 226, 140, .6); animation: sun-glow 6s ease-in-out infinite alternate; }
 .sea-sun-glow { position: absolute; left: 27%; top: 8%; width: 132px; height: 132px; translate: -40px -40px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 236, 168, .5), rgba(255, 225, 140, 0) 70%); }
 @keyframes sun-glow { to { box-shadow: 0 0 40px rgba(255, 226, 140, .85); } }
-.sea-cloud { position: absolute; display: block; filter: drop-shadow(0 3px 0 rgba(20, 63, 78, .05)); animation: drift 34s linear infinite; }
+/* Each cloud crosses the whole sky and loops: it enters at the right edge and
+   leaves past the left one, so the restart happens in the clipped strip outside
+   the sky and the drift never jumps back into view. The static `left` each cloud
+   keeps is where it rests when the animation is not running (see
+   prefers-reduced-motion), so the designed sky is what a still frame shows. */
+.sea-cloud { position: absolute; display: block; filter: drop-shadow(0 3px 0 rgba(20, 63, 78, .05)); animation: cloud-drift 140s linear infinite; }
 .cloud-a { left: 40%; top: 18%; width: 126px; }
-.cloud-b { left: 64%; top: 46%; width: 92px; scale: .78; animation-duration: 46s; animation-direction: reverse; }
-.cloud-c { left: 82%; top: 10%; width: 68px; opacity: .85; animation-duration: 40s; animation-delay: -12s; }
-@keyframes drift { to { translate: 40px 0; } }
+.cloud-b { left: 64%; top: 46%; width: 92px; scale: .78; animation-duration: 180s; animation-delay: -120s; animation-direction: reverse; }
+.cloud-c { left: 82%; top: 10%; width: 68px; opacity: .85; animation-duration: 160s; animation-delay: -26s; }
+@keyframes cloud-drift {
+  from { left: 100%; }
+  to { left: -150px; }
+}
 .sea-gull { position: absolute; display: block; animation: glide 22s ease-in-out infinite alternate; }
 .gull-wing { fill: none; stroke: #2f5d6b; stroke-width: 2.6; stroke-linecap: round; }
 .gull-body { fill: #2f5d6b; opacity: .75; }
