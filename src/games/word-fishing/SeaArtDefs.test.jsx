@@ -83,6 +83,25 @@ describe('word-fishing shared paints', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  // The photo pass: the filters and tiles that give the scene its textures. They
+  // are paint, not decoration – a definition that goes missing turns a layer into
+  // flat grey rather than into a visible failure, so each one is named here.
+  const TEXTURE_IDS = ['wf-cloud-puff', 'wf-rough', 'wf-caustics', 'wf-scales', 'wf-wood-grain'];
+
+  it('defines every shared texture exactly once', () => {
+    render(<SeaArtDefs />);
+    for (const id of TEXTURE_IDS) {
+      expect(document.querySelectorAll(`[id="${id}"]`).length, `${id} is missing or repeated`).toBe(1);
+    }
+  });
+
+  it('mounts every texture layer the scene is built from', () => {
+    const { container } = render(<SeaCanvas />);
+    expect(container.querySelector('.cloud-puff')).toBeTruthy();
+    expect(container.querySelector('.water-caustic-paint')).toBeTruthy();
+    expect(container.querySelector('.sand-caustic-paint')).toBeTruthy();
+  });
+
   it('mounts its paints in an svg that is invisible but still resolvable', () => {
     const { container } = render(<SeaArtDefs />);
     const defs = container.querySelector('svg.sea-defs');

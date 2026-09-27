@@ -28,21 +28,43 @@
   background: linear-gradient(#bfe7f6, #eaf7fb);
   box-shadow: 0 8px 0 rgba(20, 63, 78, .14);
 }
+/* The last two layers of the photograph: a soft vignette that pulls the eye to
+   the middle of the water, and a film grain over everything. Both are static
+   CSS tiles, so they cost nothing to keep on top of the whole scene. */
+.sea::before {
+  content: ""; position: absolute; inset: 0; z-index: 29; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 44%, rgba(3, 24, 36, 0) 58%, rgba(3, 24, 36, .3) 100%);
+}
+.sea::after {
+  content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none;
+  background-image:
+    radial-gradient(rgba(4, 26, 38, .12) .6px, transparent .8px),
+    radial-gradient(rgba(255, 255, 255, .1) .5px, transparent .7px);
+  background-size: 3px 3px, 4px 4px;
+  background-position: 0 0, 1px 2px;
+  mix-blend-mode: overlay; opacity: .5;
+}
 
 /* Sky. The band is a CSS gradient (it simply fills whatever the box is), while
    the sun, the clouds, the gulls and the far shore are fixed-size sprites placed
    in percentages – a stretched drawing would squash the sun on a phone and crop
    the shore away on a desktop screen. */
-.sea-sky { position: absolute; left: 0; right: 0; top: 0; height: var(--waterline, 22%); overflow: hidden; background: linear-gradient(#7cc4e6, #a9dcf1 45%, #d7eef8 80%, #eef9fc); }
-.sea-sun { position: absolute; left: 27%; top: 8%; width: 52px; height: 52px; border-radius: 50%; background: radial-gradient(circle at 38% 34%, #fffdf0, #ffe79b 45%, #f6bd46 82%, #e8a52e); box-shadow: 0 0 24px rgba(255, 226, 140, .6); animation: sun-glow 6s ease-in-out infinite alternate; }
-.sea-sun-glow { position: absolute; left: 27%; top: 8%; width: 132px; height: 132px; translate: -40px -40px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 236, 168, .5), rgba(255, 225, 140, 0) 70%); }
-@keyframes sun-glow { to { box-shadow: 0 0 40px rgba(255, 226, 140, .85); } }
+.sea-sky { position: absolute; left: 0; right: 0; top: 0; height: var(--waterline, 22%); overflow: hidden; background: linear-gradient(#3f90c2, #79bcd9 38%, #b8dce8 72%, #e2f0f2); }
+.sea-sun { position: absolute; left: 27%; top: 8%; width: 46px; height: 46px; border-radius: 50%; background: radial-gradient(circle at 42% 38%, #fffef6, #fff4c8 38%, #ffe08a 68%, #f3b64c); box-shadow: 0 0 26px rgba(255, 229, 150, .7), 0 0 74px rgba(255, 214, 126, .32); animation: sun-glow 6s ease-in-out infinite alternate; }
+.sea-sun-glow { position: absolute; left: 27%; top: 8%; width: 132px; height: 132px; translate: -43px -43px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 236, 168, .5), rgba(255, 225, 140, 0) 70%); }
+.sea-sun-flare { position: absolute; left: 27%; top: 8%; width: 148px; height: 148px; translate: -51px -51px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 251, 226, .55), rgba(255, 231, 158, .16) 38%, rgba(255, 231, 158, 0) 70%); }
+@keyframes sun-glow { to { box-shadow: 0 0 40px rgba(255, 226, 140, .85), 0 0 96px rgba(255, 214, 126, .4); } }
+/* The haze that sits over the far shore: what makes the horizon read as distance. */
+.sea-haze { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; background: linear-gradient(rgba(214, 235, 240, 0), rgba(226, 242, 244, .85)); pointer-events: none; }
 /* Each cloud crosses the whole sky and loops: it enters at the right edge and
    leaves past the left one, so the restart happens in the clipped strip outside
    the sky and the drift never jumps back into view. The static `left` each cloud
    keeps is where it rests when the animation is not running (see
    prefers-reduced-motion), so the designed sky is what a still frame shows. */
-.sea-cloud { position: absolute; display: block; filter: drop-shadow(0 3px 0 rgba(20, 63, 78, .05)); animation: cloud-drift 140s linear infinite; }
+.sea-cloud { position: absolute; display: block; filter: drop-shadow(0 4px 3px rgba(20, 63, 78, .1)); animation: cloud-drift 140s linear infinite; }
+/* The puff itself is painted by the shared `wf-cloud-puff` filter: fractal noise
+   turned into a soft, lumpy cloud, so no two clouds are the same shape. */
+.cloud-puff { fill: none; filter: url(#wf-cloud-puff); }
 .cloud-a { left: 40%; top: 18%; width: 126px; }
 .cloud-b { left: 64%; top: 46%; width: 92px; scale: .78; animation-duration: 180s; animation-delay: -120s; animation-direction: reverse; }
 .cloud-c { left: 82%; top: 10%; width: 68px; opacity: .85; animation-duration: 160s; animation-delay: -26s; }
@@ -62,12 +84,57 @@
 .shore-beam { animation: shore-turn 7s ease-in-out infinite alternate; }
 @keyframes shore-turn { from { opacity: .35; } to { opacity: .7; } }
 
-/* Water. One depth gradient, the crests drawn across the waterline, and the
-   light that comes down through it – all of it still under prefers-reduced-motion. */
-.sea-water { position: absolute; left: 0; right: 0; top: var(--waterline, 22%); bottom: 0; overflow: hidden; background: linear-gradient(#83cee2, #4aa9c7 35%, #22708f 72%, #17506c); }
+/* Water. One depth gradient, the crests drawn across the waterline, the sun
+   glittering on the top of it and the caustic net it throws down – all of it
+   still under prefers-reduced-motion. */
+.sea-water { position: absolute; left: 0; right: 0; top: var(--waterline, 22%); bottom: 0; overflow: hidden; background: linear-gradient(#8fd2e3, #4d9fbf 30%, #1f6484 70%, #0f415d); }
 .sea-waves { position: absolute; left: 0; top: var(--waterline, 22%); z-index: 3; width: 100%; height: 26px; margin-top: -12px; display: block; }
-.wave-shadow { fill: rgba(23, 80, 108, .32); }
-.sea-beam { position: absolute; top: -8%; width: 82px; height: 122%; background: linear-gradient(rgba(255, 253, 243, .4), rgba(255, 253, 243, 0) 74%); transform: skewX(-12deg); filter: blur(6px); animation: ray-breathe 9s ease-in-out infinite alternate; }
+.wave-shadow { fill: rgba(13, 52, 74, .38); }
+/* The crests are pulled out of their even curves by the shared `wf-rough`
+   displacement, so no two wave lines repeat the way a tiled wave would. */
+.wave-rough { filter: url(#wf-rough); }
+.wave-sheen { mix-blend-mode: screen; }
+/* Sun glitter: a band of broken bright dashes on the top of the water, fading
+   with depth. It is a CSS tile, so the whole band costs one background and the
+   drift is a compositor move, never a repaint of the water. */
+.sea-glitter {
+  position: absolute; left: 0; right: 0; top: 0; height: 20%; z-index: 3;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 14px 2.5px at 18% 26%, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(ellipse 9px 2px at 44% 14%, rgba(255, 248, 214, .9), rgba(255, 248, 214, 0) 70%),
+    radial-gradient(ellipse 20px 3px at 66% 36%, rgba(255, 255, 255, .8), rgba(255, 255, 255, 0) 72%),
+    radial-gradient(ellipse 8px 2px at 84% 20%, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 70%);
+  background-size: 220px 48px;
+  background-repeat: repeat-x;
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, .95), rgba(0, 0, 0, 0));
+  mask-image: linear-gradient(rgba(0, 0, 0, .95), rgba(0, 0, 0, 0));
+  animation: glitter-drift 9s linear infinite;
+}
+@keyframes glitter-drift { from { background-position-x: 0; } to { background-position-x: 220px; } }
+/* The sun's light column under the waterline: a blurred shaft that the screen
+   blend turns into light rather than paint. */
+.sea-sunpath {
+  position: absolute; left: 19%; top: 0; width: 20%; height: 100%; z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(rgba(255, 246, 205, .55), rgba(255, 246, 205, .16) 42%, rgba(255, 246, 205, 0) 82%);
+  filter: blur(9px);
+  mix-blend-mode: screen;
+}
+/* The caustic net the surface throws into the water column. The filter paints
+   the light veins once; the column only ever fades in and out on top of them. */
+.water-caustics { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; }
+.water-caustic-paint { fill: #bfe9f7; filter: url(#wf-caustics); opacity: .26; }
+/* One water tint over the whole column of life below the surface: the fish, the
+   boat's hull and the seabed all read as sitting in the same water rather than
+   pasted onto it. It stays under the float, the line and the controls. */
+.sea-tint {
+  position: absolute; left: 0; right: 0; top: var(--waterline, 22%); bottom: 0; z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(rgba(18, 84, 112, .08), rgba(8, 46, 72, .22));
+  mix-blend-mode: multiply;
+}
+.sea-beam { position: absolute; top: -8%; width: 82px; height: 122%; background: linear-gradient(rgba(233, 249, 252, .5), rgba(233, 249, 252, .12) 46%, rgba(233, 249, 252, 0) 78%); transform: skewX(-12deg); filter: blur(7px); mix-blend-mode: screen; animation: ray-breathe 9s ease-in-out infinite alternate; }
 .beam-a { left: 22%; }
 .beam-b { left: 44%; width: 52px; animation-duration: 11s; animation-delay: -3s; }
 .beam-c { left: 64%; width: 36px; opacity: .7; animation-duration: 13s; animation-delay: -6s; }
@@ -76,7 +143,7 @@
 .sea-snow { position: absolute; inset: 0; z-index: 3; }
 .snow-flake { position: absolute; bottom: -14px; border-radius: 50%; background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, .95), rgba(255, 255, 255, .12)); animation-name: snow-rise; animation-timing-function: linear; animation-iteration-count: infinite; }
 @keyframes snow-rise { 0% { translate: 0 0; opacity: 0; } 12% { opacity: .8; } 100% { translate: 0 -460px; opacity: 0; } }
-.sea-shoal { position: absolute; left: 1%; top: 26%; width: 190px; opacity: .45; animation: shoal-drift 36s ease-in-out infinite alternate; }
+.sea-shoal { position: absolute; left: 1%; top: 26%; width: 190px; opacity: .38; filter: blur(2.2px); animation: shoal-drift 36s ease-in-out infinite alternate; }
 .shoal-fish path { fill: #c7e7f1; }
 @keyframes shoal-drift { to { translate: 70px 12px; } }
 .lake-kelp { position: absolute; bottom: -6px; z-index: 3; width: 48px; opacity: .9; transform-origin: bottom center; animation: sway 7s ease-in-out infinite alternate; }
@@ -96,9 +163,13 @@
 .sand-far, .sand-main { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 .sand-ripple { fill: none; stroke: rgba(171, 144, 89, .45); stroke-width: 1.6; stroke-linecap: round; }
 .sand-ripple-faint { stroke: rgba(171, 144, 89, .28); }
-.sand-grain { position: absolute; inset: 0; opacity: .5; background-image: radial-gradient(rgba(150, 124, 74, .45) 1px, transparent 1.4px), radial-gradient(rgba(255, 253, 243, .65) 1px, transparent 1.4px); background-size: 13px 17px, 19px 23px; background-position: 0 0, 7px 9px; }
+.sand-grain { position: absolute; inset: 0; opacity: .55; background-image: radial-gradient(rgba(150, 124, 74, .45) 1px, transparent 1.4px), radial-gradient(rgba(255, 253, 243, .65) 1px, transparent 1.4px), radial-gradient(rgba(120, 98, 58, .3) .7px, transparent 1px); background-size: 13px 17px, 19px 23px, 7px 9px; background-position: 0 0, 7px 9px, 3px 4px; }
 .sand-light { position: absolute; inset: 0; opacity: .4; background-image: radial-gradient(ellipse 60px 18px at 20% 30%, rgba(255, 253, 243, .6), transparent 70%), radial-gradient(ellipse 80px 22px at 62% 20%, rgba(255, 253, 243, .5), transparent 72%), radial-gradient(ellipse 70px 20px at 88% 40%, rgba(255, 253, 243, .45), transparent 70%); animation: sand-shimmer 12s ease-in-out infinite alternate; }
 @keyframes sand-shimmer { from { opacity: .28; } to { opacity: .5; } }
+/* Caustics on the sand: the same light net the water column wears, thrown down
+   by the surface and brightening the floor where the light gets through. */
+.sand-caustics { position: absolute; inset: 0; width: 100%; height: 100%; display: block; mix-blend-mode: screen; }
+.sand-caustic-paint { fill: #ffffff; filter: url(#wf-caustics); opacity: .3; }
 .sea-floor { position: absolute; inset: 0; z-index: 3; }
 .reef-art { display: block; }
 .reef-item { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
@@ -440,13 +511,13 @@
      the sailing surface beneath it. */
   pointer-events: none;
 }
-/* The shoal's palette: five colours, one CSS line each, and each species has its
-   own size so the shoal is never five copies of one fish. */
-.fish-coral { --f1: #e46e4b; --f2: #f6ab8b; --f3: #a8431f; }
-.fish-blue { --f1: #0c9fc4; --f2: #83cee2; --f3: #076d8b; }
-.fish-ochre { --f1: #d09b45; --f2: #eec987; --f3: #95661a; }
-.fish-green { --f1: #63a375; --f2: #a3ceae; --f3: #3c6b4b; }
-.fish-plum { --f1: #8e6bb5; --f2: #bfa4dc; --f3: #5f4585; }
+/* The shoal's palette: five natural fish colours, one CSS line each, and each
+   species has its own size so the shoal is never five copies of one fish. */
+.fish-coral { --f1: #c8562f; --f2: #e0916c; --f3: #6f2a10; }
+.fish-blue { --f1: #1d7fa8; --f2: #6db4ce; --f3: #0a4a66; }
+.fish-ochre { --f1: #c08a35; --f2: #dfba74; --f3: #7a5514; }
+.fish-green { --f1: #4f8a62; --f2: #8dbd9b; --f3: #2c5439; }
+.fish-plum { --f1: #7b5a9e; --f2: #ac93c7; --f3: #4a3268; }
 .fish { width: calc(var(--fish-w, 104px) * var(--fish-scale, 1)); }
 .fish.species-flounder { --fish-scale: 1.1; }
 .fish.species-mackerel { --fish-scale: 1.04; }
@@ -461,29 +532,38 @@
   -webkit-tap-highlight-color: transparent;
 }
 @keyframes fish-bob { to { translate: 0 -6px; } }
-.fish-drawing { width: 100%; height: auto; display: block; filter: drop-shadow(0 3px 0 rgba(20, 63, 78, .18)); }
-/* Body, fins and pattern come from the fish's own colour; the tone shapes give
-   every species a darker back, a pale belly and a rim light along the top, so a
-   fish reads as a rounded creature rather than as a flat sticker. */
+.fish-drawing { width: 100%; height: auto; display: block; filter: drop-shadow(0 6px 6px rgba(4, 32, 47, .32)); }
+/* Body, fins and pattern come from the fish's own colour; the roundness comes
+   from the shared, colour-independent paints: a soft shadow across the back, the
+   light the water bounces back underneath, a shaded gill cover, a wet sheen and
+   a scale tile. Together they read as a rounded, wet creature rather than as a
+   flat sticker. */
 .fish-body { fill: var(--f1); }
+.fish-scales { fill: url(#wf-scales); }
+.fish-back { fill: url(#wf-body-shade); }
+.fish-belly { fill: url(#wf-body-light); }
+.fish-wet { fill: url(#wf-wet-glint); }
+.fish-gill-plate { fill: url(#wf-gill-shade); opacity: .9; }
 .fish-fin { fill: var(--f2); }
-.fish-fin-ray { fill: none; stroke: var(--f3); stroke-width: 1.6; stroke-linecap: round; opacity: .45; }
-.fish-back { fill: #123c4d; opacity: .2; }
-.fish-belly { fill: #fffdf3; opacity: .3; }
-.fish-rim { fill: none; stroke: #fffdf3; stroke-width: 2.2; stroke-linecap: round; opacity: .45; }
-.fish-stripe { fill: none; stroke: var(--f3); stroke-width: 4; stroke-linecap: round; opacity: .38; }
-.fish-pattern { fill: var(--f3); opacity: .38; }
-.fish-pattern-warm { fill: #f2a45c; opacity: .6; }
-.fish-gill { fill: none; stroke: var(--f3); stroke-width: 2.6; opacity: .5; }
-.fish-lateral { fill: none; stroke: var(--f3); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 3 4; opacity: .35; }
-.fish-fringe { stroke: var(--f3); stroke-width: 1.6; stroke-dasharray: 3 4; opacity: .4; }
-.fish-spines { fill: var(--f3); opacity: .7; }
-.fish-eye { fill: #fffdf3; }
-.fish-iris { fill: var(--f3); }
-.fish-pupil { fill: #143f4e; }
-.fish-glint { fill: #ffffff; }
-.fish-mouth { fill: none; stroke: var(--f3); stroke-width: 2.6; stroke-linecap: round; }
-.fish-cheek { fill: #ffffff; opacity: .25; }
+.fish-fin-membrane { fill: url(#wf-fin-sheen); }
+.fish-fin-ray { fill: none; stroke: var(--f3); stroke-width: 1.4; stroke-linecap: round; opacity: .4; }
+.fish-rim { fill: none; stroke: #fffdf3; stroke-width: 2; stroke-linecap: round; opacity: .4; }
+.fish-stripe { fill: none; stroke: var(--f3); stroke-width: 4; stroke-linecap: round; opacity: .3; }
+.fish-pattern { fill: var(--f3); opacity: .32; }
+.fish-pattern-warm { fill: #e08a5a; opacity: .5; }
+.fish-flank { fill: #f0a58c; opacity: .42; }
+.fish-gill { fill: none; stroke: var(--f3); stroke-width: 2.2; opacity: .45; }
+.fish-lateral { fill: none; stroke: var(--f3); stroke-width: 1.4; stroke-linecap: round; stroke-dasharray: 3 4; opacity: .28; }
+.fish-fringe { stroke: var(--f3); stroke-width: 1.5; stroke-dasharray: 3 4; opacity: .35; }
+.fish-spines { fill: var(--f3); opacity: .55; }
+.fish-eye-shade { fill: #07202b; opacity: .8; }
+.fish-eye { fill: #1a2d35; }
+.fish-iris { fill: url(#wf-eye-iris); }
+.fish-pupil { fill: #04090c; }
+.fish-glint { fill: #ffffff; opacity: .95; }
+.fish-mouth { fill: none; stroke: #0b2029; stroke-width: 2.1; stroke-linecap: round; opacity: .8; }
+.fish-mouth-shade { fill: #06202b; opacity: .3; }
+.fish-cheek { fill: #ffffff; opacity: .18; }
 
 /* The word the fish carries – written on a little wooden tag above it. */
 .fish-tag {

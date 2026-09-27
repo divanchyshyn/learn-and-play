@@ -1,12 +1,15 @@
 import { paint } from './SeaArtDefs.jsx';
 import { Kelp } from './SeaFloor.jsx';
 
-// The water itself: the surface line with its crests, the light that falls
-// through it, drifting snow, the kelp at the edge, and a dim shoal far away.
+// The water itself: the surface line with its broken crests and foam, the sun
+// glittering on the top of the water, the light that falls through it, drifting
+// snow, the kelp at the edge, and a dim blur of a shoal far away.
 //
-// The surface is the one stretched drawing in the scene: a wave crest is an
-// abstract line, so letting it stretch across the sea box costs nothing. The
-// sun keeps its round shape because it is a CSS sprite in the sky band.
+// The surface is the one stretched drawing in the scene: a wave is an abstract
+// line, so letting it stretch across the sea box costs nothing. The crests then
+// run through the shared `wf-rough` filter, which pulls them out of their even
+// curves into the ragged lines real water draws. The sun keeps its round shape
+// because it is a CSS sprite in the sky band.
 
 function waveBand({ from, amp, step = 150, width = 1200, depth = 46 }) {
   let d = `M0 ${from + amp} Q ${step / 2} ${from - amp} ${step} ${from}`;
@@ -16,10 +19,24 @@ function waveBand({ from, amp, step = 150, width = 1200, depth = 46 }) {
 
 export function WaveLine() {
   return <svg className="sea-waves" viewBox="0 0 1200 46" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-    <path className="wave-shadow" d={waveBand({ from: 16, amp: 7 })} />
-    <path className="wave-crest" d={waveBand({ from: 10, amp: 6, step: 150 })} fill={paint('wave-crest')} />
-    <path className="wave-foam" d={waveBand({ from: 7, amp: 4, step: 300 })} fill={paint('foam')} opacity=".7" />
+    <path className="wave-shadow wave-rough" d={waveBand({ from: 16, amp: 7 })} />
+    <path className="wave-crest wave-rough" d={waveBand({ from: 10, amp: 6, step: 150 })} fill={paint('wave-crest')} />
+    <path className="wave-foam wave-rough" d={waveBand({ from: 7, amp: 4, step: 300 })} fill={paint('foam')} opacity=".7" />
+    <path className="wave-sheen wave-rough" d={waveBand({ from: 3, amp: 2.5, step: 220 })} fill={paint('water-top')} opacity=".55" />
   </svg>;
+}
+
+// The top of the water catches the sun: a band of broken, bright dashes that
+// fades as it reaches deeper. It is a CSS tile rather than a drawing, so a
+// hundred glints cost one background and the whole band can drift by itself.
+export function SurfaceGlitter() {
+  return <span className="sea-glitter" aria-hidden="true" />;
+}
+
+// The sun's own light column: a soft shaft under the sun that broadens and dies
+// as it goes down, the way the reflection of a low sun lies on real water.
+export function SunPath() {
+  return <span className="sea-sunpath" aria-hidden="true" />;
 }
 
 const SNOW = [
@@ -53,8 +70,8 @@ export function MarineSnow() {
   </div>;
 }
 
-// A shoal far away: pale, blurry fish that swim where the water is deep, outside
-// everything the child can reach.
+// A shoal far away: soft, pale fish that swim where the water is deep, outside
+// everything the child can reach. The blur is what puts them behind the water.
 export function DistantShoal() {
   return <svg className="sea-shoal" viewBox="0 0 220 96" aria-hidden="true" focusable="false">
     <g className="shoal-fish shoal-fish-1"><path d="M0 40 Q 14 30 28 40 Q 14 50 0 40 Z" /><path d="M0 40 L-9 33 L-9 47 Z" /></g>
@@ -65,8 +82,8 @@ export function DistantShoal() {
   </svg>;
 }
 
-// Light that reaches down from the surface: four soft fans that never move the
-// page, they only shimmer in place.
+// Light that reaches down from the surface: soft fans that never move the page,
+// they only shimmer in place.
 export function GodRays() {
   return <>
     <span className="sea-beam beam-a" />
@@ -76,9 +93,21 @@ export function GodRays() {
   </>;
 }
 
+// The caustic net the surface light throws into the water: the same shared
+// filter the sand reuses, stretched over the whole column and kept faint, so the
+// water reads as lit from above instead of tinted flat.
+function WaterCaustics() {
+  return <svg className="water-caustics" viewBox="0 0 600 480" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <rect className="water-caustic-paint" x="0" y="0" width="600" height="480" />
+  </svg>;
+}
+
 export function WaterBody() {
   return <div className="sea-water" aria-hidden="true">
     <GodRays />
+    <WaterCaustics />
+    <SunPath />
+    <SurfaceGlitter />
     <DistantShoal />
     <MarineSnow />
     <span className="lake-kelp kelp-a"><Kelp /></span>

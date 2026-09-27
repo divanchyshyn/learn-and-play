@@ -29,14 +29,21 @@ export function SandFloor() {
         fill={paint('sand-ridge')}
         opacity=".75"
       />
-      <path className="sand-ripple" d="M60 66 Q 200 54 340 66" />
-      <path className="sand-ripple" d="M420 88 Q 560 78 700 88" />
+      <path className="sand-ripple" d="M40 64 Q 200 52 360 64" />
+      <path className="sand-ripple" d="M420 86 Q 560 76 700 86" />
       <path className="sand-ripple" d="M840 62 Q 980 52 1120 62" />
-      <path className="sand-ripple sand-ripple-faint" d="M180 96 Q 300 88 420 96" />
-      <path className="sand-ripple sand-ripple-faint" d="M760 104 Q 880 96 1000 104" />
+      <path className="sand-ripple sand-ripple-faint" d="M160 94 Q 300 86 440 94" />
+      <path className="sand-ripple sand-ripple-faint" d="M740 102 Q 880 94 1020 102" />
+      <path className="sand-ripple sand-ripple-faint" d="M230 74 Q 330 66 430 74" />
+      <path className="sand-ripple sand-ripple-faint" d="M620 66 Q 700 60 780 66" />
     </svg>
     <span className="sand-grain" />
     <span className="sand-light" />
+    {/* Caustics: the net of light the surface throws down onto the sand (the
+        same shared filter the water column uses). */}
+    <svg className="sand-caustics" viewBox="0 0 600 100" preserveAspectRatio="none" focusable="false">
+      <rect className="sand-caustic-paint" x="0" y="0" width="600" height="100" />
+    </svg>
   </div>;
 }
 

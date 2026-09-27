@@ -24,6 +24,11 @@ import { ReefArt } from './ReefRewards.jsx';
 //   ReefRewards – the ten treasures a finished trip unlocks
 //   BoatArt     – the boat, its crew and the gear on deck
 //   FishArt     – the six fish species (worn by FishSprite)
+//
+// The photo-style textures – the cloud filter, the ragged crests, the caustic
+// net, the fish scales and the wood grain – are defined once in SeaArtDefs and
+// referenced from the artwork and the stylesheet, so the whole sea is lit and
+// textured from one place.
 
 // The seabed, with everything the child has found so far. A reward above the sand
 // ridge is painted with the far haze (`.is-far`), the newest one pops (`.is-new`),
@@ -213,5 +218,10 @@ export function SeaScene({
     <SailSurface onSail={onSail} onStep={onStep} />
     <Float point={baitPoint} bait={bait} canStrike={canStrike} onStrike={onStrike} />
     {children}
+    {/* One water tint over everything below the surface: the fish, the boat's
+        hull and the seabed all sit in the same water instead of looking pasted
+        onto it. It lies under the float, the line and the controls, so the
+        things a child acts on stay crisp. */}
+    <span className="sea-tint" aria-hidden="true" />
   </>;
 }

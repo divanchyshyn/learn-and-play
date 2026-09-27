@@ -1,5 +1,6 @@
-// The sea's palette: every gradient the scene paints with, defined exactly once
-// and referenced by id from all the artwork through `paint('hull')`.
+// The sea's palette and its textures: every gradient, tile and filter the scene
+// paints with, defined exactly once and referenced by id from all the artwork
+// through `paint('hull')` or a stylesheet rule.
 //
 // One shared block, on purpose: a paint reference (`url(#id)`) is resolved
 // against the whole document, so a single definition serves the boat, the fish,
@@ -7,17 +8,19 @@
 // without an id ever being repeated. A repeated id would silently make one
 // sprite paint itself with another sprite's colours, and two sprites define the
 // same gradient whenever a fish species or a treasure shows up twice on screen –
-// which is exactly why the artwork never defines its own gradients.
+// which is exactly why the artwork never defines its own gradients or textures.
 //
-// Deliberately no SVG filters and no animated gradients: every gradient here is
-// painted once and never changes, and all motion in the scene is CSS transform
-// and opacity. That is what keeps a tablet's frame rate calm, and it keeps the
-// paint layer of a page that can hold ten treasures cheap.
+// The photo-style textures live here too: SVG filters turn fractal noise into
+// cloud puffs, ragged wave crests and caustic light, and two tiles give the fish
+// their scales and the wood its grain. A filter is generated once, at paint
+// time, and never animated; all motion in the scene stays CSS transform and
+// opacity. That is what keeps a tablet's frame rate calm while the sea stays
+// full.
 //
-// Textures (sand grain, pebbles, caustic light on the floor) are CSS backgrounds
-// instead, because a CSS `radial-gradient` tile keeps its round shape while the
-// stretched sand band would squash a pattern. Rope, net and planking are drawn
-// as paths, where a few strokes read better than any repeating tile.
+// Sand grain and pebbles stay CSS backgrounds instead, because a CSS
+// `radial-gradient` tile keeps its round shape while the stretched sand band
+// would squash a pattern. Rope, net and planking are drawn as paths, where a few
+// strokes read better than any repeating tile.
 const PREFIX = 'wf';
 
 // The paint of one shared definition, ready to drop into `fill` or `stroke`.
@@ -34,10 +37,10 @@ export function SeaArtDefs() {
     <defs>
       {/* ---- Sky and air -------------------------------------------------- */}
       <linearGradient id={def('sky')} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#7cc4e6" />
-        <stop offset=".45" stopColor="#a9dcf1" />
-        <stop offset=".8" stopColor="#d7eef8" />
-        <stop offset="1" stopColor="#eef9fc" />
+        <stop offset="0" stopColor="#4a9cc9" />
+        <stop offset=".4" stopColor="#8ec7df" />
+        <stop offset=".74" stopColor="#c8e3ec" />
+        <stop offset="1" stopColor="#e9f3f4" />
       </linearGradient>
       <radialGradient id={def('sun')} cx=".5" cy=".5" r=".5" fx=".38" fy=".34">
         <stop offset="0" stopColor="#fffdf0" />
@@ -50,15 +53,6 @@ export function SeaArtDefs() {
         <stop offset=".45" stopColor="#ffe18c" stopOpacity=".32" />
         <stop offset="1" stopColor="#ffe18c" stopOpacity="0" />
       </radialGradient>
-      <linearGradient id={def('cloud')} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#fffef9" />
-        <stop offset=".62" stopColor="#f2f8fb" />
-        <stop offset="1" stopColor="#d9e9f1" />
-      </linearGradient>
-      <linearGradient id={def('cloud-shade')} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#c8dfea" />
-        <stop offset="1" stopColor="#a6c8d9" />
-      </linearGradient>
       <linearGradient id={def('island')} x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stopColor="#8db8b1" />
         <stop offset="1" stopColor="#5c8b85" />
@@ -74,10 +68,10 @@ export function SeaArtDefs() {
 
       {/* ---- The water ---------------------------------------------------- */}
       <linearGradient id={def('water')} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#83cee2" />
-        <stop offset=".35" stopColor="#4aa9c7" />
-        <stop offset=".72" stopColor="#22708f" />
-        <stop offset="1" stopColor="#17506c" />
+        <stop offset="0" stopColor="#8fd2e3" />
+        <stop offset=".3" stopColor="#4d9fbf" />
+        <stop offset=".7" stopColor="#1f6484" />
+        <stop offset="1" stopColor="#0f415d" />
       </linearGradient>
       <linearGradient id={def('water-sheen')} x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stopColor="#ffffff" stopOpacity=".42" />
@@ -198,17 +192,17 @@ export function SeaArtDefs() {
       </radialGradient>
       {/* ---- The seabed --------------------------------------------------- */}
       <linearGradient id={def('sand')} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#f9eec6" />
-        <stop offset=".5" stopColor="#e8d5a0" />
-        <stop offset="1" stopColor="#cdb476" />
+        <stop offset="0" stopColor="#f2e9cf" />
+        <stop offset=".5" stopColor="#dfd0a8" />
+        <stop offset="1" stopColor="#c3b07f" />
       </linearGradient>
       <linearGradient id={def('sand-ridge')} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#fdf6d9" />
-        <stop offset="1" stopColor="#eedda6" />
+        <stop offset="0" stopColor="#f8f3df" />
+        <stop offset="1" stopColor="#e8dcb4" />
       </linearGradient>
       <linearGradient id={def('sand-deep')} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#d9c389" />
-        <stop offset="1" stopColor="#ab9059" />
+        <stop offset="0" stopColor="#d3c08b" />
+        <stop offset="1" stopColor="#a89467" />
       </linearGradient>
       <radialGradient id={def('pebble')} cx=".36" cy=".3" r=".75">
         <stop offset="0" stopColor="#c9b892" />
@@ -394,6 +388,106 @@ export function SeaArtDefs() {
         <stop offset=".6" stopColor="#ffdd93" stopOpacity=".7" />
         <stop offset="1" stopColor="#ffc85c" stopOpacity=".35" />
       </radialGradient>
+
+      {/* ---- The photo pass ------------------------------------------------- */}
+      {/* The paints the realistic scene adds on top of the palette above: the
+          water's own light, the shared shading every fish wears whatever colour
+          the shoal gave it, and the gloss on the varnished hull. They are all
+          colour-independent (black or white with alpha), so one definition
+          serves every fish, exactly like the palette itself. */}
+      <linearGradient id={def('water-top')} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#d6f1f7" stopOpacity=".92" />
+        <stop offset=".3" stopColor="#8fd0e2" stopOpacity=".5" />
+        <stop offset="1" stopColor="#4d9fbf" stopOpacity="0" />
+      </linearGradient>
+      <radialGradient id={def('body-shade')} cx=".5" cy=".05" r="1">
+        <stop offset="0" stopColor="#062330" stopOpacity=".6" />
+        <stop offset=".55" stopColor="#0a3141" stopOpacity=".26" />
+        <stop offset="1" stopColor="#0a3141" stopOpacity="0" />
+      </radialGradient>
+      <radialGradient id={def('body-light')} cx=".5" cy="1" r=".82">
+        <stop offset="0" stopColor="#fffdf0" stopOpacity=".7" />
+        <stop offset=".6" stopColor="#fffdf0" stopOpacity=".22" />
+        <stop offset="1" stopColor="#fffdf0" stopOpacity="0" />
+      </radialGradient>
+      <linearGradient id={def('fin-sheen')} x1="0" y1="0" x2=".3" y2="1">
+        <stop offset="0" stopColor="#ffffff" stopOpacity=".5" />
+        <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+      </linearGradient>
+      <linearGradient id={def('gill-shade')} x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#062330" stopOpacity="0" />
+        <stop offset=".7" stopColor="#062330" stopOpacity=".4" />
+        <stop offset="1" stopColor="#062330" stopOpacity=".08" />
+      </linearGradient>
+      <radialGradient id={def('eye-iris')} cx=".42" cy=".3" r=".85">
+        <stop offset="0" stopColor="#ffeeb4" />
+        <stop offset=".42" stopColor="#e0a63a" />
+        <stop offset="1" stopColor="#5f3408" />
+      </radialGradient>
+      <radialGradient id={def('wet-glint')} cx=".18" cy=".08" r=".95">
+        <stop offset="0" stopColor="#ffffff" stopOpacity=".8" />
+        <stop offset=".28" stopColor="#ffffff" stopOpacity=".22" />
+        <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+      </radialGradient>
+      <linearGradient id={def('hull-gloss')} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#fff4e4" stopOpacity=".7" />
+        <stop offset=".42" stopColor="#ffffff" stopOpacity=".12" />
+        <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+      </linearGradient>
+      <linearGradient id={def('hull-wet')} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#04202f" stopOpacity=".28" />
+        <stop offset="1" stopColor="#04202f" stopOpacity=".6" />
+      </linearGradient>
+
+      {/* ---- The textures --------------------------------------------------- */}
+      {/* Fish scales: one tile of overlapping arcs in translucent black and
+          white, so a fish of any colour wears the same skin. */}
+      <pattern id={def('scales')} width="9" height="6.4" patternUnits="userSpaceOnUse" patternTransform="rotate(-3)">
+        <path d="M-4.5 6.4 Q 0 -1.2 4.5 6.4 Q 9 -1.2 13.5 6.4" fill="none" stroke="#07242f" strokeOpacity=".24" strokeWidth="1.1" />
+        <path d="M-2.2 5.2 Q 0 1 2.2 5.2" fill="none" stroke="#ffffff" strokeOpacity=".13" strokeWidth=".8" />
+      </pattern>
+      {/* Varnished wood: long grain lines with the odd dark streak and a soft
+          highlight between them, for the hull, the deck and the crates. */}
+      <pattern id={def('wood-grain')} width="34" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(-4)">
+        <path d="M0 4 Q 8 1 17 4 T 34 4" fill="none" stroke="#5b3714" strokeOpacity=".3" strokeWidth="1.2" />
+        <path d="M0 10 Q 9 13 18 10 T 34 10" fill="none" stroke="#3d2409" strokeOpacity=".2" strokeWidth="1" />
+        <path d="M0 7 Q 10 5 20 7 T 34 7" fill="none" stroke="#ffffff" strokeOpacity=".1" strokeWidth=".8" />
+      </pattern>
+
+      {/* ---- The filters ----------------------------------------------------- */}
+      {/* The textures are generated once, at paint time: no filter here is ever
+          animated, so a scene full of them still only moves transforms and
+          opacity. `sRGB` keeps the colours from washing out in the linear pass. */}
+      <filter id={def('cloud-puff')} x="-14%" y="-35%" width="128%" height="180%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.02 0.036" numOctaves="5" seed="19" result="noise" />
+        <feColorMatrix in="noise" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  1.7 0 0 0 -.74" result="lumps" />
+        <feGaussianBlur in="lumps" stdDeviation="2.2" result="puff" />
+        <feComponentTransfer in="puff" result="body">
+          <feFuncA type="table" tableValues="0 .3 .75 1" />
+        </feComponentTransfer>
+        <feFlood floodColor="#8ba7b9" result="shadePaint" />
+        <feComposite in="shadePaint" in2="body" operator="in" result="shade" />
+        <feOffset in="shade" dy="5" result="shadeLow" />
+        <feGaussianBlur in="shadeLow" stdDeviation="1.8" result="shadeSoft" />
+        <feFlood floodColor="#ffffff" result="lightPaint" />
+        <feComposite in="lightPaint" in2="body" operator="in" result="lit" />
+        <feMerge>
+          <feMergeNode in="shadeSoft" />
+          <feMergeNode in="lit" />
+        </feMerge>
+      </filter>
+      <filter id={def('rough')} x="-6%" y="-32%" width="112%" height="164%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.012 0.05" numOctaves="4" seed="3" result="ripple" />
+        <feDisplacementMap in="SourceGraphic" in2="ripple" scale="13" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+      <filter id={def('caustics')} x="0%" y="0%" width="100%" height="100%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.018 0.042" numOctaves="2" seed="8" result="noise" />
+        <feColorMatrix in="noise" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .78 .78 0 0 -.62" result="veins" />
+        <feComponentTransfer in="veins" result="sharp">
+          <feFuncA type="table" tableValues="0 0 .06 .55 1" />
+        </feComponentTransfer>
+        <feGaussianBlur in="sharp" stdDeviation=".6" />
+      </filter>
     </defs>
   </svg>;
 }

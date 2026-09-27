@@ -40,6 +40,20 @@ describe('word-fishing fish species', () => {
     }
   });
 
+  it('shades every species with the shared paints, so it reads as a wet body', () => {
+    // The realistic look is layering: a scale skin, a shadow over the back, the
+    // light under the belly and a wet sheen. All four are shared, so every
+    // species has to wear all of them whatever colour the shoal gave it.
+    for (const species of FISH_SPECIES) {
+      const { container, unmount } = render(<FishArt species={species} />);
+      const svg = container.querySelector('svg.fish-drawing');
+      for (const layer of ['fish-scales', 'fish-back', 'fish-belly', 'fish-wet']) {
+        expect(svg.querySelector(`.${layer}`), `${species} has no ${layer}`).toBeTruthy();
+      }
+      unmount();
+    }
+  });
+
   it('falls back to a plain fish for a species it does not know', () => {
     const { container } = render(<FishArt species="finnesikke" />);
     expect(container.querySelector('svg.fish-drawing')).toBeTruthy();

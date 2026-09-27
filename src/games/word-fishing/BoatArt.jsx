@@ -51,7 +51,10 @@ export function BoatArt({ tripNumber, tripProgress }) {
     <circle className="boat-lamp" cx="192" cy="70" r="3.6" fill={paint('lantern-glass')} />
     {/* The hull: a raised bow, a stern, planks, a boot-top stripe, a porthole. */}
     <path className="boat-hull" d="M6 112 L212 120 C 216 132 212 144 202 154 C 184 168 152 174 116 172 C 76 170 44 158 22 142 C 10 134 4 124 6 112 Z" fill={paint('hull')} />
+    <path className="boat-hull-grain" d="M6 112 L212 120 C 216 132 212 144 202 154 C 184 168 152 174 116 172 C 76 170 44 158 22 142 C 10 134 4 124 6 112 Z" fill={paint('wood-grain')} opacity=".4" />
     <path className="boat-hull-shade" d="M12 128 C 34 146 74 164 118 166 C 154 168 184 162 204 146 C 198 160 178 170 150 173 C 110 176 62 166 30 148 Q 16 140 12 128 Z" fill={paint('hull-band')} opacity=".18" />
+    <path className="boat-hull-wet" d="M14 138 C 40 156 78 168 118 170 C 152 171 184 164 204 150 L202 156 C 182 170 150 175 116 173 C 74 171 38 159 18 142 Z" fill={paint('hull-wet')} opacity=".5" />
+    <path className="boat-hull-gloss" d="M12 118 Q 110 130 208 124 L206 130 Q 110 138 14 126 Z" fill={paint('hull-gloss')} opacity=".75" />
     <path className="boat-boot-stripe" d="M8 138 C 30 152 62 164 116 166 C 150 167 178 161 199 147 L197 156 C 176 168 149 173 116 172 C 62 170 30 158 10 145 Z" fill={paint('hull-band')} />
     <path className="boat-strake" d="M12 126 C 34 140 68 152 116 154 C 148 155 176 149 198 135" />
     <path className="boat-strake" d="M16 120 C 38 132 70 142 116 144 C 148 145 178 139 202 126" />
@@ -76,6 +79,7 @@ export function BoatArt({ tripNumber, tripProgress }) {
 
     {/* The deck: planked, with a bulwark rail and stanchions. */}
     <path className="boat-deck" d="M7 108 L212 116 L212 127 L9 120 Z" fill={paint('deck')} />
+    <path className="boat-deck-texture" d="M7 108 L212 116 L212 127 L9 120 Z" fill={paint('wood-grain')} opacity=".22" />
     <path className="boat-plank-seam" d="M30 110 L30 119" />
     <path className="boat-plank-seam" d="M58 111 L58 120" />
     <path className="boat-plank-seam" d="M86 113 L86 122" />

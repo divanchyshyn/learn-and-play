@@ -225,6 +225,16 @@ describe('word-fishing the opening screen', () => {
     expect(view.container.querySelector('.sea-waves')).toBeTruthy();
     expect(view.container.querySelector('.sea-snow .snow-flake')).toBeTruthy();
 
+    // The photo pass is mounted too: the filter-painted clouds, the caustic net
+    // in the water and on the sand, the sun's light column and the glitter on the
+    // surface, and the one tint over everything below it.
+    expect(view.container.querySelector('.cloud-puff')).toBeTruthy();
+    expect(view.container.querySelector('.water-caustic-paint')).toBeTruthy();
+    expect(view.container.querySelector('.sand-caustic-paint')).toBeTruthy();
+    expect(view.container.querySelector('.sea-sunpath')).toBeTruthy();
+    expect(view.container.querySelector('.sea-glitter')).toBeTruthy();
+    expect(view.container.querySelector('.sea-tint')).toBeTruthy();
+
     // Every paint the mounted scene points at exists in the document.
     const references = new Set();
     for (const element of view.container.querySelectorAll('*')) {
