@@ -21,7 +21,7 @@ import { ReefArt } from './ReefRewards.jsx';
 //   SeaSky      – sun, clouds, gulls and the far shore
 //   SeaWater    – the surface line, the light, the drifting snow, the kelp
 //   SeaFloor    – sand, rocks, the old anchor, driftwood, stones
-//   ReefRewards – the sixteen treasures a finished trip unlocks
+//   ReefRewards – the ten treasures a finished trip unlocks
 //   BoatArt     – the boat, its crew and the gear on deck
 //   FishArt     – the six fish species (worn by FishSprite)
 

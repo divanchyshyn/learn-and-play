@@ -1,7 +1,7 @@
 import {
   CATEGORY_CRATE_IDS, WORD_BANK, crateById, crateTarget, categoryForWord, isWordInBank, wordsInCrate,
 } from './words.js';
-import { crateTakesWord, readTrip } from './trip.js';
+import { crateTakesWord, migrateLegacyDecorationIndex, readTrip } from './trip.js';
 
 // The fishing journal is what makes Word Fishing a game a child can come back
 // to: which words have been caught, how many trips are finished, and which reef
@@ -16,7 +16,10 @@ import { crateTakesWord, readTrip } from './trip.js';
 
 export const JOURNAL_KEY = 'wordFishing:journal';
 export const TRIP_KEY = 'wordFishing:trip';
-const JOURNAL_VERSION = 1;
+const JOURNAL_VERSION = 2;
+// Version 1 decorated the seabed with sixteen finds. A save from it still
+// reads, with its decoration indexes moved onto today's ten (see trip.js).
+const LEGACY_JOURNAL_VERSION = 1;
 const TRIP_VERSION = 1;
 
 export function createJournal() {
@@ -126,6 +129,17 @@ function normalizeDecorations(decorations) {
   return [...new Set(decorations.filter(isDecorationIndex))];
 }
 
+// A decoration index from the sixteen-find collection: its find may still exist
+// at a new index today, or may have been retired and is simply dropped.
+function normalizeLegacyDecorations(decorations) {
+  if (!Array.isArray(decorations)) return [];
+  const migrated = decorations
+    .filter(isDecorationIndex)
+    .map(migrateLegacyDecorationIndex)
+    .filter((index) => index !== null);
+  return [...new Set(migrated)];
+}
+
 export const journalCodec = {
   serialize(journal) {
     return JSON.stringify({ version: JOURNAL_VERSION, journal });
@@ -133,13 +147,17 @@ export const journalCodec = {
   parse(raw) {
     try {
       const data = JSON.parse(raw);
-      if (!data || data.version !== JOURNAL_VERSION) return null;
+      if (!data) return null;
+      const legacy = data.version === LEGACY_JOURNAL_VERSION;
+      if (!legacy && data.version !== JOURNAL_VERSION) return null;
       const saved = data.journal;
       if (!saved || typeof saved !== 'object') return null;
       return {
         words: normalizeWords(saved.words),
         trips: Number.isInteger(saved.trips) && saved.trips >= 0 ? saved.trips : 0,
-        decorations: normalizeDecorations(saved.decorations),
+        decorations: legacy
+          ? normalizeLegacyDecorations(saved.decorations)
+          : normalizeDecorations(saved.decorations),
       };
     } catch {
       return null;

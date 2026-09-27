@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   CATCHES_PER_TRIP, REEF_REWARDS,
-  acceptsWord, crateAcceptsWord, crateForWord, createTripPlan, isValidTripShape, readTrip,
-  rewardForTrip, tripComplete, tripRequest, unlockedRewards, withDelivery,
+  acceptsWord, crateAcceptsWord, crateForWord, createTripPlan, isValidTripShape,
+  migrateLegacyDecorationIndex, nextReward, readTrip,
+  tripComplete, tripRequest, unlockedRewards, withDelivery,
 } from './trip.js';
 import { CATEGORY_CRATE_IDS, WORD_BANK, crateById } from './words.js';
 
@@ -54,21 +55,63 @@ describe('word-fishing trips', () => {
 });
 
 describe('word-fishing reef rewards', () => {
-  it('unlocks one reef decoration per finished trip, in a fixed order', () => {
-    expect(REEF_REWARDS.length).toBeGreaterThanOrEqual(8);
+  it('hands out the ten treasures, wreck first and bottle last', () => {
+    expect(REEF_REWARDS.map((reward) => reward.id)).toEqual([
+      'wreck', 'chest', 'submarine', 'seahorse', 'jellyfish',
+      'station', 'bell', 'wheel', 'amphora', 'bottle',
+    ]);
     expect(new Set(REEF_REWARDS.map((reward) => reward.id)).size).toBe(REEF_REWARDS.length);
-    for (const [index, reward] of REEF_REWARDS.entries()) {
+    for (const reward of REEF_REWARDS) {
       expect(reward.label.length).toBeGreaterThan(2);
       expect(reward.x).toBeGreaterThan(0);
       expect(reward.x).toBeLessThan(100);
       expect(reward.y).toBeGreaterThan(0);
       expect(reward.y).toBeLessThan(100);
       expect(reward.size).toBeGreaterThan(10);
-      expect(rewardForTrip(index + 1)).toBe(reward);
     }
-    // Past the end of the list a trip still counts, it just decorates nothing.
-    expect(rewardForTrip(REEF_REWARDS.length + 1)).toBeNull();
-    expect(rewardForTrip(1)).toBe(REEF_REWARDS[0]);
+  });
+
+  it('unlocks one reef decoration per finished trip, in a fixed order', () => {
+    let decorations = [];
+    for (const reward of REEF_REWARDS) {
+      const next = nextReward(decorations);
+      expect(next).toEqual({ index: decorations.length, reward });
+      decorations = [...decorations, next.index];
+    }
+    // A collection with every find gets nothing more, however many trips follow.
+    expect(nextReward(decorations)).toBeNull();
+  });
+
+  it('offers the first find a collection is missing, whatever its trips', () => {
+    expect(nextReward([])).toEqual({ index: 0, reward: REEF_REWARDS[0] });
+    expect(nextReward([0, 1])).toEqual({ index: 2, reward: REEF_REWARDS[2] });
+    // A moved save can hold finds out of order and indexes the reef never had.
+    expect(nextReward([0, 99])).toEqual({ index: 1, reward: REEF_REWARDS[1] });
+    expect(nextReward([2, 0])).toEqual({ index: 1, reward: REEF_REWARDS[1] });
+  });
+
+  it('moves a saved sixteen-find collection onto today\'s ten', () => {
+    // The retired small finds (old 0–2, 4–6) are dropped; the wreck was old 3
+    // and is now the first find, and everything from the chest on steps back.
+    expect(migrateLegacyDecorationIndex(0)).toBeNull();
+    expect(migrateLegacyDecorationIndex(1)).toBeNull();
+    expect(migrateLegacyDecorationIndex(2)).toBeNull();
+    expect(migrateLegacyDecorationIndex(3)).toBe(0);
+    expect(migrateLegacyDecorationIndex(4)).toBeNull();
+    expect(migrateLegacyDecorationIndex(5)).toBeNull();
+    expect(migrateLegacyDecorationIndex(6)).toBeNull();
+    expect(migrateLegacyDecorationIndex(7)).toBe(1);
+    expect(migrateLegacyDecorationIndex(8)).toBe(2);
+    expect(migrateLegacyDecorationIndex(9)).toBe(3);
+    expect(migrateLegacyDecorationIndex(10)).toBe(4);
+    expect(migrateLegacyDecorationIndex(11)).toBe(5);
+    expect(migrateLegacyDecorationIndex(12)).toBe(6);
+    expect(migrateLegacyDecorationIndex(13)).toBe(7);
+    expect(migrateLegacyDecorationIndex(14)).toBe(8);
+    expect(migrateLegacyDecorationIndex(15)).toBe(9);
+    // An index no old collection could hold has no find to point at.
+    expect(migrateLegacyDecorationIndex(16)).toBeNull();
+    expect(migrateLegacyDecorationIndex(-1)).toBeNull();
   });
 
   it('paints only the decorations this version still knows', () => {

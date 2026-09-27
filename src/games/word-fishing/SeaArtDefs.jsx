@@ -12,7 +12,7 @@
 // Deliberately no SVG filters and no animated gradients: every gradient here is
 // painted once and never changes, and all motion in the scene is CSS transform
 // and opacity. That is what keeps a tablet's frame rate calm, and it keeps the
-// paint layer of a page that can hold sixteen treasures cheap.
+// paint layer of a page that can hold ten treasures cheap.
 //
 // Textures (sand grain, pebbles, caustic light on the floor) are CSS backgrounds
 // instead, because a CSS `radial-gradient` tile keeps its round shape while the
@@ -261,35 +261,6 @@ export function SeaArtDefs() {
         <stop offset="1" stopColor="#8fc8dd" stopOpacity="0" />
       </linearGradient>
       {/* ---- The treasures the seabed grows -------------------------------- */}
-      {/* A starfish: warm coral with a paler, softer belly. */}
-      <radialGradient id={def('star-body')} cx=".5" cy=".5" r=".62" fx=".36" fy=".3">
-        <stop offset="0" stopColor="#ffc9a8" />
-        <stop offset=".55" stopColor="#f08a63" />
-        <stop offset="1" stopColor="#ce5033" />
-      </radialGradient>
-      <radialGradient id={def('star-belly')} cx=".5" cy=".45" r=".6">
-        <stop offset="0" stopColor="#ffe2ce" />
-        <stop offset="1" stopColor="#f4a184" />
-      </radialGradient>
-      {/* Coral: branching arms that lighten towards the polyps. */}
-      <linearGradient id={def('coral-body')} x1="0" y1="1" x2=".3" y2="0">
-        <stop offset="0" stopColor="#b94e6b" />
-        <stop offset=".5" stopColor="#e2718f" />
-        <stop offset="1" stopColor="#f7a0b6" />
-      </linearGradient>
-      <radialGradient id={def('coral-bud')} cx=".38" cy=".32" r=".7">
-        <stop offset="0" stopColor="#ffe3ec" />
-        <stop offset="1" stopColor="#e8849f" />
-      </radialGradient>
-      <radialGradient id={def('shell-body')} cx=".42" cy=".28" r=".75">
-        <stop offset="0" stopColor="#fdeed3" />
-        <stop offset=".6" stopColor="#f0c894" />
-        <stop offset="1" stopColor="#d09a5e" />
-      </radialGradient>
-      <radialGradient id={def('shell-inner')} cx=".45" cy=".4" r=".7">
-        <stop offset="0" stopColor="#fff7ec" />
-        <stop offset="1" stopColor="#f1cda4" />
-      </radialGradient>
       {/* The wreck: bleached planking over dark tar, ribs gone pale, glass gone green. */}
       <linearGradient id={def('wreck-hull')} x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stopColor="#a89273" />
@@ -303,33 +274,6 @@ export function SeaArtDefs() {
       <radialGradient id={def('wreck-glass')} cx=".38" cy=".3" r=".7">
         <stop offset="0" stopColor="#dcecf2" />
         <stop offset="1" stopColor="#7ba3b5" />
-      </radialGradient>
-      <linearGradient id={def('grass-body')} x1="0" y1="1" x2=".2" y2="0">
-        <stop offset="0" stopColor="#39734f" />
-        <stop offset=".55" stopColor="#5da876" />
-        <stop offset="1" stopColor="#a6e2b4" />
-      </linearGradient>
-      <radialGradient id={def('crab-shell')} cx=".45" cy=".32" r=".72">
-        <stop offset="0" stopColor="#f9a37c" />
-        <stop offset=".55" stopColor="#e2714f" />
-        <stop offset="1" stopColor="#b84026" />
-      </radialGradient>
-      <linearGradient id={def('crab-under')} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#f0c4a8" />
-        <stop offset="1" stopColor="#cf8b6a" />
-      </linearGradient>
-      <linearGradient id={def('crab-claw')} x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#f5956d" />
-        <stop offset="1" stopColor="#a93c26" />
-      </linearGradient>
-      <radialGradient id={def('octo-body')} cx=".4" cy=".28" r=".78">
-        <stop offset="0" stopColor="#e3a3ba" />
-        <stop offset=".55" stopColor="#c2708f" />
-        <stop offset="1" stopColor="#8b4162" />
-      </radialGradient>
-      <radialGradient id={def('octo-spot')} cx=".4" cy=".35" r=".7">
-        <stop offset="0" stopColor="#f8d2de" />
-        <stop offset="1" stopColor="#d38fa8" />
       </radialGradient>
       <linearGradient id={def('chest-wood')} x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stopColor="#cf9a4e" />

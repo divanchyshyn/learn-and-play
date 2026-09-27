@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ReefArt } from './ReefRewards.jsx';
 import { allWordsCaught, caughtWordsInCrate, crateTally, wordsCaught, wordsLeftToCatch } from './journal.js';
-import { REEF_REWARDS } from './trip.js';
+import { REEF_REWARDS, unlockedRewards } from './trip.js';
 import { ALL_CRATES, TARGET_WORD_COUNT } from './words.js';
 
 // How many trip stamps fit on the page before we simply count the rest.
@@ -21,6 +21,9 @@ const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabi
 export function FishingBook({ journal, onClose }) {
   const complete = allWordsCaught(journal);
   const found = new Set(journal.decorations);
+  // Count only the finds the seabed can actually paint: a decoration index from
+  // a version with more finds is skipped, never counted.
+  const collected = unlockedRewards(journal.decorations).length;
   const panelRef = useRef(null);
   const openerRef = useRef(null);
 
@@ -117,7 +120,7 @@ export function FishingBook({ journal, onClose }) {
       </section>
 
       <section className="book-reef" aria-label="Sjøbunnen din">
-        <h3>Sjøbunnen <span className="book-page-count">{found.size} av {REEF_REWARDS.length}</span></h3>
+        <h3>Sjøbunnen <span className="book-page-count">{collected} av {REEF_REWARDS.length}</span></h3>
         <ul className="reef-row">
           {REEF_REWARDS.map((reward, index) => {
             const isFound = found.has(index);
