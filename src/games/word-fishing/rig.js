@@ -10,8 +10,8 @@
 //   both mean the very same thing: the fish swims on and the child casts again.
 //   Nothing here counts a miss, a mistake or a try.
 // - Calm, fixed speeds and thresholds – nothing ramps up over time, and the
-//   fight is a steady pump (hold to wind, let go to ease the line) rather than a
-//   race against a clock.
+//   fight is a steady pump (turn the reel to wind, let it rest to ease the
+//   line) rather than a race against a clock.
 
 // ---------------------------------------------------------------------------
 // Where the rig hangs off the boat
@@ -171,23 +171,30 @@ export function stepBait(bait) {
 // The fight
 // ---------------------------------------------------------------------------
 // `distance` runs from 0 (the fish is where it took the bait) to 1 (it is at
-// the boat). Holding the crank winds it in and tightens the line; letting go
-// eases the line and loses a little of it.
+// the boat). Turning the reel winds the line in and tightens it; leaving the
+// reel alone eases the line and gives a little of it back. What counts is how
+// far the child turns the spool, not how long they press it: `turned` collects
+// the degrees turned since the last sea tick, and `angle` is the running total
+// the handle on screen is drawn from.
 //
 // A hook only holds while the line pulls it, so the line has to be kept in the
 // band: left taut for too long it snaps, and left slack for too long the fish
-// throws the hook and is gone. The child's whole job is the pump – wind, ease
-// before the red, wind again before the line goes slack – which is what makes a
+// throws the hook and is gone. The child's whole job is the pump – turn, ease
+// before the red, turn again before the line goes slack – which is what makes a
 // fish worth catching.
-export const REEL_RATE = 0.055; // distance won per tick while the crank is held
-export const LET_OUT = 0.012; // distance lost per tick while it is not
-export const TENSION_RISE = 0.075; // tension gained per tick while held
-export const TENSION_FALL = 0.075; // tension eased per tick while not held
+// One full 360 degree turn of the reel is the fight's unit of work, worth three
+// of the old hold-to-wind ticks: a fish takes about six calm turns to land, and
+// the line reaches the red after about three, so the pump stays the same.
+export const WIND_PER_TURN = 0.165; // distance won per full turn of the reel
+export const TENSION_PER_TURN = 0.225; // tension gained per full turn
+export const LET_OUT = 0.012; // distance lost per tick while the reel is still
+export const TENSION_FALL = 0.075; // tension eased per tick while it is still
+export const KEY_TURN_DEGREES = 90; // one arrow key press: a quarter turn
 export const SNAP_TENSION = 1; // at or past this the line breaks
 export const LAND_DISTANCE = 1; // at or past this the fish is aboard
 // The slack band: a line this loose is not holding anything, and a fish that
 // feels no pull shakes the hook out. Nineteen ticks is about two and a bit
-// seconds, so a child who lets go of the crank altogether really does lose the
+// seconds, so a child who leaves the reel alone altogether really does lose the
 // fish – and one who pumps properly never comes near it.
 export const SLACK_TENSION = 0.12; // at or below this the line is slack
 export const SLACK_TICKS = 19; // ticks of slack before the hook comes loose
@@ -200,30 +207,46 @@ export const TENSION_DANGER = 0.7;
 export const FIGHT_SWING = 1.5;
 
 export function createFight(fishId) {
-  return { fishId, distance: 0, tension: 0, slack: 0, holding: false, ticks: 0 };
+  return { fishId, distance: 0, tension: 0, slack: 0, angle: 0, turned: 0, ticks: 0 };
 }
 
-// Pressing or releasing the crank is its own moment: the button answers the
-// finger at once instead of waiting for the next sea tick.
-export function setHolding(fight, holding) {
-  if (!fight || fight.holding === holding) return fight;
-  return { ...fight, holding };
+// A turn of the reel is its own moment: the spool answers the finger at once,
+// and the next sea tick turns the degrees it collected into line and tension.
+// Winding is measured by how far the finger travels around the spool, in either
+// direction – a child who spins the reel back and forth still pulls the line in.
+export function turnReel(fight, degrees) {
+  if (!fight || !Number.isFinite(degrees) || degrees === 0) return fight;
+  return { ...fight, angle: fight.angle + degrees, turned: fight.turned + Math.abs(degrees) };
+}
+
+// How far a finger has moved around the spool since the last pointer event,
+// taking the short way round: crossing the 12 o'clock line is a small step,
+// never a jump all the way back the other way.
+export function angleStep(from, to) {
+  return ((to - from + 540) % 360) - 180;
+}
+
+// The angle of a point around a centre, in degrees. The reel hands in the
+// finger's position and the spool's centre; everything else is arithmetic.
+export function pointerAngle(point, centre) {
+  return Math.atan2(point.y - centre.y, point.x - centre.x) * (180 / Math.PI);
 }
 
 // One tick of the fight. Returns the new fight plus how it ended, if it did:
 // 'landed' when the fish is at the boat, 'snapped' when the line gave way, and
 // 'thrown' when a slack line let the fish shake the hook out.
-export function stepFight(fight, holding) {
-  const next = { ...fight, holding, ticks: fight.ticks + 1 };
-  if (holding) {
-    next.distance = fight.distance + REEL_RATE;
-    next.tension = fight.tension + TENSION_RISE;
+export function stepFight(fight) {
+  const next = { ...fight, turned: 0, ticks: fight.ticks + 1 };
+  const turns = fight.turned / 360;
+  if (turns > 0) {
+    next.distance = fight.distance + turns * WIND_PER_TURN;
+    next.tension = fight.tension + turns * TENSION_PER_TURN;
   } else {
     next.distance = Math.max(0, fight.distance - LET_OUT);
     next.tension = Math.max(0, fight.tension - TENSION_FALL);
   }
   // A line that breaks as the fish reaches the net still breaks: the snap is
-  // checked first so a fight can never be won by holding on too long.
+  // checked first so a fight can never be won by winding on too long.
   if (next.tension >= SNAP_TENSION) {
     return { fight: { ...next, tension: SNAP_TENSION }, ended: 'snapped' };
   }
@@ -231,7 +254,10 @@ export function stepFight(fight, holding) {
     return { fight: { ...next, distance: LAND_DISTANCE }, ended: 'landed' };
   }
   // And a line nobody is pulling on holds nothing: the hook works itself free.
-  next.slack = next.tension <= SLACK_TENSION ? fight.slack + 1 : 0;
+  // A reel that is really being turned is pulling, however gently – the slack
+  // band only matters while the child is not winding, so a slow, steady turn
+  // never throws a fish they are doing exactly what the prompt asks for.
+  next.slack = turns > 0 || next.tension > SLACK_TENSION ? 0 : fight.slack + 1;
   if (next.slack >= SLACK_TICKS) {
     return { fight: next, ended: 'thrown' };
   }

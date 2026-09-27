@@ -644,11 +644,12 @@
   to { box-shadow: inset 0 -4px 0 rgba(140, 60, 10, .2), 0 0 0 10px rgba(255, 217, 92, .5), 0 6px 0 rgba(20, 63, 78, .16); }
 }
 
-/* The crank: hold it to wind the fish in, let go to ease the line. The tension
-   bar stands beside it, out from under the thumb on the button, and fills from
-   the bottom – and it has to be kept in the band: red means the line is about to
-   break, blue-grey means it has gone slack and the fish is working the hook
-   loose. Green and amber in between are where a fish is won. */
+/* The reel: draw circles round the spool with a finger to wind the fish in, and
+   leave it alone to ease the line. The tension bar stands beside it, out from
+   under the thumb on the spool, and fills from the bottom – and it has to be
+   kept in the band: red means the line is about to break, blue-grey means it has
+   gone slack and the fish is working the hook loose. Green and amber in between
+   are where a fish is won. */
 .reel {
   position: relative; pointer-events: auto;
   width: 104px; height: 104px; display: grid; place-items: center;
@@ -670,11 +671,11 @@
 .reel[data-level="near"] .tension-fill { background: #e5ae45; }
 .reel[data-level="danger"] .tension-fill { background: #e0463c; animation: meter-alarm .3s ease-in-out infinite alternate; }
 @keyframes meter-alarm { from { opacity: .7; } to { opacity: 1; } }
-/* Slack: the line is not pulling, so the crank itself calls for the finger. */
+/* Slack: the line is not pulling, so the reel itself calls for the finger. */
 .reel[data-level="slack"] .tension-fill { background: #5b93ab; }
-.reel[data-level="slack"] .reel-crank { animation: crank-invite .55s ease-in-out infinite alternate; }
-@keyframes crank-invite { from { scale: 1; } to { scale: 1.09; } }
-.reel-crank {
+.reel[data-level="slack"] .reel-spool { animation: reel-invite .55s ease-in-out infinite alternate; }
+@keyframes reel-invite { from { scale: 1; } to { scale: 1.09; } }
+.reel-spool {
   position: relative; width: 78px; height: 78px; padding: 0;
   display: grid; place-items: center;
   border: 4px solid #14688a; border-radius: 50%;
@@ -683,15 +684,14 @@
   box-shadow: inset 0 -5px 0 rgba(20, 63, 78, .14), 0 5px 0 rgba(20, 63, 78, .2);
   touch-action: none; -webkit-tap-highlight-color: transparent;
 }
-.reel.holding .reel-crank { cursor: grabbing; }
-.crank-handle {
+.reel.turning .reel-spool { cursor: grabbing; }
+.reel-handle {
   position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 22px;
   border-radius: 50%; background: #e46e4b; border: 3px solid #b8533a;
   transform-origin: -22px 7px;
+  transition: rotate .08s linear;
 }
-.reel.holding .crank-handle { animation: crank-turn .5s linear infinite; }
-@keyframes crank-turn { to { rotate: 360deg; } }
-.crank-label { font-size: .72rem; letter-spacing: .5px; text-transform: uppercase; }
+.reel-label { font-size: .72rem; letter-spacing: .5px; text-transform: uppercase; }
 .reel-warning {
   position: absolute; left: 50%; top: -4px; translate: -50% -100%; z-index: 12;
   padding: 3px 12px; border: 3px solid #b8432f; border-radius: 999px;
@@ -815,7 +815,7 @@
 
 /* ---- Focus rings and small screens --------------------------------------- */
 .sea-surface:focus-visible, .strike-ring:focus-visible, .action-button:focus-visible,
-.reel-crank:focus-visible, .crate:focus-visible, .chip:focus-visible,
+.reel-spool:focus-visible, .crate:focus-visible, .chip:focus-visible,
 .primary-button:focus-visible, .outline-button:focus-visible,
 .book-close:focus-visible, .back-link:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
 
@@ -837,7 +837,7 @@
   .action-button { min-height: 54px; min-width: 132px; padding: 8px 18px; font-size: 1rem; }
   .bite-button { min-width: 180px; min-height: 62px; font-size: 1.15rem; }
   .reel { width: 94px; height: 94px; }
-  .reel-crank { width: 70px; height: 70px; }
+  .reel-spool { width: 70px; height: 70px; }
   .tension-meter { right: calc(100% + 10px); width: 22px; height: 76px; }
   .crate-dock { gap: 8px; }
   .crate { flex: 1 1 44%; min-height: 88px; padding: 13px 6px 8px; }

@@ -9,7 +9,7 @@ import { FishArt, speciesForWord } from './FishArt.jsx';
 //
 // A fish is never a button any more: it is the world, not a control. What the
 // child reads is the word on its tag, and what the child acts on is the water,
-// the float and the crank. Every mark here is decorative and hidden from a
+// the float and the reel. Every mark here is decorative and hidden from a
 // screen reader – the sea's own narration carries the story (see WordFishing).
 
 // The word stays readable while the fish swims, notices the bait and tastes it,
