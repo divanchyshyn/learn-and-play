@@ -4,7 +4,7 @@ import { TIMING, WordFishing, seaStage, stageHint } from './WordFishing.jsx';
 import {
   DELIVER_TICKS, FISH_ON_SCREEN, TICK_MS, castBait, createSea, strikeFish,
 } from './sea.js';
-import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, RIG_DX, RIG_Y, SLACK_TICKS, TENSION_PER_TURN } from './rig.js';
+import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, RIG_DX, RIG_Y } from './rig.js';
 import {
   ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, createJournal, journalCodec, tripCodec,
 } from './journal.js';
@@ -120,13 +120,12 @@ function castAndWaitForBite(view, guard = 400) {
   return waitForBite(view, guard);
 }
 
-// Pump the reel exactly as a child would: turn it while the tension bar is not
-// red, leave it alone while it is. Returns when the fight is over either way.
+// Wind the reel exactly as a child would: a full turn of the spool every tick
+// until the fish is on deck. Returns when the fight is over either way.
 function pump(view, guard = 400) {
   for (let step = 0; step < guard; step += 1) {
     if (!spool(view)) return true;
-    const danger = view.container.querySelector('.reel[data-level="danger"]');
-    if (!danger) spinReel(view, 360);
+    spinReel(view, 360);
     ticks(1);
   }
   return false;
@@ -273,13 +272,10 @@ describe('word-fishing the opening screen', () => {
 
     const hooked = strikeFish(biting);
     expect(seaStage(hooked)).toBe('fight');
-    // A fresh hook is a slack line: the first thing to do is pull it tight…
-    expect(stageHint(hooked)).toMatch(/stram/i);
-    // …and then keep it in the band, easing before the red.
-    const pulling = { ...hooked, fight: { ...hooked.fight, tension: 0.6 } };
-    expect(stageHint(pulling)).toMatch(/sveiv/i);
-    const straining = { ...hooked, fight: { ...hooked.fight, tension: 0.9 } };
-    expect(stageHint(straining)).toMatch(/slipp/i);
+    // A fish on the line has one thing to do, whatever shape the fight is in.
+    expect(stageHint(hooked)).toMatch(/sveiv/i);
+    const turning = { ...hooked, fight: { ...hooked.fight, distance: 0.6 } };
+    expect(stageHint(turning)).toMatch(/sveiv/i);
 
     const aboard = { ...sailing, fishes: [{ id: 1, status: 'aboard' }] };
     expect(seaStage(aboard)).toBe('aboard');
@@ -476,24 +472,22 @@ describe('word-fishing the fight and the landing', () => {
     const onLine = view.container.querySelector('.fish-hooked');
     expect(onLine).toBeTruthy();
     expect(onLine.querySelector('.fish-tag')).toBeNull();
-    expect(view.container.querySelector('.tension-meter')).toBeTruthy();
     expect(view.container.querySelector('.fishing-line')).toBeTruthy();
 
-    // A finger on the spool answers at once…
+    // A finger on the spool answers at once: the handle follows the turn…
     const button = spool(view);
+    const handle = () => view.container.querySelector('.reel-handle').style.rotate;
     fireEvent.pointerDown(button, reelPoint(0));
     expect(view.container.querySelector('.reel.turning')).toBeTruthy();
+    const before = handle();
     fireEvent.pointerMove(button, reelPoint(90));
+    expect(handle()).not.toBe(before);
+    // …and the sea tick then winds the line in.
     ticks(1);
-    // …and the turn tightens the line, which the bar paints.
-    const fillAfterOneTurn = view.container.querySelector('.tension-fill').style.height;
-    fireEvent.pointerMove(button, reelPoint(180));
-    ticks(1);
-    expect(parseFloat(view.container.querySelector('.tension-fill').style.height))
-      .toBeGreaterThan(parseFloat(fillAfterOneTurn));
+    expect(spool(view)).toBeTruthy();
     fireEvent.pointerUp(button);
 
-    // A steady pump always lands the fish.
+    // Spinning the reel always brings the fish home.
     expect(pump(view)).toBe(true);
 
     const card = view.container.querySelector('.catch-card');
@@ -509,48 +503,48 @@ describe('word-fishing the fight and the landing', () => {
     expect(crateElement(view, categoryOf(card.querySelector('.catch-word').textContent))).toBeEnabled();
   });
 
-  it('shows the line tension on a bar beside the reel, not around the button', () => {
+  it('has nothing to read but the fish: no bar and no warning on the reel', () => {
     const view = render(<WordFishing />);
     expect(castAndWaitForBite(view)).toBe(true);
     fireEvent.click(view.container.querySelector('.strike-ring'));
 
-    // The thumb covers the spool, so the meter must live beside it: a sibling of
-    // the button, never part of the box the finger draws circles on.
-    const meter = view.container.querySelector('.tension-meter');
+    // The spool is the whole control: no meter beside it, no level, no warning
+    // over it – a child only has to spin.
     const button = spool(view);
-    expect(meter).toBeTruthy();
-    expect(button.contains(meter)).toBe(false);
-    expect(meter.contains(button)).toBe(false);
-    expect(meter.parentElement).toBe(button.parentElement);
+    expect(view.container.querySelector('.reel').className).toBe('reel');
+    expect(view.container.querySelector('.tension-meter')).toBeNull();
+    expect(view.container.querySelector('.tension-fill')).toBeNull();
+    expect(view.container.querySelector('.reel-warning')).toBeNull();
+    expect(view.container.querySelector('.slack-warning')).toBeNull();
+    expect(button.parentElement).toBe(view.container.querySelector('.action-bar .reel'));
 
-    // A fresh hook is slack: the bar stands empty and reads as slack…
-    const fill = () => view.container.querySelector('.tension-fill').style.height;
-    expect(fill()).toBe('0%');
-    expect(view.container.querySelector('.reel').dataset.level).toBe('slack');
-
-    // …and it fills from the bottom as the child turns the spool.
+    // A turn winds the fish in on the next sea tick, and leaving the reel alone
+    // costs nothing: the fish is still on the line however long the child waits.
     fireEvent.pointerDown(button, reelPoint(0));
     fireEvent.pointerMove(button, reelPoint(90));
     ticks(1);
-    expect(fill()).toBe(`${Math.round((TENSION_PER_TURN / 4) * 100)}%`);
-    fireEvent.pointerMove(button, reelPoint(180));
-    ticks(1);
-    expect(fill()).toBe(`${Math.round((TENSION_PER_TURN / 2) * 100)}%`);
     fireEvent.pointerUp(button);
+    ticks(60);
+    expect(spool(view)).toBeTruthy();
+    expect(view.container.querySelector('.fish-hooked')).toBeTruthy();
+    expect(view.container.querySelector('.catch-card')).toBeNull();
+
+    // And spinning the reel from there still lands it.
+    expect(pump(view)).toBe(true);
+    expect(view.container.querySelector('.catch-word')).toBeTruthy();
   });
 
-  it('lets the fish throw the hook if the child never winds', () => {
+  it('keeps the fish on the line if the child never winds', () => {
     const view = render(<WordFishing />);
     expect(castAndWaitForBite(view)).toBe(true);
     fireEvent.click(view.container.querySelector('.strike-ring'));
-    expect(view.container.querySelector('.reel[data-level="slack"]')).toBeTruthy();
-    expect(view.container.querySelector('.slack-warning').textContent).toBe('Drei!');
 
-    // Nothing is touched at all: the line is not pulling, so the fish works the
-    // hook out – and it is gone.
-    ticks(SLACK_TICKS);
-    expect(view.container.querySelector('.reel-spool')).toBeNull();
-    expect(view.container.querySelector('.fish-splash')).toBeTruthy();
+    // Nothing is touched at all, and nothing has to be: the fish waits on the
+    // line for as long as the child takes to think about it.
+    ticks(120);
+    expect(view.container.querySelector('.reel-spool')).toBeTruthy();
+    expect(view.container.querySelector('.fish-hooked')).toBeTruthy();
+    expect(view.container.querySelector('.fish-splash')).toBeNull();
     expect(view.container.querySelector('.catch-card')).toBeNull();
     expect(view.container.querySelector('.fish-aboard')).toBeNull();
 
@@ -559,41 +553,36 @@ describe('word-fishing the fight and the landing', () => {
     expect(boatProgress(view)).toBe('0 av 4');
     expect(screen.queryByText(/feil|galt|straff|mistet|stakk av/i)).not.toBeInTheDocument();
 
-    // And the line can go out again straight away.
-    expect(view.container.querySelector('.cast-button')).toBeTruthy();
-    expect(castAndWaitForBite(view)).toBe(true);
+    // And the fish is still there to be wound in.
+    expect(pump(view)).toBe(true);
+    expect(view.container.querySelector('.catch-card')).toBeTruthy();
   });
 
-  it('warns before the line breaks, and lets the fish go if it is turned too far', () => {
-    const snapSound = vi.spyOn(sounds, 'snap');
+  it('lands the fish for a child who turns the reel and never eases', () => {
+    const plopSound = vi.spyOn(sounds, 'plop');
     const view = render(<WordFishing />);
     expect(castAndWaitForBite(view)).toBe(true);
     fireEvent.click(view.container.querySelector('.strike-ring'));
+    expect(view.container.querySelector('.reel-warning')).toBeNull();
 
-    let sawDangerWarning = false;
+    // A child who simply keeps spinning: no warning ever appears, the line never
+    // gives way, and the fish lands.
     for (let step = 0; step < 60 && spool(view); step += 1) {
       spinReel(view, 180);
       ticks(1);
-      // The slack warning is showing from the start, so only the red one counts.
-      sawDangerWarning = sawDangerWarning
-        || view.container.querySelector('.reel[data-level="danger"] .reel-warning')?.textContent === 'Slipp!';
     }
 
-    // The bar turned red, the warning showed, and then the line gave way.
-    expect(sawDangerWarning).toBe(true);
     expect(view.container.querySelector('.reel-spool')).toBeNull();
-    expect(view.container.querySelector('.fish-splash')).toBeTruthy();
-    expect(snapSound).toHaveBeenCalled();
-    expect(view.container.querySelector('.catch-card')).toBeNull();
-    expect(view.container.querySelector('.fish-aboard')).toBeNull();
-    // Nothing is counted, nothing is scolded, nothing is lost.
+    expect(view.container.querySelector('.catch-card')).toBeTruthy();
+    expect(view.container.querySelector('.fish-aboard')).toBeTruthy();
+    expect(view.container.querySelector('.fish-splash')).toBeNull();
+    expect(plopSound).toHaveBeenCalled();
+    // The catch is on deck, so the book has not counted it yet: the word is
+    // counted when it lands in its crate, which is the reading task to come.
     expect(screen.getByText(`0 av ${TARGET_WORD_COUNT} ord i fangstboka – ${TARGET_WORD_COUNT} igjen.`)).toBeInTheDocument();
     expect(boatProgress(view)).toBe('0 av 4');
+    expect(view.container.querySelector('.crate-dock.live')).toBeTruthy();
     expect(screen.queryByText(/feil|galt|straff|mistet|stakk av/i)).not.toBeInTheDocument();
-
-    // The line can be cast again at once.
-    expect(view.container.querySelector('.cast-button')).toBeTruthy();
-    expect(castAndWaitForBite(view)).toBe(true);
   });
 
   it('answers the finger and the keyboard on the reel, and lets go either way', () => {
@@ -814,14 +803,14 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(waitForBite(view)).toBe(true);
     expect(hintText(view)).toMatch(/napp/i);
     fireEvent.click(view.container.querySelector('.strike-ring'));
-    // A freshly hooked fish has a slack line: the hint asks for a pull first.
-    expect(hintText(view)).toMatch(/stram/i);
+    // A fish on the line keeps the same one-line hint, before and after the
+    // child has turned the reel: there is nothing else to read.
+    expect(hintText(view)).toMatch(/sveiv/i);
 
-    // Turn the spool once and the line is in the band, where the hint simply
-    // says to keep going.
     spinReel(view, 360);
     ticks(1);
     expect(hintText(view)).toMatch(/sveiv/i);
+    expect(view.container.querySelector('.reel-spool')).toBeTruthy();
 
     expect(pump(view)).toBe(true);
     const word = view.container.querySelector('.catch-word').textContent;

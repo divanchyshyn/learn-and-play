@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   BITE_TICKS, BOAT_KEY_STEP, BOAT_MAX_X, BOAT_MIN_X, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET,
-  CAST_TICKS, DROP_MAX_DEPTH, DROP_MIN_DEPTH, DROP_SWAY, KEY_TURN_DEGREES, LAND_DISTANCE, LET_OUT,
-  NIBBLES_MAX, NIBBLES_MIN, NIBBLE_EACH, RIG_DX, SLACK_TENSION, SLACK_TICKS, SNAP_TENSION,
-  TENSION_DANGER, TENSION_FALL, TENSION_NEAR, TENSION_PER_TURN, WIND_PER_TURN, angleStep, clampBoatX,
+  CAST_TICKS, DROP_MAX_DEPTH, DROP_MIN_DEPTH, DROP_SWAY, KEY_TURN_DEGREES, LAND_DISTANCE,
+  NIBBLES_MAX, NIBBLES_MIN, NIBBLE_EACH, RIG_DX, WIND_PER_TURN, angleStep, clampBoatX,
   createBait, createBoat, createFight, dropPoint, dropSpot, fightProgress, isSailing, pointerAngle,
-  sailTargetForTap, sailTo, startNibble, stepBait, stepBoat, stepFight, tensionLevel, tensionPercent,
+  sailTargetForTap, sailTo, startNibble, stepBait, stepBoat, stepFight,
   turnReel,
 } from './rig.js';
 
@@ -219,10 +218,8 @@ describe('word-fishing the reel', () => {
 describe('word-fishing the fight', () => {
   it('starts with the fish at the bait and no line to the boat', () => {
     const fight = createFight(7);
-    expect(fight).toEqual({ fishId: 7, distance: 0, tension: 0, slack: 0, angle: 0, turned: 0, ticks: 0 });
+    expect(fight).toEqual({ fishId: 7, distance: 0, angle: 0, turned: 0, ticks: 0 });
     expect(fightProgress(fight)).toBe(0);
-    // A line nobody turns is slack from the start, not safe.
-    expect(tensionLevel(fight.tension)).toBe('slack');
   });
 
   it('answers the finger at once: a turn counts before any sea tick', () => {
@@ -240,7 +237,6 @@ describe('word-fishing the fight', () => {
   it('winds by how far the spool is turned, in either direction', () => {
     const full = stepFight(turnReel(createFight(1), 360)).fight;
     expect(full.distance).toBeCloseTo(WIND_PER_TURN);
-    expect(full.tension).toBeCloseTo(TENSION_PER_TURN);
     // Half the turn winds half as far, and turning back still pulls the line in.
     expect(stepFight(turnReel(createFight(1), 180)).fight.distance).toBeCloseTo(WIND_PER_TURN / 2);
     expect(stepFight(turnReel(createFight(1), -180)).fight.distance).toBeCloseTo(WIND_PER_TURN / 2);
@@ -249,21 +245,21 @@ describe('word-fishing the fight', () => {
   it('counts each turn once: the tick clears what the finger turned', () => {
     const wound = stepFight({ ...createFight(1), turned: 360 }).fight;
     expect(wound.turned).toBe(0);
-    // With nothing turned, the next tick eases instead of winding again.
-    expect(stepFight(wound).fight.distance).toBeLessThan(wound.distance);
+    // With nothing turned, the next tick simply holds the line where it is.
+    expect(stepFight(wound).fight.distance).toBe(wound.distance);
   });
 
-  it('eases the line and loses a little of it when the reel is left alone', () => {
-    const strained = { ...createFight(1), distance: 0.5, tension: 0.5 };
-    const eased = stepFight(strained).fight;
-    expect(eased.tension).toBeCloseTo(0.5 - TENSION_FALL);
-    expect(eased.distance).toBeCloseTo(0.5 - LET_OUT);
-  });
-
-  it('never lets tension or distance fall below zero', () => {
-    const fresh = stepFight(createFight(1)).fight;
-    expect(fresh.tension).toBe(0);
-    expect(fresh.distance).toBe(0);
+  it('holds the fish where it is for as long as the reel is still', () => {
+    // A fight is never lost by resting: only winding moves the fish, and a rest
+    // neither gives line back nor works the hook loose.
+    const resting = { ...createFight(1), distance: 0.5 };
+    let fight = resting;
+    for (let tick = 0; tick < 60; tick += 1) {
+      const step = stepFight(fight);
+      fight = step.fight;
+      expect(step.ended).toBeNull();
+      expect(fight.distance).toBeCloseTo(resting.distance);
+    }
   });
 
   it('lands the fish once it has been wound all the way in', () => {
@@ -273,102 +269,34 @@ describe('word-fishing the fight', () => {
     expect(step.fight.distance).toBe(LAND_DISTANCE);
   });
 
-  it('snaps the line when the reel is turned too far', () => {
-    const nearly = { ...createFight(1), tension: SNAP_TENSION - TENSION_PER_TURN / 2 };
-    const step = stepFight(turnReel(nearly, 360));
-    expect(step.ended).toBe('snapped');
-    expect(step.fight.tension).toBe(SNAP_TENSION);
-  });
-
-  it('checks the snap first: landing as the line gives way still breaks it', () => {
-    const both = {
-      ...createFight(1),
-      distance: LAND_DISTANCE - WIND_PER_TURN / 2,
-      tension: SNAP_TENSION - TENSION_PER_TURN / 2,
-    };
-    expect(stepFight(turnReel(both, 360)).ended).toBe('snapped');
-  });
-
-  it('warns the child before the line gives way', () => {
-    expect(tensionLevel(0)).toBe('slack');
-    expect(tensionLevel(SLACK_TENSION)).toBe('slack');
-    expect(tensionLevel(SLACK_TENSION + 0.01)).toBe('safe');
-    expect(tensionLevel(TENSION_NEAR - 0.01)).toBe('safe');
-    expect(tensionLevel(TENSION_NEAR)).toBe('near');
-    expect(tensionLevel(TENSION_DANGER)).toBe('danger');
-  });
-
-  it('fills the tension bar from empty to full, clamped inside it', () => {
-    expect(tensionPercent(0)).toBe(0);
-    expect(tensionPercent(0.5)).toBe(50);
-    expect(tensionPercent(SNAP_TENSION)).toBe(100);
-    // A missing fight, and any value past the ends, still paint inside the bar.
-    expect(tensionPercent(null)).toBe(0);
-    expect(tensionPercent(undefined)).toBe(0);
-    expect(tensionPercent(-0.4)).toBe(0);
-    expect(tensionPercent(1.7)).toBe(100);
-  });
-
-  it('lets the fish throw the hook when the reel is left alone', () => {
-    // Twenty ticks of a line nobody turns: about two and a half seconds.
+  it('never loses the fish, however long the reel is left alone', () => {
+    // A fight has one possible ending: the fish comes aboard. Nothing the child
+    // does – or leaves undone – can break the line or shake the hook out.
     let fight = createFight(1);
-    let ticks = 0;
-    let thrown = false;
-    for (let step = 0; step < 80 && !thrown; step += 1) {
-      const next = stepFight(fight);
-      fight = next.fight;
-      ticks += 1;
-      thrown = next.ended === 'thrown';
+    for (let tick = 0; tick < 200; tick += 1) {
+      const step = stepFight(fight);
+      expect(step.ended).toBeNull();
+      fight = step.fight;
     }
-    expect(thrown).toBe(true);
-    expect(ticks).toBe(SLACK_TICKS);
-    expect(fight.slack).toBe(SLACK_TICKS);
   });
 
-  it('keeps the slack clock at zero while the reel is really being turned', () => {
-    // A full turn lifts the line out of the slack band…
-    let fight = stepFight(turnReel(createFight(1), 360)).fight;
-    expect(fight.tension).toBeGreaterThan(SLACK_TENSION);
-    expect(fight.slack).toBe(0);
-    // …and the moment the child turns again after an ease, the clock is back at
-    // zero. Only a reel left alone ever reaches the throw.
-    fight = stepFight(fight).fight;
-    fight = stepFight(turnReel(fight, 360)).fight;
-    expect(fight.slack).toBe(0);
-  });
-
-  it('resets the slack clock on every turn, however gently the line is wound', () => {
-    // A quarter turn every other tick never lifts the tension out of the slack
-    // band before the clock would expire – but the line is still being pulled,
-    // so a child doing exactly what the prompt asks never loses the fish.
-    let fight = stepFight(turnReel(createFight(1), KEY_TURN_DEGREES)).fight;
-    expect(fight.tension).toBeLessThanOrEqual(SLACK_TENSION);
-    expect(fight.slack).toBe(0);
-
-    for (let tick = 0; tick < SLACK_TICKS * 2; tick += 1) {
+  it('lands the fish for a slow wind as surely as for a fast one', () => {
+    // A quarter turn every other tick, far slower than any child would spin:
+    // the fish still comes in, and no tick ever ends the fight early.
+    let fight = createFight(1);
+    let landed = false;
+    for (let tick = 0; tick < 120 && !landed; tick += 1) {
       const step = stepFight(tick % 2 === 0 ? turnReel(fight, KEY_TURN_DEGREES) : fight);
       fight = step.fight;
-      expect(step.ended).toBeNull();
+      landed = step.ended === 'landed';
+      if (!landed) expect(step.ended).toBeNull();
     }
-    expect(fight.slack).toBeLessThan(SLACK_TICKS);
-    expect(fight.distance).toBeGreaterThan(0);
+    expect(landed).toBe(true);
   });
 
-  it('still throws the hook on the tick the child stops turning', () => {
-    // A quarter turn resets the clock, but a reel nobody keeps pulling on gives
-    // the fish the whole slack window to work the hook free.
-    let fight = stepFight(turnReel(createFight(1), KEY_TURN_DEGREES)).fight;
-    expect(fight.slack).toBe(0);
-    let thrown = false;
-    let ticks = 0;
-    for (let step = 0; step < SLACK_TICKS && !thrown; step += 1) {
-      const next = stepFight(fight);
-      fight = next.fight;
-      ticks += 1;
-      thrown = next.ended === 'thrown';
-    }
-    expect(thrown).toBe(true);
-    expect(ticks).toBe(SLACK_TICKS);
+  it('keeps a fight to the things it needs, and counts no miss anywhere', () => {
+    const fight = stepFight(turnReel(createFight(1), 360)).fight;
+    expect(Object.keys(fight).sort()).toEqual(['angle', 'distance', 'fishId', 'ticks', 'turned']);
   });
 
   it('paints the fight as a plain 0–1 progress', () => {
@@ -379,58 +307,32 @@ describe('word-fishing the fight', () => {
   });
 
   // The feel of the fight, kept here so a future tweak can see what it breaks.
-  it('is won by a steady pump: turn, ease before the red, turn again', () => {
+  it('is won by a steady wind: about six turns of the reel and the fish is in', () => {
     let fight = createFight(1);
     let ticks = 0;
     let landed = false;
-    for (let cycle = 0; cycle < 12 && !landed; cycle += 1) {
-      // Turn while there is room on the line, easing off before the red…
-      while (fight.tension < TENSION_NEAR && !landed) {
-        const step = stepFight(turnReel(fight, 360));
-        fight = step.fight;
-        ticks += 1;
-        landed = step.ended === 'landed';
-      }
-      // …and ease only until the line is comfortable, never into the slack.
-      while (fight.tension > TENSION_NEAR - 0.2 && !landed) {
-        const step = stepFight(fight);
-        fight = step.fight;
-        ticks += 1;
-        landed = step.ended === 'landed';
-      }
+    while (!landed && ticks < 80) {
+      const step = stepFight(turnReel(fight, 360));
+      fight = step.fight;
+      ticks += 1;
+      landed = step.ended === 'landed';
     }
     expect(landed).toBe(true);
-    // A child's fight: a handful of seconds of real pumping, never a marathon.
-    expect(ticks).toBeGreaterThan(10);
-    expect(ticks).toBeLessThan(80);
+    // A child's fight: a handful of seconds of turning, never a marathon.
+    expect(ticks).toBeGreaterThan(3);
+    expect(ticks).toBeLessThan(12);
   });
 
-  it('keeps a properly pumped fight well clear of the slack band', () => {
-    // The pump above has to work without ever risking a thrown hook.
-    let fight = createFight(1);
-    let worstSlack = 0;
-    for (let cycle = 0; cycle < 6; cycle += 1) {
-      while (fight.tension < TENSION_NEAR) {
-        fight = stepFight(turnReel(fight, 360)).fight;
-      }
-      while (fight.tension > TENSION_NEAR - 0.2) {
-        fight = stepFight(fight).fight;
-      }
-      worstSlack = Math.max(worstSlack, fight.slack);
-    }
-    expect(worstSlack).toBe(0);
-  });
-
-  it('lets the line break for a child who simply turns and never eases', () => {
+  it('always lands the fish for a child who simply turns and never stops', () => {
     let fight = createFight(1);
     for (let step = 0; step < 60; step += 1) {
       const next = stepFight(turnReel(fight, 360));
       fight = next.fight;
       if (next.ended) {
-        expect(next.ended).toBe('snapped');
+        expect(next.ended).toBe('landed');
         return;
       }
     }
-    throw new Error('a reel turned forever never snapped the line');
+    throw new Error('a reel turned forever never landed the fish');
   });
 });

@@ -9,7 +9,7 @@ import { FishSprite } from './FishSprite.jsx';
 import { ReefArt } from './ReefRewards.jsx';
 import { SeaScene } from './SeaScene.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
-import { BOAT_KEY_STEP, sailTargetForTap, tensionLevel } from './rig.js';
+import { BOAT_KEY_STEP, sailTargetForTap } from './rig.js';
 import {
   TICK_MS, WATERLINE, aboardFish, baitPosition, canSail, canStrike, castBait, createSea, deliverFish,
   fishWord, lineTarget, pullInBait, rotateReel, sailBoat, slipFish, strikeFish, tickSea,
@@ -49,7 +49,7 @@ export const TIMING = { TICK_MS, LANDED_MS, NUDGE_MS, REWARD_POP_MS };
 //   sail   – no line in the water: tap the sea to sail, cast to start fishing
 //   bait   – the float is out (flying, waiting or being tasted)
 //   bite   – the float is under: there is a moment to strike, and only a moment
-//   fight  – a fish is hooked: turn the reel, ease off before the line breaks
+//   fight  – a fish is hooked: spin the reel and wind it in, nothing else
 //   aboard – the catch is on deck: read the word and put it in its crate
 //   card   – the trip is finished; finale – the whole fishing book is full
 export function seaStage(sea, tripCard = null, finale = false) {
@@ -69,12 +69,7 @@ export function stageHint(sea, tripCard = null, finale = false) {
   if (stage === 'finale') return 'Alle ordene er fanget! 🎉';
   if (stage === 'card') return 'Trykk «Ny tur» for å fiske videre 🎣';
   if (stage === 'aboard') return 'Hvilken kasse hører ordet til?';
-  if (stage === 'fight') {
-    const level = tensionLevel(sea.fight.tension);
-    if (level === 'danger') return 'Slipp hjulet – linjen strammer seg!';
-    if (level === 'slack') return 'Stram snøret – drei hjulet rundt!';
-    return 'Sveiv hjulet rundt og dra fisken inn!';
-  }
+  if (stage === 'fight') return 'Sveiv hjulet rundt og dra fisken inn!';
   if (stage === 'bite') return 'Napp! Trykk på duppen!';
   if (stage === 'bait') {
     return sea.bait.phase === 'flying' ? 'Agnen flyr utover …' : 'Vent på at en fisk tar agnet …';
@@ -82,23 +77,17 @@ export function stageHint(sea, tripCard = null, finale = false) {
   return 'Trykk i vannet der båten skal seile 🎣';
 }
 
-// Neutral narration for screen readers – and a calm map of the flow. The bite,
-// the fight and a line that snapped are all part of the story, so they are
-// spoken too, with no blame anywhere in them.
+// Neutral narration for screen readers – and a calm map of the flow. The bite
+// and the fight are part of the story, so they are spoken too, with no blame
+// anywhere in them.
 export function statusLine(sea, trip, finale = false) {
   if (finale) return 'Gratulerer! Alle ordene er fanget.';
-  // A fish getting away is the most immediate thing that can happen.
-  if (sea.fishes.some((fish) => fish.escaped)) return 'Linjen røk – fisken svømmer videre. Kast ut igjen!';
-  if (sea.fishes.some((fish) => fish.thrown)) return 'Fisken slapp kroken – den svømmer videre. Kast ut igjen!';
+  // A fish letting go of the bait is the most immediate thing that can happen.
   if (sea.fishes.some((fish) => fish.spat)) return 'Fisken slapp agnet og svømte videre.';
   const stage = seaStage(sea);
   if (stage === 'aboard') return `${fishWord(aboardFish(sea))} ligger på dekk. Hvilken kasse hører ordet til?`;
   if (stage === 'fight') {
-    const fight = sea.fight;
-    const level = tensionLevel(fight.tension);
-    const warning = level === 'danger' ? ' Linjen strammer seg – slipp!' : '';
-    const slack = level === 'slack' ? ' Linjen er slakk – drei hjulet rundt!' : '';
-    return `Fisken er på kroken, ${Math.round(fight.distance * 100)} prosent inne.${warning}${slack}`;
+    return `Fisken er på kroken, ${Math.round(sea.fight.distance * 100)} prosent inne.`;
   }
   if (stage === 'bite') return 'Napp! Trykk på duppen for å feste kroken.';
   return `${tripRequest()}. ${tripProgress(trip)} i dag.`;
@@ -157,16 +146,14 @@ export function WordFishing() {
     return () => window.clearTimeout(timer);
   }, [newRewardId]);
 
-  // A fish landing on deck, and the line giving way (or a fish letting go of the
-  // bait), are moments too: both are read off the one-tick marks the sea leaves.
+  // A fish landing on deck, and a fish letting go of the bait, are moments too:
+  // both are read off the one-tick marks the sea leaves.
   const hadFish = useRef(false);
   const reelClicks = useRef(0);
   useEffect(() => {
     const onDeck = Boolean(aboardFish(sea));
     if (onDeck && !hadFish.current) sounds.plop();
     hadFish.current = onDeck;
-    if (sea.fishes.some((fish) => fish.escaped)) sounds.snap();
-    if (sea.fishes.some((fish) => fish.thrown)) sounds.blub();
     if (sea.fishes.some((fish) => fish.spat)) sounds.blub();
     // The reel clicks as the child turns it, once for every quarter turn.
     const fight = sea.fight;
@@ -280,7 +267,7 @@ export function WordFishing() {
   }
 
   // The reel answers the finger at once: every degree it turns is collected in
-  // the fight, and the next sea tick turns it into line and tension (see rig.js).
+  // the fight, and the next sea tick winds the line in (see rig.js).
   function turnReel(degrees) {
     setSea((prev) => rotateReel(prev, degrees));
   }

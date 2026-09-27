@@ -595,37 +595,14 @@
   to { box-shadow: inset 0 -4px 0 rgba(140, 60, 10, .2), 0 0 0 10px rgba(255, 217, 92, .5), 0 6px 0 rgba(20, 63, 78, .16); }
 }
 
-/* The reel: draw circles round the spool with a finger to wind the fish in, and
-   leave it alone to ease the line. The tension bar stands beside it, out from
-   under the thumb on the spool, and fills from the bottom – and it has to be
-   kept in the band: red means the line is about to break, blue-grey means it has
-   gone slack and the fish is working the hook loose. Green and amber in between
-   are where a fish is won. */
+/* The reel: draw circles round the spool with a finger to wind the fish in, or
+   turn it with the arrow keys. Nothing beside it has to be watched – the spool
+   is the whole control, and the fish it is winding in can never be lost. */
 .reel {
   position: relative; pointer-events: auto;
   width: 104px; height: 104px; display: grid; place-items: center;
   touch-action: none; user-select: none;
 }
-.tension-meter {
-  position: absolute; right: calc(100% + 14px); top: 50%; translate: 0 -50%;
-  width: 24px; height: 84px; padding: 2px;
-  display: flex; align-items: flex-end; overflow: hidden;
-  pointer-events: none; /* the sea behind it still takes the extra taps */
-  border: 3px solid #14688a; border-radius: 999px;
-  background: rgba(255, 253, 243, .72);
-  box-shadow: inset 0 2px 3px rgba(20, 63, 78, .16);
-}
-.tension-fill {
-  width: 100%; border-radius: 999px; background: #63a375;
-  transition: height .12s linear, background .2s ease;
-}
-.reel[data-level="near"] .tension-fill { background: #e5ae45; }
-.reel[data-level="danger"] .tension-fill { background: #e0463c; animation: meter-alarm .3s ease-in-out infinite alternate; }
-@keyframes meter-alarm { from { opacity: .7; } to { opacity: 1; } }
-/* Slack: the line is not pulling, so the reel itself calls for the finger. */
-.reel[data-level="slack"] .tension-fill { background: #5b93ab; }
-.reel[data-level="slack"] .reel-spool { animation: reel-invite .55s ease-in-out infinite alternate; }
-@keyframes reel-invite { from { scale: 1; } to { scale: 1.09; } }
 .reel-spool {
   position: relative; width: 78px; height: 78px; padding: 0;
   display: grid; place-items: center;
@@ -643,15 +620,6 @@
   transition: rotate .08s linear;
 }
 .reel-label { font-size: .72rem; letter-spacing: .5px; text-transform: uppercase; }
-.reel-warning {
-  position: absolute; left: 50%; top: -4px; translate: -50% -100%; z-index: 12;
-  padding: 3px 12px; border: 3px solid #b8432f; border-radius: 999px;
-  background: #ffe4d8; color: #a13324; font-weight: 900; white-space: nowrap;
-  animation: mascot-hop .35s ease infinite alternate;
-}
-/* Too slack is the other way to lose a fish: the same warning, in the water's
-   own blue, so it reads as "pull" rather than "let go". */
-.slack-warning { border-color: #0c8fb6; background: #e4f4f9; color: #0b7897; }
 
 /* ---- The crates --------------------------------------------------------- */
 /* While a catch waits on deck the crates are live answer buttons; the rest of the
@@ -791,7 +759,6 @@
   .bite-button { min-width: 180px; min-height: 62px; font-size: 1.15rem; }
   .reel { width: 94px; height: 94px; }
   .reel-spool { width: 70px; height: 70px; }
-  .tension-meter { right: calc(100% + 10px); width: 22px; height: 76px; }
   .crate-dock { gap: 8px; }
   .crate { flex: 1 1 44%; min-height: 88px; padding: 13px 6px 8px; }
   .crate-label { font-size: .95rem; }

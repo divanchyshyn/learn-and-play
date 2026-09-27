@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { KEY_TURN_DEGREES, angleStep, pointerAngle, tensionLevel, tensionPercent } from './rig.js';
+import { KEY_TURN_DEGREES, angleStep, pointerAngle } from './rig.js';
 
 // The one control on the water, changing with what the child can do right now:
 //   * "Kast ut"     – put the line out: the bait goes down under the boat
@@ -10,12 +10,9 @@ import { KEY_TURN_DEGREES, angleStep, pointerAngle, tensionLevel, tensionPercent
 // It is deliberately one button in one place in the thumb's reach, so a child
 // never has to find a different control for every step of the trip.
 
-// The reel. Drawing a finger in circles around the spool winds the fish in and
-// tightens the line; leaving it alone eases the line and gives a little of it
-// back. The tension bar stands beside the spool, out from under the thumb that
-// turns it: it fills from the bottom and turns from green to amber to red as the
-// line tightens, and at red the line is about to give – that is the whole lesson
-// of the fight.
+// The reel. Drawing a finger in circles around the spool winds the fish in, and
+// that is the whole fight: nothing beside the spool has to be watched while the
+// child spins, and a hooked fish is never lost, only brought in.
 // The dead zone keeps the maths kind: a finger passing right across the spool's
 // centre covers a huge angle in one move, so those moves are ignored rather than
 // counted as a turn.
@@ -32,9 +29,6 @@ export function reelAngle(rect, point) {
 }
 
 function Reel({ fight, onTurn }) {
-  const tension = fight ? fight.tension : 0;
-  const level = tensionLevel(tension);
-  const fill = tensionPercent(tension);
   const angle = fight ? fight.angle : 0;
   const [turning, setTurning] = useState(false);
   const lastAngle = useRef(null);
@@ -61,7 +55,7 @@ function Reel({ fight, onTurn }) {
   }, [turning]);
 
   // Every pointer move counts the angle the finger covered since the last one
-  // and passes it on; the sea tick turns those degrees into line and tension.
+  // and passes it on; the sea tick turns those degrees into line wound in.
   function continueTurn(event) {
     const rect = event.currentTarget.getBoundingClientRect();
     if (lastAngle.current === null) {
@@ -95,14 +89,11 @@ function Reel({ fight, onTurn }) {
     dragged.current = 0;
   }
 
-  return <div className={`reel${turning ? ' turning' : ''}`} data-level={level}>
-    <div className="tension-meter" aria-hidden="true">
-      <div className="tension-fill" style={{ height: `${fill}%` }} />
-    </div>
+  return <div className={`reel${turning ? ' turning' : ''}`}>
     <button
       type="button"
       className="reel-spool"
-      aria-label="Sveiv inn fisken: dra fingeren rundt hjulet, trykk piltastene eller trykk på hjulet, og slipp når linjen strammer"
+      aria-label="Sveiv inn fisken: dra fingeren rundt hjulet, trykk piltastene eller trykk på hjulet"
       onPointerDown={(event) => {
         // Keep the finger: a child's thumb drifts while it draws circles, and
         // the reel should not let go of the line just because it slid off the
@@ -137,8 +128,6 @@ function Reel({ fight, onTurn }) {
       <span className="reel-handle" aria-hidden="true" style={{ rotate: `${angle}deg` }} />
       <span className="reel-label" aria-hidden="true">{turning ? 'Sveiv!' : 'Drei'}</span>
     </button>
-    {level === 'danger' && <span className="reel-warning" aria-hidden="true">Slipp!</span>}
-    {level === 'slack' && <span className="reel-warning slack-warning" aria-hidden="true">Drei!</span>}
   </div>;
 }
 
