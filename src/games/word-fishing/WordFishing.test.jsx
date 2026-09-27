@@ -822,25 +822,6 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeTruthy();
     expect(view.container.querySelector(`.reward-${SECOND_FIND.id}`)).toBeNull();
   });
-
-  it('moves an old sixteen-find save onto today\'s ten', () => {
-    // A save from the sixteen-find collection, four trips in. Only old index 3
-    // (the wreck) survives the move; the retired small finds are dropped.
-    window.localStorage.setItem(JOURNAL_KEY, JSON.stringify({
-      version: 1,
-      journal: { words: [], trips: 4, decorations: [0, 1, 2, 3, 4, 5, 6] },
-    }));
-
-    const view = render(<WordFishing />);
-
-    expect(view.container.querySelectorAll('.reward')).toHaveLength(1);
-    expect(view.container.querySelector(`.reward-${FIRST_FIND.id}`)).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: /Fangstboka/ }));
-    const book = screen.getByRole('dialog', { name: 'Fangstboka' });
-    // The retired finds are gone from the count, and the reef shows its ten.
-    expect(within(book).getByText(`1 av ${REEF_REWARDS.length}`)).toBeInTheDocument();
-  });
 });
 
 

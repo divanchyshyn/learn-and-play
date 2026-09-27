@@ -816,8 +816,8 @@
 .reef-row li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 5px 8px; border: 2px solid #cfe3ea; border-radius: 10px; background: #fbfdfe; font-size: .86rem; font-weight: 900; color: #285362; }
 .reef-row li.found { border-color: #63a375; background: #eef8f0; color: #2e8b57; }
 .reef-preview { flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; }
-/* Names like "Blekkspruten" are long: they wrap inside the box instead of
-   spilling out of it on a narrow screen. */
+/* Names like "Undervannsstasjonen" are long: they wrap inside the box instead
+   of spilling out of it on a narrow screen. */
 .reef-name { flex: 1 1 70px; min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
 .reef-preview svg { width: 100%; height: auto; }
 .reef-row li.missing .reef-preview { filter: brightness(0) opacity(.22); }

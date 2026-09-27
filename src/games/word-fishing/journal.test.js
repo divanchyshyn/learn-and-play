@@ -148,42 +148,15 @@ describe('word-fishing journal storage', () => {
 
   it('drops words the bank no longer has and collapses repeats', () => {
     const raw = JSON.stringify({
-      version: 2,
+      version: 1,
       journal: { words: ['fisk', 'fisk', 'finnesikke', 7, 'is'], trips: -2, decorations: [0, 0, -1, 'x', 3] },
     });
     expect(journalCodec.parse(raw)).toEqual({ words: ['fisk', 'is'], trips: 0, decorations: [0, 3] });
   });
 
   it('keeps any whole decoration index, so a bigger reef still reads', () => {
-    const raw = JSON.stringify({ version: 2, journal: { words: [], trips: 0, decorations: [REEF_REWARDS.length + 4] } });
+    const raw = JSON.stringify({ version: 1, journal: { words: [], trips: 0, decorations: [REEF_REWARDS.length + 4] } });
     expect(journalCodec.parse(raw).decorations).toEqual([REEF_REWARDS.length + 4]);
-  });
-
-  it('moves an old sixteen-find collection onto today\'s ten', () => {
-    // Old finds 0–2 and 4–6 were the retired small ones; old 3 was the wreck.
-    const raw = JSON.stringify({
-      version: 1,
-      journal: { words: [], trips: 4, decorations: [0, 1, 2, 3, 4, 5, 6] },
-    });
-    expect(journalCodec.parse(raw)).toEqual({ words: [], trips: 4, decorations: [0] });
-  });
-
-  it('keeps only the finds that still exist in a full old collection', () => {
-    const raw = JSON.stringify({
-      version: 1,
-      journal: { words: [], trips: 16, decorations: [...Array(16).keys()] },
-    });
-    expect(journalCodec.parse(raw).decorations).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-  });
-
-  it('drops a version 1 decoration that points past the old collection', () => {
-    const raw = JSON.stringify({
-      version: 1,
-      journal: { words: [], trips: 0, decorations: [3, 99, -2, 'x', 7.5, 8] },
-    });
-    // Old 3 (the wreck) and 8 (the submarine) move onto 0 and 2; 99 points at no
-    // old find, and the rest are not decoration indexes at all.
-    expect(journalCodec.parse(raw).decorations).toEqual([0, 2]);
   });
 });
 

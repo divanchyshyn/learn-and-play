@@ -15,7 +15,7 @@ import {
   fishWord, lineTarget, pullInBait, sailBoat, setReelHold, slipFish, strikeFish, tickSea,
 } from './sea.js';
 import {
-  createTripPlan, crateForWord, nextReward, tripComplete, tripRequest, unlockedRewards,
+  createTripPlan, crateForWord, rewardForTrip, tripComplete, tripRequest, unlockedRewards,
   withDelivery,
 } from './trip.js';
 import {
@@ -316,20 +316,17 @@ export function WordFishing() {
     const finished = tripComplete(nextTrip) && !tripComplete(trip);
     if (final || finished) {
       const trips = nextJournal.trips + 1;
-      // The find this trip adds is the first one the collection is missing, not
-      // the one at the trip's number: a collection saved from the sixteen-find
-      // seabed has more finished trips than finds, and keeps collecting.
-      const next = nextReward(nextJournal.decorations);
-      nextJournal = recordDecoration(recordTrip(nextJournal), next ? next.index : -1);
+      const reward = rewardForTrip(trips);
+      nextJournal = recordDecoration(recordTrip(nextJournal), reward ? trips - 1 : -1);
       sounds.fanfare();
       // A newly found treasure lands on the seabed with a glow of its own, so the
       // trip's reward is impossible to miss.
-      if (next) {
-        setNewRewardId(next.reward.id);
+      if (reward) {
+        setNewRewardId(reward.id);
         sounds.discovery();
       }
       // The final catch ends the whole game; the finale screen takes over.
-      if (!final) setTripCard({ tripNumber: trips, reward: next?.reward ?? null });
+      if (!final) setTripCard({ tripNumber: trips, reward });
     }
 
     setJournal(nextJournal);

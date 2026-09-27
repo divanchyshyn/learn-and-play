@@ -75,10 +75,7 @@ export function tripRequest() {
 // Every finished trip decorates the seabed a little more, in this fixed order:
 // the wreck first, then the big discoveries – the treasure chest, the submarine
 // and the station – with the smaller finds spread between them so something
-// exciting is never far away. Ten treasures in all; the six small finds the
-// collection used to start with (starfish, coral, shell, sea grass, crab and
-// octopus) are retired, and a collection saved from that version is moved onto
-// these ten (see migrateLegacyDecorationIndex).
+// exciting is never far away. Ten treasures in all.
 //
 // Positions are percentages of the sea box, so the scene and the tests agree on
 // where each reward lands. The list is laid out in three depth bands, which is
@@ -92,8 +89,8 @@ export function tripRequest() {
 //     but the structure itself always stays readable.
 //
 // Only indices are ever stored (see journal.js), and an index past the end of
-// this list is simply skipped when painting – so this list may grow without
-// breaking a saved game. Sizes are generous on purpose: the seabed is the
+// this list is simply skipped when painting – so this list may grow or shrink
+// without breaking a saved game. Sizes are generous on purpose: the seabed is the
 // child's own collection, and a small find is easy to miss; `--reward-scale` in
 // style.css shrinks every one of them together on a narrow screen.
 export const REEF_REWARDS = [
@@ -109,36 +106,9 @@ export const REEF_REWARDS = [
   { id: 'bottle', label: 'Flaskeposten', x: 52, y: 93.5, size: 42 },
 ];
 
-// The collection as version 1 of the journal stored it: sixteen finds, the six
-// retired ones among them. An old decoration index means the find at that
-// position in this list, so the index can be moved onto today's collection
-// without ever showing a child a find they did not earn.
-const LEGACY_REEF_REWARD_IDS = [
-  'starfish', 'coral', 'shell', 'wreck', 'seagrass', 'crab', 'octopus', 'chest',
-  'submarine', 'seahorse', 'jellyfish', 'station', 'bell', 'wheel', 'amphora', 'bottle',
-];
-
-// Where a decoration index from the old sixteen-find collection lives today, or
-// null when that find was retired. Called once for every saved journal (see
-// journal.js), never for an index this version wrote itself.
-export function migrateLegacyDecorationIndex(legacyIndex) {
-  const id = LEGACY_REEF_REWARD_IDS[legacyIndex];
-  if (!id) return null;
-  const index = REEF_REWARDS.findIndex((reward) => reward.id === id);
-  return index === -1 ? null : index;
-}
-
-// The treasure a finished trip adds next: the first find the collection is still
-// missing. A collection that already has every find gets null. The finds are
-// handed out exactly once and in order, and tying the award to what is missing
-// rather than to the trip number is what lets a moved saved collection – which
-// has more finished trips than finds – keep collecting the rest.
-export function nextReward(decorationIndexes) {
-  const found = new Set(decorationIndexes);
-  for (let index = 0; index < REEF_REWARDS.length; index += 1) {
-    if (!found.has(index)) return { index, reward: REEF_REWARDS[index] };
-  }
-  return null;
+export function rewardForTrip(tripNumber) {
+  const index = Math.max(1, tripNumber) - 1;
+  return REEF_REWARDS[index] ?? null;
 }
 
 // Asked for by the scene: the decorations a saved journal has earned, paired
