@@ -47,7 +47,6 @@ export const SPEED_MAX = 0.55;
 // come loose from the angler.
 export const LANES = [36, 45, 54, 63, 72, 81];
 export const WATERLINE = 22;
-export const FISH_COLORS = ['coral', 'blue', 'ochre', 'green', 'plum'];
 
 // The rig's points for one boat position, in percent of the sea box. The rod is
 // drawn in the scene's line layer from where the angler's hands are to the tip
@@ -148,9 +147,8 @@ function spawnFrom(fishes, order, orderPos, trip, unavailable, entryOffset = 0) 
   const freeLanes = LANES.filter((lane) => !fishes.some((fish) => fish.lane === lane));
   const dir = Math.random() < 0.5 ? -1 : 1;
   const slip = Math.random() * EDGE_SLIP_MAX + entryOffset;
-  // The palette turns with the fish counter, not with the shoal's current size:
-  // a replacement is always the next colour in the cycle, so the water keeps
-  // every colour alive instead of fading to one as the opening shoal swims on.
+  // The next id is one higher than every id on screen, so a fish arriving can
+  // never be confused with a fish still in the water: the id is the scene's key.
   const id = fishes.reduce((max, fish) => Math.max(max, fish.id), 0) + 1;
   return {
     fish: {
@@ -178,7 +176,6 @@ function spawnFrom(fishes, order, orderPos, trip, unavailable, entryOffset = 0) 
       hookX: 0,
       hookY: 0,
       crateId: null,
-      color: FISH_COLORS[(id - 1) % FISH_COLORS.length],
     },
     orderPos: drawn.nextPos,
   };
