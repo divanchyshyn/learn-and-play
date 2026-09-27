@@ -278,6 +278,10 @@
 .boat-rigging { fill: none; stroke: rgba(120, 96, 62, .65); stroke-width: 1.6; }
 .boat-sail-tie { fill: none; stroke: rgba(150, 118, 74, .6); stroke-width: 1.4; }
 .boat-flag-number { fill: #fffdf3; font-size: 22px; font-weight: 900; font-family: inherit; }
+/* The day's catch counter: a board on the hull, sailing with the boat. It is all
+   that is left of the order card that used to take up the sea's top corner. */
+.boat-trip-board { stroke: rgba(111, 75, 34, .7); stroke-width: 1.4; }
+.boat-trip-progress { fill: #fffdf3; font-size: 15px; font-weight: 900; font-family: inherit; }
 .boat-window-frame { fill: none; stroke: #7d5f36; stroke-width: 2.4; }
 .boat-strake { fill: none; stroke: rgba(122, 62, 40, .45); stroke-width: 1.6; }
 .boat-rivet { fill: #7c4a2f; }
@@ -536,21 +540,6 @@
 .fish.is-away .fish-art { transform: scaleX(var(--dir, 1)); animation: fish-sink .62s ease-in forwards; }
 @keyframes fish-sink { 0% { opacity: 1; } 100% { translate: 0 42px; scale: .55; opacity: 0; } }
 
-
-/* ---- The order card on the mast ------------------------------------------ */
-/* It is there to be read, never tapped: taps belong to the water beneath it. */
-.trip-order {
-  position: absolute; right: 10px; top: 10px; z-index: 12;
-  width: min(52%, 250px);
-  padding: 7px 11px 8px;
-  border: 3px solid #0c8fb6; border-radius: 12px;
-  background: rgba(255, 253, 243, .94);
-  box-shadow: 0 4px 0 rgba(20, 63, 78, .15);
-  pointer-events: none;
-}
-.trip-order-badge { margin: 0; color: #e26b44; font-size: .72rem; font-weight: 900; letter-spacing: .8px; text-transform: uppercase; }
-.trip-order-request { margin: 2px 0 3px; color: #0b7897; font-size: .9rem; font-weight: 900; line-height: 1.25; }
-.trip-order-progress { margin: 0; color: #285362; font-size: .78rem; }
 
 /* ---- The catch on deck --------------------------------------------------- */
 .catch-card {
@@ -842,8 +831,6 @@
   .fish { --fish-w: 84px; }
   .fish-tag { font-size: .88rem; padding: 1px 9px; }
   .boat { height: clamp(78px, 21%, 112px); }
-  .trip-order { width: min(58%, 200px); padding: 5px 8px 6px; }
-  .trip-order-request { font-size: .82rem; }
   .catch-card { top: 52%; padding: 12px 14px 11px; }
   .strike-ring { width: 84px; height: 84px; }
   .action-bar { bottom: 6px; }

@@ -3,7 +3,7 @@ import {
   CATCHES_PER_TRIP, REEF_REWARDS,
   acceptsWord, crateAcceptsWord, crateForWord, createTripPlan, isValidTripShape,
   readTrip, rewardForTrip,
-  tripComplete, tripRequest, unlockedRewards, withDelivery,
+  tripComplete, tripProgress, tripRequest, unlockedRewards, withDelivery,
 } from './trip.js';
 import { CATEGORY_CRATE_IDS, WORD_BANK, crateById } from './words.js';
 
@@ -47,6 +47,13 @@ describe('word-fishing trips', () => {
     expect(trip.collected).toBe(trip.goal);
     expect(tripComplete(trip)).toBe(true);
     expect(withDelivery(trip).collected).toBe(trip.goal);
+  });
+
+  it('counts the day the way the counter on the boat reads it', () => {
+    const trip = createTripPlan(1);
+    expect(tripProgress(trip)).toBe(`0 av ${CATCHES_PER_TRIP}`);
+    expect(tripProgress(withDelivery(trip))).toBe(`1 av ${CATCHES_PER_TRIP}`);
+    expect(tripProgress({ ...trip, collected: trip.goal })).toBe(`${trip.goal} av ${CATCHES_PER_TRIP}`);
   });
 
   it('says out loud what every trip asks for', () => {

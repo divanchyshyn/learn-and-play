@@ -12,8 +12,10 @@ import { paint } from './SeaArtDefs.jsx';
 // boot-top stripe, a bow post, a transom, a porthole, a life ring, a wheelhouse
 // with framed glass, a lamp, an exhaust pipe, rigging and a furled sail, and the
 // crew's gear on deck – a fish crate at the bow (where a hooked fish is landed),
-// a net bag and a bucket by the counter, and a rope coil on the roof.
-export function BoatArt({ tripNumber }) {
+// a net bag and a bucket by the counter, and a rope coil on the roof. The hull
+// also carries the day's catch counter on a little board, so the trip progress
+// sails with the boat instead of taking up room on the water.
+export function BoatArt({ tripNumber, tripProgress }) {
   return <svg className="boat-drawing" viewBox="0 0 220 190" aria-hidden="true" focusable="false">
     {/* Rigging first: everything else stands in front of it. */}
     <path className="boat-rigging" d="M150 16 L12 112" />
@@ -66,6 +68,11 @@ export function BoatArt({ tripNumber }) {
     <path className="boat-stem" d="M4 100 C 12 104 18 112 20 124 C 22 136 20 144 16 150 L4 142 C 8 128 6 112 4 100 Z" fill={paint('wood-deep')} />
     <path className="boat-transom" d="M200 118 L214 120 L216 140 C 216 150 211 155 205 157 L198 154 C 196 142 197 128 200 118 Z" fill={paint('wood-deep')} />
     <path className="boat-nameplate" d="M202 124 L213 126 L213 133 L202 132 Z" fill={paint('hull-band')} />
+    {/* The day's catch counter, painted on a board on the hull: how many of the
+        trip's four catches are already in their crates. It is all that is left
+        of the order card that used to sit on the water. */}
+    <path className="boat-trip-board" d="M40 129 L126 133 L126 148 L40 144 Z" fill={paint('wood-deep')} />
+    <text className="boat-trip-progress" x="83" y="143.5" textAnchor="middle">{tripProgress}</text>
 
     {/* The deck: planked, with a bulwark rail and stanchions. */}
     <path className="boat-deck" d="M7 108 L212 116 L212 127 L9 120 Z" fill={paint('deck')} />
