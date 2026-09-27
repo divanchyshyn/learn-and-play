@@ -4,7 +4,7 @@ import { TIMING, WordFishing, seaStage, stageHint } from './WordFishing.jsx';
 import {
   DELIVER_TICKS, FISH_ON_SCREEN, TICK_MS, castBait, createSea, strikeFish,
 } from './sea.js';
-import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, RIG_DX, RIG_Y, SLACK_TICKS } from './rig.js';
+import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, RIG_DX, RIG_Y, SLACK_TICKS, TENSION_RISE } from './rig.js';
 import {
   ALL_WORDS_MESSAGE, JOURNAL_KEY, TRIP_KEY, createJournal, journalCodec, tripCodec,
 } from './journal.js';
@@ -85,7 +85,7 @@ function castAndWaitForBite(view, guard = 400) {
   return waitForBite(view, guard);
 }
 
-// Pump the crank exactly as a child would: hold while the tension arc is not
+// Pump the crank exactly as a child would: hold while the tension bar is not
 // red, let go while it is. Returns when the fight is over either way.
 function pump(view, guard = 400) {
   for (let step = 0; step < guard; step += 1) {
@@ -439,18 +439,18 @@ describe('word-fishing the fight and the landing', () => {
     const onLine = view.container.querySelector('.fish-hooked');
     expect(onLine).toBeTruthy();
     expect(onLine.querySelector('.fish-tag')).toBeNull();
-    expect(view.container.querySelector('.tension-arc')).toBeTruthy();
+    expect(view.container.querySelector('.tension-meter')).toBeTruthy();
     expect(view.container.querySelector('.fishing-line')).toBeTruthy();
 
     // Holding the crank answers the finger at once…
     fireEvent.pointerDown(crank(view));
     expect(view.container.querySelector('.reel.holding')).toBeTruthy();
     ticks(1);
-    // …and tightens the line, which the arc paints.
-    const offsetAfterOneTick = Number(view.container.querySelector('.arc-fill').getAttribute('stroke-dashoffset'));
+    // …and tightens the line, which the bar paints.
+    const fillAfterOneTick = view.container.querySelector('.tension-fill').style.height;
     ticks(3);
-    expect(Number(view.container.querySelector('.arc-fill').getAttribute('stroke-dashoffset')))
-      .toBeLessThan(offsetAfterOneTick);
+    expect(parseFloat(view.container.querySelector('.tension-fill').style.height))
+      .toBeGreaterThan(parseFloat(fillAfterOneTick));
     fireEvent.pointerUp(crank(view));
 
     // A steady pump always lands the fish.
@@ -467,6 +467,32 @@ describe('word-fishing the fight and the landing', () => {
     expect(screen.queryByRole('button', { name: /Hør ordet/ })).toBeNull();
     // The crates can be answered now.
     expect(crateElement(view, categoryOf(card.querySelector('.catch-word').textContent))).toBeEnabled();
+  });
+
+  it('shows the line tension on a bar beside the crank, not around the button', () => {
+    const view = render(<WordFishing />);
+    expect(castAndWaitForBite(view)).toBe(true);
+    fireEvent.click(view.container.querySelector('.strike-ring'));
+
+    // The thumb covers the crank, so the meter must live beside it: a sibling of
+    // the button, never part of the box the finger presses.
+    const meter = view.container.querySelector('.tension-meter');
+    const button = crank(view);
+    expect(meter).toBeTruthy();
+    expect(button.contains(meter)).toBe(false);
+    expect(meter.contains(button)).toBe(false);
+    expect(meter.parentElement).toBe(button.parentElement);
+
+    // A fresh hook is slack: the bar stands empty and reads as slack…
+    const fill = () => view.container.querySelector('.tension-fill').style.height;
+    expect(fill()).toBe('0%');
+    expect(view.container.querySelector('.reel').dataset.level).toBe('slack');
+
+    // …and it fills from the bottom as the child winds.
+    fireEvent.pointerDown(button);
+    ticks(3);
+    expect(fill()).toBe(`${Math.round(TENSION_RISE * 3 * 100)}%`);
+    fireEvent.pointerUp(button);
   });
 
   it('lets the fish throw the hook if the child never winds', () => {
@@ -507,7 +533,7 @@ describe('word-fishing the fight and the landing', () => {
       sawWarning = sawWarning || Boolean(view.container.querySelector('.reel-warning'));
     }
 
-    // The arc turned red, the warning showed, and then the line gave way.
+    // The bar turned red, the warning showed, and then the line gave way.
     expect(sawWarning).toBe(true);
     expect(view.container.querySelector('.reel-crank')).toBeNull();
     expect(view.container.querySelector('.fish-splash')).toBeTruthy();

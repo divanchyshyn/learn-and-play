@@ -5,7 +5,7 @@ import {
   NIBBLE_EACH, REEL_RATE, RIG_DX, SLACK_TENSION, SLACK_TICKS, SNAP_TENSION, TENSION_DANGER, TENSION_FALL,
   TENSION_NEAR, TENSION_RISE, clampBoatX, createBait, createBoat, createFight, dropPoint, dropSpot,
   fightProgress, isSailing, sailTargetForTap, sailTo, setHolding, startNibble, stepBait,
-  stepBoat, stepFight, tensionLevel,
+  stepBoat, stepFight, tensionLevel, tensionPercent,
 } from './rig.js';
 
 // An explicit random source: castSpot and startNibble take one so a test never
@@ -264,6 +264,17 @@ describe('word-fishing the fight', () => {
     expect(tensionLevel(TENSION_NEAR - 0.01)).toBe('safe');
     expect(tensionLevel(TENSION_NEAR)).toBe('near');
     expect(tensionLevel(TENSION_DANGER)).toBe('danger');
+  });
+
+  it('fills the tension bar from empty to full, clamped inside it', () => {
+    expect(tensionPercent(0)).toBe(0);
+    expect(tensionPercent(0.5)).toBe(50);
+    expect(tensionPercent(SNAP_TENSION)).toBe(100);
+    // A missing fight, and any value past the ends, still paint inside the bar.
+    expect(tensionPercent(null)).toBe(0);
+    expect(tensionPercent(undefined)).toBe(0);
+    expect(tensionPercent(-0.4)).toBe(0);
+    expect(tensionPercent(1.7)).toBe(100);
   });
 
   it('lets the fish throw the hook when the line is left slack', () => {
