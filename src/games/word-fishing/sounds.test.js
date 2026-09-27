@@ -30,7 +30,6 @@ describe('word-fishing sound settings', () => {
       sounds.bite();
       sounds.hook();
       sounds.reel();
-      sounds.snap();
       sounds.plop();
       sounds.crate();
       sounds.newWord();

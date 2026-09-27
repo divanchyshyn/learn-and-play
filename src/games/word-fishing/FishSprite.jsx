@@ -25,7 +25,7 @@ export function FishSprite({ fish, boat }) {
     `species-${species}`,
     `fish-${fish.status}`,
     fish.status === 'delivered' ? 'is-away' : '',
-    fish.escaped || fish.thrown || fish.spat ? 'is-splashing' : '',
+    fish.spat ? 'is-splashing' : '',
   ].filter(Boolean).join(' ');
 
   return <div className={classes} style={{ left: `${x}%`, top: `${y}%`, '--dir': fish.dir }}>
@@ -39,6 +39,6 @@ export function FishSprite({ fish, boat }) {
     {(fish.status === 'nibbling' || fish.status === 'biting') && <span className="fish-bubbles" aria-hidden="true">{'°◦'}</span>}
     {fish.status === 'biting' && <span className="fish-mark bite-mark" aria-hidden="true">❗</span>}
     {fish.status === 'aboard' && <span className="aboard-mark" aria-hidden="true">🎣</span>}
-    {(fish.escaped || fish.thrown || fish.spat) && <span className="fish-splash" aria-hidden="true" />}
+    {fish.spat && <span className="fish-splash" aria-hidden="true" />}
   </div>;
 }

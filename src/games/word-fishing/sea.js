@@ -90,9 +90,8 @@ function nearestLane(y) {
 // Percent coordinates for painting one fish. A swimming fish is simply where it
 // swims; one that has taken an interest glides to the bait and jostles it; one
 // on the line is hauled from the spot where it took the bait towards the boat's
-// net, and it fights the whole way – the tighter the line, the wider it
-// thrashes (`tension` is mirrored from the fight each tick, `struggle` is a
-// plain tick counter that keeps the thrashing moving).
+// net, swaying as it comes (`struggle` is a plain tick counter that keeps the
+// sway moving).
 export function fishPosition(fish, boat = null) {
   if (fish.status === 'swim') return { x: fish.x, y: fish.lane };
   if (fish.status === 'chasing') {
@@ -113,10 +112,9 @@ export function fishPosition(fish, boat = null) {
   const net = netPoint(boat ?? HOME_BOAT);
   const hauled = reach({ x: fish.hookX, y: fish.hookY }, net, fish.distance ?? 0);
   if (fish.status !== 'hooked') return hauled;
-  const swing = FIGHT_SWING * (0.35 + 0.65 * (fish.tension ?? 0));
   return {
-    x: hauled.x + swing * Math.sin(fish.struggle * 0.8),
-    y: hauled.y + swing * 0.7 * Math.sin(fish.struggle * 1.25),
+    x: hauled.x + FIGHT_SWING * 0.6 * Math.sin(fish.struggle * 0.8),
+    y: hauled.y + FIGHT_SWING * 0.42 * Math.sin(fish.struggle * 1.25),
   };
 }
 
@@ -165,13 +163,10 @@ function spawnFrom(fishes, order, orderPos, trip, unavailable, entryOffset = 0) 
       chaseFrom: null,
       chaseTo: null,
       chaseT: 0,
-      // How far the fight has come and how tight the line is – mirrored from
-      // the fight each tick so the scene can paint one fish from one object.
+      // How far the fight has come – mirrored from the fight each tick so the
+      // scene can paint one fish from one object.
       distance: 0,
-      tension: 0,
       struggle: 0,
-      escaped: false,
-      thrown: false,
       spat: false,
       hookX: 0,
       hookY: 0,
@@ -263,9 +258,9 @@ export function canPullIn(sea) {
 
 function stepFish(fish) {
   if (fish.status === 'swim') {
-    // A swimming fish keeps its lane, and the one-tick marks of whatever
-    // happened to it last tick are wiped away here.
-    return { ...fish, x: fish.x + fish.dir * fish.speed, escaped: false, thrown: false, spat: false };
+    // A swimming fish keeps its lane, and the one-tick splash mark of the bait
+    // it let go of last tick is wiped away here.
+    return { ...fish, x: fish.x + fish.dir * fish.speed, spat: false };
   }
   if (fish.status === 'chasing') {
     // The swim over to the bait: one fixed share of the way each tick, so the
@@ -279,11 +274,10 @@ function stepFish(fish) {
 }
 
 // A fish let go back into the water. It swims on from the spot it was at, in
-// the lane closest to it, free of the bait and the fight. `flag` marks the
-// one-tick splash the scene answers with: 'escaped' for a line that gave way,
-// 'thrown' for a hook a slack line let it shake out, 'spat' for a bait it let go
-// of, and nothing at all for a line pulled up.
-function returnToSwim(fish, spot, flag) {
+// the lane closest to it, free of the bait and the fight. `spat` marks the
+// one-tick splash the scene answers with when a fish drops a bait it was tasting
+// – a line pulled up, or a catch slipped back over the side, is silent.
+function returnToSwim(fish, spot, spat = false) {
   return {
     ...fish,
     status: 'swim',
@@ -294,11 +288,8 @@ function returnToSwim(fish, spot, flag) {
     chaseTo: null,
     chaseT: 0,
     distance: 0,
-    tension: 0,
     struggle: 0,
-    escaped: flag === 'escaped',
-    thrown: flag === 'thrown',
-    spat: flag === 'spat',
+    spat,
     hookX: 0,
     hookY: 0,
     crateId: null,
@@ -337,7 +328,7 @@ export function tickSea(sea) {
     // Nobody answered the bite in time: the fish lets go of the bait and swims
     // on, and the float keeps waiting for the next one. Nothing is counted.
     const spot = { x: bait.x, y: bait.y };
-    fishes = fishes.map((fish) => (fish.id === biter ? returnToSwim(fish, spot, 'spat') : fish));
+    fishes = fishes.map((fish) => (fish.id === biter ? returnToSwim(fish, spot, true) : fish));
   }
 
   // Something in the shoal notices the bait and comes over for it.
@@ -372,29 +363,15 @@ export function tickSea(sea) {
     const step = stepFight(fight);
     fight = step.fight;
     // Mirror the fight onto the fish, so the scene paints one fish from one
-    // object – how far it has come, and how tight the line is.
+    // object – how far it has come.
     fishes = fishes.map((fish) => (fish.id === fight.fishId
-      ? { ...fish, distance: fight.distance, tension: fight.tension }
+      ? { ...fish, distance: fight.distance }
       : fish));
     if (step.ended === 'landed') {
       // In the net: the reading task takes over from here.
       fishes = fishes.map((fish) => (fish.id === fight.fishId
-        ? { ...fish, status: 'aboard', distance: 1, tension: 0, struggle: 0 }
+        ? { ...fish, status: 'aboard', distance: 1, struggle: 0 }
         : fish));
-      fight = null;
-    } else if (step.ended === 'snapped') {
-      // The line gave way. The fish slips back into the water where it was,
-      // with a splash, and the child is free to cast again at once.
-      const target = fishes.find((fish) => fish.id === fight.fishId);
-      const spot = target ? fishPosition(target, boat) : { x: boat.x, y: 45 };
-      fishes = fishes.map((fish) => (fish.id === fight.fishId ? returnToSwim(fish, spot, 'escaped') : fish));
-      fight = null;
-    } else if (step.ended === 'thrown') {
-      // The line was left slack, so the fish shook the hook out. Same friendly
-      // ending as a broken line: it swims on, and the line can go out again.
-      const target = fishes.find((fish) => fish.id === fight.fishId);
-      const spot = target ? fishPosition(target, boat) : { x: boat.x, y: 45 };
-      fishes = fishes.map((fish) => (fish.id === fight.fishId ? returnToSwim(fish, spot, 'thrown') : fish));
       fight = null;
     }
   }
@@ -461,7 +438,7 @@ export function pullInBait(sea) {
   if (!sea.bait) return sea;
   const spot = { x: sea.bait.x, y: sea.bait.y };
   const fishes = sea.bait.fishId
-    ? sea.fishes.map((fish) => (fish.id === sea.bait.fishId ? returnToSwim(fish, spot, null) : fish))
+    ? sea.fishes.map((fish) => (fish.id === sea.bait.fishId ? returnToSwim(fish, spot) : fish))
     : sea.fishes;
   return { ...sea, fishes, bait: null };
 }
@@ -481,10 +458,7 @@ export function strikeFish(sea) {
       chaseTo: null,
       chaseT: 0,
       distance: 0,
-      tension: 0,
       struggle: 0,
-      escaped: false,
-      thrown: false,
       spat: false,
     }
     : fish));
@@ -492,7 +466,7 @@ export function strikeFish(sea) {
 }
 
 // Turning the reel is its own moment, so the spool answers the finger at once.
-// The next sea tick then turns the degrees it collected into line and tension.
+// The next sea tick then turns the degrees it collected into line wound in.
 export function rotateReel(sea, degrees) {
   if (!sea.fight) return sea;
   const fight = turnReel(sea.fight, degrees);
@@ -505,7 +479,7 @@ export function rotateReel(sea, degrees) {
 export function slipFish(sea, fishId) {
   const fish = sea.fishes.find((entry) => entry.id === fishId);
   if (!fish || fish.status === 'swim' || fish.status === 'delivered') return sea;
-  return mapFish(sea, fishId, (entry) => returnToSwim(entry, netPoint(sea.boat), null));
+  return mapFish(sea, fishId, (entry) => returnToSwim(entry, netPoint(sea.boat)));
 }
 
 // Drop a catch into a crate. The fish sinks down into it, and a replacement

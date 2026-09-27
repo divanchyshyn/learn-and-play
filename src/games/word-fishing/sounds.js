@@ -58,12 +58,6 @@ export const sounds = {
     tone({ freq: 620, freqEnd: 1180, duration: 0.18, type: 'triangle', volume: 0.18 });
     tone({ freq: 1240, delay: 0.1, duration: 0.16, type: 'sine', volume: 0.12 });
   },
-  // The line snaps: a sharp downward flick, playful rather than sad. It only
-  // means the fish swims on and the line can be cast again.
-  snap() {
-    tone({ freq: 700, freqEnd: 150, duration: 0.2, type: 'square', volume: 0.1 });
-    tone({ freq: 1100, freqEnd: 300, delay: 0.05, duration: 0.14, type: 'sine', volume: 0.08 });
-  },
   // Neutral little blub for "the fish swims on" – deliberately tiny and soft.
   blub() {
     tone({ freq: 230, duration: 0.08, type: 'sine', volume: 0.07 });
