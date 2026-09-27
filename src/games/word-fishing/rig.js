@@ -191,7 +191,7 @@ export const LAND_DISTANCE = 1; // at or past this the fish is aboard
 // fish – and one who pumps properly never comes near it.
 export const SLACK_TENSION = 0.12; // at or below this the line is slack
 export const SLACK_TICKS = 19; // ticks of slack before the hook comes loose
-// The arc turns amber here and red here. The red band is the warning: about half
+// The bar turns amber here and red here. The red band is the warning: about half
 // a second of line left before it really gives way, which is a child's whole
 // margin for easing off.
 export const TENSION_NEAR = 0.45;
@@ -243,6 +243,13 @@ export function tensionLevel(tension) {
   if (tension >= TENSION_DANGER) return 'danger';
   if (tension >= TENSION_NEAR) return 'near';
   return 'safe';
+}
+
+// How full the tension bar is: a whole percent of its height, clamped to the
+// 0–100 a bar can show, so a stray value can never paint outside the meter.
+export function tensionPercent(tension) {
+  const clamped = Math.min(1, Math.max(0, tension ?? 0));
+  return Math.round(clamped * 100);
 }
 
 // How far the fight has come, as a plain 0–1 number the scene can paint.
