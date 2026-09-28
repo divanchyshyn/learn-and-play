@@ -219,6 +219,12 @@ describe('word-fishing the opening screen', () => {
     expect(view.container.querySelector('.sea-floor .reef-rock img')).toBeTruthy();
     expect(view.container.querySelector('.sea-floor .reef-anchor img')).toBeTruthy();
     expect(view.container.querySelector('.sea-waves')).toBeTruthy();
+    expect(view.container.querySelector('.sea-glint')).toBeTruthy();
+    // The glint shares the strip's layer, so what paints it over the strip is the
+    // order the stage mounts: the light of a surface belongs on top of the surface.
+    expect(view.container.querySelector('.sea-glint')
+      .compareDocumentPosition(view.container.querySelector('.sea-waves')) & Node.DOCUMENT_POSITION_PRECEDING)
+      .toBeTruthy();
     expect(view.container.querySelector('.sea-snow .snow-flake')).toBeTruthy();
 
     // Every photograph the scene mounts comes from the game's own asset folder,

@@ -3,13 +3,16 @@ import { Kelp } from './SeaFloor.jsx';
 
 // The water itself: a photograph of the water column with the light falling in
 // from the surface at the top, the surface line as a repeating strip of real
-// water, drifting marine snow, the kelp at the edge, and a dim shoal far away.
+// water, the sun's own light caught by that surface, drifting marine snow, the
+// kelp at the edge, and a dim shoal far away.
 //
 // The water plate is pasted with `cover`, anchored to its top edge, so the sunlit
-// surface stays where the surface strip puts the waterline and the picture is
-// never stretched. The strip repeats sideways – its own two halves are mirrors of
-// each other (see the asset pipeline) – and drifts slowly, which is what gives a
-// still photograph its movement.
+// surface stays where the surface strip puts the waterline, and neither the plate
+// nor the strip is ever stretched. The strip repeats sideways – its own two halves
+// are mirrors of each other (see the asset pipeline) – and it stays still, because
+// that band is the horizon: the water out there is the furthest in the scene and
+// travels nowhere in view. What moves on the line is the light on it, not the water
+// (see style.css).
 
 const SNOW = [
   { left: 7, size: 5, delay: 0, duration: 15 },
@@ -81,8 +84,12 @@ export function WaterBody() {
   </div>;
 }
 
-// The surface: a strip of real water, repeated sideways and drifting. It is the
-// only strip in the scene, and it is what tells a child where the water starts.
+// The surface: a strip of real water, repeated sideways so it spans a sea that is
+// many tiles wide, with its own two edges faded into the sky above and the water
+// below (see style.css). It is the only strip in the scene, and it is what tells a
+// child where the water starts. It never moves: this is the sea's own furthest
+// water, on the horizon, and a waterline that travelled sideways would read as a
+// current running past the boat, however slowly it went.
 //
 // Its picture is the sea just below the horizon, so it holds no sky and, above
 // all, no sun: the sun belongs to the sky plate above, and a repeated strip that
@@ -95,4 +102,15 @@ export function WaveLine() {
     aria-hidden="true"
     style={{ '--surface-photo': `url(${PHOTOS.surface})` }}
   />;
+}
+
+// The sun's light caught by that surface: a warm wash with a small pale core, both
+// straddling the waterline. It is the one layer that belongs to no photograph - it
+// exists because the sky plate's sun and the water plate's bright column are the
+// same light, and the strip between them cannot carry it across the line on its
+// own. It sits over the strip and under everything that floats on the water (see
+// style.css), and it stays exactly where it is: the one thing that moves up there
+// is its own brightness, a slow breathe of light, which is how real glare behaves.
+export function SurfaceGlint() {
+  return <span className="sea-glint" aria-hidden="true" />;
 }

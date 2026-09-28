@@ -4,7 +4,7 @@ import { RIG_DX, RIG_Y } from './rig.js';
 import { BoatArt } from './BoatArt.jsx';
 import { Anchor, Driftwood, RockCluster, SandFloor, Stones } from './SeaFloor.jsx';
 import { SkyLayer } from './SeaSky.jsx';
-import { WaterBody, WaveLine } from './SeaWater.jsx';
+import { WaterBody, WaveLine, SurfaceGlint } from './SeaWater.jsx';
 import { ReefArt } from './ReefRewards.jsx';
 
 // The whole stage: sky and water, the seabed with whatever the child has
@@ -20,7 +20,8 @@ import { ReefArt } from './ReefRewards.jsx';
 // picture (see photos.js):
 //
 //   SeaSky      – the sky, the drifting clouds and the gulls
-//   SeaWater    – the water column, the surface strip, the light, the snow, the kelp
+//   SeaWater    – the water column, the surface strip, the sun's glint on it,
+//                 the light, the snow, the kelp
 //   SeaFloor    – the sand, rocks, the old anchor, driftwood, stones
 //   ReefRewards – the ten treasures a finished trip unlocks
 //   BoatArt     – the boat, the angler, the flag and the counter on the hull
@@ -203,6 +204,7 @@ export function SeaScene({
     <SkyLayer />
     <WaterBody />
     <WaveLine />
+    <SurfaceGlint />
     <SeaBed decorations={decorations} newRewardId={newRewardId} />
     <SailMarker boat={boat} nudge={nudge} />
     <Boat boat={boat} tripNumber={tripNumber} tripProgress={tripProgress} />

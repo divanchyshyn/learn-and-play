@@ -184,6 +184,31 @@ the float. They live in `src/games/word-fishing/photo-assets/`, imported by
   the child sees: a near-square aerial photograph that was also a sky band filled
   the sky with open ocean, and a strip that carried its own horizon printed a row
   of suns along the waterline.
+- The surface tile is the one picture that is also graded for its place in the
+  scene: it is a strip of water between dawn light and a sunlit water column, so it
+  is re-lit warm along its top rows (where it meets the sky) and cool along its
+  bottom rows (where it meets the water plate), and its own narrow luminance range
+  is stretched out of the flat slate the photograph was shot as. The grade is a
+  duotone of `rgb(58 104 138)` to `rgb(176 214 232)` over the tile's own 56-108
+  luminance range, with `rgb(214 176 152)` blended 40% into its top 22 of 52 rows. A
+  strip that is left as photographed cuts a dark, flat bar through the sun's
+  reflection, with both edges visible in every direction. The light that carries the
+  eye across that line belongs to the scene, not to the picture: the sun's glint
+  (`.sea-glint`, over the strip, under anything afloat) and the water's own veil
+  (`.sea-water::before`). Nothing on that line travels sideways. The band *is* the
+  horizon - the furthest water in the scene, where real crests foreshorten into an
+  almost unbroken line - so a strip scrolling along it can only read as a current
+  running past the boat, and slowing it down would only make a slower river. It was
+  the drift that made the waterline confusing, and stillness is the fix; the strip
+  repeats to span the width and moves nowhere, and the only movement up there is the
+  glint's own slow breathe, which changes brightness and never position. The band's
+  own top and bottom edges are faded with a `mask-image`, the same way the sand
+  plate's top edge is: a drawn edge is the one hard line at the horizon - a bright
+  seam across the sky's haze and a pale shelf over the sunlit water - and it is what
+  makes the band read as a slate bar laid on the sea. Feathering the edges lets the
+  sky's light and the water's own ripples carry the eye across the line, and the
+  middle third of the band stays at full strength, so the waterline is still real
+  water rather than a haze.
 - A photograph is **never stretched**: a sprite box changes size, the picture
   inside keeps its proportions (`height: auto` or `background-size: contain`), and
   a plate is `cover` with the position that keeps the part that matters. A plate's
@@ -211,7 +236,9 @@ the float. They live in `src/games/word-fishing/photo-assets/`, imported by
   copy the `.webp` in, import it in `photos.js` and reference it from the module
   that draws it, extend the test that guards it (`FishArt.test.jsx`,
   `ReefRewards.test.jsx`), then run lint, tests and the build and confirm the file
-  is emitted to `dist/assets/`.
+  is emitted to `dist/assets/`. A picture smaller than Vite's 4 KB inline limit -
+  the waterline strip is one - is embedded in the bundle as a data URI instead, so
+  check that bundle for it rather than looking for a file in `dist/assets/`.
 
 ## Testing
 
