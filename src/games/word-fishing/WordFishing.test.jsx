@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, cleanup, within } from '@testing-library/react';
 import { TIMING, WordFishing, seaStage, stageHint } from './WordFishing.jsx';
 import {
-  DELIVER_TICKS, FISH_ON_SCREEN, TICK_MS, castBait, createSea, strikeFish,
+  DELIVER_TICKS, FISH_ON_SCREEN, LANES, TICK_MS, castBait, createSea, strikeFish,
 } from './sea.js';
 import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, RIG_DX, RIG_Y } from './rig.js';
 import {
@@ -115,7 +115,27 @@ function waitForBite(view, guard = 400) {
   return false;
 }
 
+// The bait only reaches a fish already swimming nearby (see BAIT_REACH in
+// rig.js), so a cast at the boat's home spot looks at empty water. Sailing to a
+// fish is what the game asks the child to do, and what these tests do too: tap
+// the water a little to the left of a fish that is on screen – the float hangs
+// off the rod's own column, and the fish keeps swimming while the boat arrives –
+// and wait for the boat to settle on the spot.
+function sailNearFish(view, guard = 200) {
+  const swimmers = fishElements(view).filter((element) => element.className.includes('fish-swim'));
+  if (swimmers.length === 0) return;
+  const onScreen = swimmers.filter((element) => {
+    const x = parseFloat(element.style.left);
+    return x > 10 && x < 90;
+  });
+  const aim = (onScreen.length > 0 ? onScreen : swimmers)
+    .reduce((best, element) => (parseFloat(element.style.left) < parseFloat(best.style.left) ? element : best));
+  tapWater(view, parseFloat(aim.style.left) - 8);
+  for (let step = 0; step < guard && view.container.querySelector('.sail-marker'); step += 1) ticks(1);
+}
+
 function castAndWaitForBite(view, guard = 400) {
+  sailNearFish(view);
   fireEvent.click(view.container.querySelector('.cast-button'));
   return waitForBite(view, guard);
 }
@@ -267,7 +287,14 @@ describe('word-fishing the opening screen', () => {
     expect(seaStage(bait)).toBe('bait');
     expect(stageHint(bait)).toMatch(/flyr utover/i);
 
-    const running = { ...bait, bait: { ...bait.bait, phase: 'waiting', ticks: 0 } };
+    // A float in empty water says so: waiting longer changes nothing until a fish
+    // swims into the bait's reach, so the child is sent to the fish instead.
+    const empty = { ...bait, bait: { ...bait.bait, phase: 'waiting', ticks: 0 } };
+    expect(stageHint(empty)).toMatch(/ingen fisk/i);
+
+    // With a fish inside the reach of that float, it is simply waiting for it.
+    const withinReach = { id: 99, status: 'swim', x: empty.bait.x + 4, lane: LANES[0] };
+    const running = { ...empty, fishes: [...empty.fishes, withinReach] };
     expect(stageHint(running)).toMatch(/vent/i);
 
     // A bite, a fight, a catch on deck, a finished trip and the finale each get
@@ -375,6 +402,8 @@ describe('word-fishing sailing the boat', () => {
 describe('word-fishing the bait and the bite', () => {
   it('throws the bait to a fresh spot, then waits for a fish to want it', () => {
     const view = render(<WordFishing />);
+    // Sail to a fish first: the bait only reaches a fish swimming nearby.
+    sailNearFish(view);
     fireEvent.click(view.container.querySelector('.cast-button'));
 
     // The cast itself: the float is in flight and the line reaches for it.
@@ -421,8 +450,41 @@ describe('word-fishing the bait and the bite', () => {
     expect(within(view.container.querySelector('.action-bar')).getByRole('button', { name: /Napp/ })).toBeInTheDocument();
   });
 
+  it('leaves a cast in empty water alone, and says why', () => {
+    const view = render(<WordFishing />);
+    // Every fish starts off stage, so a cast at the boat's home spot lands in
+    // water nothing swims in: no fish notices it, however long it lies there.
+    fireEvent.click(view.container.querySelector('.cast-button'));
+    ticks(CAST_TICKS + 30);
+    expect(view.container.querySelector('.fishing-float').className).toContain('float-waiting');
+    expect(view.container.querySelector('.fish-chasing')).toBeNull();
+    expect(view.container.querySelector('.strike-ring')).toBeNull();
+    expect(hintText(view)).toMatch(/ingen fisk/i);
+
+    // A tap on the water gets the same advice, because a child tapping there is
+    // very likely trying to sail to a fish they can see.
+    tapWater(view, 70);
+    expect(view.container.querySelector('.sea-nudge').textContent).toMatch(/ingen fisk/i);
+    expect(boatLeft(view)).toBe(`${BOAT_START_X}%`);
+
+    // Nothing is counted and nothing is lost: the float is simply far from the
+    // shoal, and the day is untouched.
+    expect(boatProgress(view)).toBe('0 av 4');
+    expect(view.container.querySelector('.dock-hint-tally').textContent).toMatch(/^0 av \d+ ord i fangstboka/);
+
+    // And when a fish finally swims into reach, the float is taken at once: a
+    // float in empty water is never a dead end, only a quiet spot.
+    let chaser = null;
+    for (let guard = 0; guard < 400 && !chaser; guard += 1) {
+      chaser = view.container.querySelector('.fish-chasing');
+      if (!chaser) ticks(1);
+    }
+    expect(chaser).toBeTruthy();
+  });
+
   it('sets the hook only while the float is under', () => {
     const view = render(<WordFishing />);
+    sailNearFish(view);
     fireEvent.click(view.container.querySelector('.cast-button'));
 
     // A tap while the bait is still in flight is not a strike: the line is out,
@@ -655,10 +717,13 @@ describe('word-fishing the fight and the landing', () => {
     fireEvent.click(view.container.querySelector('.strike-ring'));
     expect(view.container.querySelector('.reel-spool')).toBeTruthy();
 
+    // The water holds the boat where it fished from, wherever that is: a stray
+    // tap is answered with a nudge, not with a sail.
+    const held = boatLeft(view);
     tapWater(view, 80);
     expect(view.container.querySelector('.sea-nudge')).toBeTruthy();
     expect(view.container.querySelector('.sail-marker')).toBeNull();
-    expect(boatLeft(view)).toBe(`${BOAT_START_X}%`);
+    expect(boatLeft(view)).toBe(held);
 
     // The fight can still be won: nothing was lost to the stray tap.
     expect(pump(view)).toBe(true);
@@ -754,13 +819,15 @@ describe('word-fishing catch and reward', () => {
     expect(view.container.querySelector('.fish-aboard')).toBeTruthy();
 
     // The catch card is what the child acts on now: the water is not a control,
-    // the float is gone, and no fish anywhere is tappable.
+    // the float is gone, and no fish anywhere is tappable. The boat stays where
+    // it landed the catch, whatever the child taps.
+    const held = boatLeft(view);
     expect(view.container.querySelector('.fish button')).toBeNull();
     expect(view.container.querySelector('.strike-ring')).toBeNull();
     expect(view.container.querySelector('.action-bar')).toBeNull();
     tapWater(view, 70);
     expect(view.container.querySelector('.sea-nudge')).toBeTruthy();
-    expect(boatLeft(view)).toBe(`${BOAT_START_X}%`);
+    expect(boatLeft(view)).toBe(held);
     expect(view.container.querySelector('.catch-word').textContent).toContain(word);
 
     // Once the catch is in its crate, the boat fishes again.
@@ -801,6 +868,9 @@ describe('word-fishing rewards and the fishing book', () => {
     expect(hintText(view)).toMatch(/seile/i);
     expect(view.container.querySelector('.crate-dock.live')).toBeNull();
 
+    // Sail to a fish before casting: a float in empty water is not waiting for
+    // anything, and says so (see the test below).
+    sailNearFish(view);
     fireEvent.click(view.container.querySelector('.cast-button'));
     ticks(CAST_TICKS);
     expect(hintText(view)).toMatch(/vent/i);

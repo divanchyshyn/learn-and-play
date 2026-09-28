@@ -116,6 +116,23 @@ export function createBait(x, y) {
   return { x, y, phase: 'flying', ticks: 0, nibbles: 0, fishId: null };
 }
 
+// How far the bait can be felt, in percent of the sea box either side of the
+// float: a fish only notices the float when it is swimming within this reach of
+// it, so where the boat is put is what decides who comes. Roughly half the screen
+// across, which is generous on purpose - the child sails to a fish they can see,
+// never hunts for a pixel - and measured along the water rather than in a circle,
+// because the boat only ever moves along the water: a fish in the deepest lane
+// right below the float is as near as one beside the hull, and every lane stays
+// catchable from every drop depth.
+export const BAIT_REACH = 25;
+
+// Is a fish in this column near enough to the float to notice the bait? The
+// float's own column is the measure, not the boat's edge, because the bait is
+// what the fish wants.
+export function baitReaches(bait, x) {
+  return Boolean(bait) && Number.isFinite(x) && Math.abs(x - bait.x) <= BAIT_REACH;
+}
+
 // Where the line is lowered: under the boat, in the rod's own column. The sway
 // keeps within the water for every spot the boat can be in (see BOAT_MAX_X), so
 // the float never ends up on the beach or off the edge of the sea.

@@ -12,7 +12,7 @@ import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
 import { BOAT_KEY_STEP, sailTargetForTap } from './rig.js';
 import {
   TICK_MS, WATERLINE, aboardFish, baitPosition, canSail, canStrike, castBait, createSea, deliverFish,
-  fishWord, lineTarget, pullInBait, rotateReel, sailBoat, slipFish, strikeFish, tickSea,
+  fishWithinReach, fishWord, lineTarget, pullInBait, rotateReel, sailBoat, slipFish, strikeFish, tickSea,
 } from './sea.js';
 import {
   createTripPlan, crateForWord, rewardForTrip, tripComplete, tripProgress, tripRequest, unlockedRewards,
@@ -72,7 +72,14 @@ export function stageHint(sea, tripCard = null, finale = false) {
   if (stage === 'fight') return 'Sveiv hjulet rundt og dra fisken inn!';
   if (stage === 'bite') return 'Napp! Trykk på duppen!';
   if (stage === 'bait') {
-    return sea.bait.phase === 'flying' ? 'Agnen flyr utover …' : 'Vent på at en fisk tar agnet …';
+    if (sea.bait.phase === 'flying') return 'Agnen flyr utover …';
+    // The float is in empty water: waiting longer changes nothing until a fish
+    // happens to swim into the bait's reach, so the child is sent to the fish
+    // rather than left to stare at a bait nobody will take (see BAIT_REACH).
+    if (sea.bait.phase === 'waiting' && !sea.bait.fishId && !fishWithinReach(sea)) {
+      return 'Ingen fisk nær agnet – dra opp lina og seil nærmere en fisk 🎣';
+    }
+    return 'Vent på at en fisk tar agnet …';
   }
   return 'Trykk i vannet der båten skal seile 🎣';
 }
@@ -90,6 +97,11 @@ export function statusLine(sea, trip, finale = false) {
     return `Fisken er på kroken, ${Math.round(sea.fight.distance * 100)} prosent inne.`;
   }
   if (stage === 'bite') return 'Napp! Trykk på duppen for å feste kroken.';
+  // A float in empty water is worth saying out loud too: it is the one moment
+  // where the child has to sail to a fish instead of waiting.
+  if (stage === 'bait' && sea.bait.phase === 'waiting' && !sea.bait.fishId && !fishWithinReach(sea)) {
+    return 'Ingen fisk er nær agnet ennå. Dra opp lina og seil nærmere en fisk.';
+  }
   return `${tripRequest()}. ${tripProgress(trip)} i dag.`;
 }
 
@@ -229,7 +241,12 @@ export function WordFishing() {
   function sailTo(xPercent) {
     if (tripCard || finale) return;
     if (!canSail(sea)) {
-      showNudge('Dra opp snøret først 🎣');
+      // A float lying in empty water means the child is most likely tapping to go
+      // to a fish they can see, so the nudge answers that wish; every other tap
+      // that cannot sail is simply told to pull the line up first.
+      showNudge(sea.bait && sea.bait.phase === 'waiting' && !sea.bait.fishId && !fishWithinReach(sea)
+        ? 'Ingen fisk nær agnet – dra opp snøret og seil bort til en fisk 🎣'
+        : 'Dra opp snøret først 🎣');
       return;
     }
     sounds.sail();

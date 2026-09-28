@@ -11,11 +11,14 @@
 // - Calm speeds only – they never ramp up over time.
 // - One fish on the line at a time, and nobody can be tempted while a catch is
 //   still waiting on deck.
+// - The bait is local: only a fish already swimming within the float's own reach
+//   notices it (BAIT_REACH in rig.js), so sailing over to a fish is the way to
+//   catch one and a float in empty water simply lies there.
 
 import { pickOne } from '../../shared/random.js';
 import {
-  CAST_TICKS, FIGHT_SWING, RIG_DX, RIG_Y, createBait, createBoat, createFight, dropPoint, dropSpot,
-  sailTo, startNibble, stepBait, stepBoat, stepFight, turnReel,
+  CAST_TICKS, FIGHT_SWING, RIG_DX, RIG_Y, baitReaches, createBait, createBoat, createFight, dropPoint,
+  dropSpot, sailTo, startNibble, stepBait, stepBoat, stepFight, turnReel,
 } from './rig.js';
 import { drawWordIndexWhere, pickWordOrder, WORD_BANK } from './words.js';
 import { acceptsWord } from './trip.js';
@@ -216,6 +219,19 @@ export function baitFish(sea) {
   return sea.fishes.find((fish) => fish.id === sea.bait.fishId) ?? null;
 }
 
+// The swimming fish nearest the float that is inside the bait's reach, or null
+// while the float lies in empty water. This is who would notice the bait next,
+// and what the hint line and the narration ask about: no fish in reach is the
+// one state where waiting longer changes nothing and the child has to sail.
+export function fishWithinReach(sea) {
+  if (!sea.bait) return null;
+  const near = (sea.fishes ?? []).filter((fish) => fish.status === 'swim' && baitReaches(sea.bait, fish.x));
+  if (near.length === 0) return null;
+  return near.reduce((best, fish) => (
+    Math.abs(fish.x - sea.bait.x) < Math.abs(best.x - sea.bait.x) ? fish : best
+  ));
+}
+
 // The fish the child is busy with: the one on the line, the catch waiting on
 // deck, or the one the bait has tempted.
 export function activeFish(sea) {
@@ -300,15 +316,19 @@ function isGone(fish) {
   return fish.dir === -1 ? fish.x < -16 : fish.x > 116;
 }
 
-// Which fish comes to the bait? One whose word this trip wants, first of all,
-// so a waiting child is never kept from a catch that counts; failing that –
-// every swimmer carrying a word with nowhere to go – any swimmer, which can
-// always be let go again, exactly as before.
-function pickTempted(fishes, sea) {
-  const swimmers = fishes.filter((fish) => fish.status === 'swim');
-  if (swimmers.length === 0) return null;
-  const keepable = swimmers.filter((fish) => acceptsWord(sea.trip, fishWord(fish)));
-  return pickOne(keepable.length > 0 ? keepable : swimmers);
+// Which fish comes to the bait? Only one already swimming within the bait's own
+// reach: a float cannot call across the whole sea (see BAIT_REACH in rig.js), so
+// a fish far off swims on and the child sails closer to the fish they want.
+// Within reach, one whose word this trip wants comes first of all, so a waiting
+// child is never kept from a catch that counts; failing that – every swimmer
+// nearby carrying a word with nowhere to go – any of them comes, and it can
+// always be let go again, exactly as before. Nobody within reach means nobody
+// comes: the float simply lies there until a fish swims into its reach.
+function pickTempted(fishes, bait, trip) {
+  const near = fishes.filter((fish) => fish.status === 'swim' && baitReaches(bait, fish.x));
+  if (near.length === 0) return null;
+  const keepable = near.filter((fish) => acceptsWord(trip, fishWord(fish)));
+  return pickOne(keepable.length > 0 ? keepable : near);
 }
 
 // Advance the whole sea one tick: the boat sails, the shoal swims, the float
@@ -331,9 +351,13 @@ export function tickSea(sea) {
     fishes = fishes.map((fish) => (fish.id === biter ? returnToSwim(fish, spot, true) : fish));
   }
 
-  // Something in the shoal notices the bait and comes over for it.
+  // Something in the shoal notices the bait and comes over for it – but only a
+  // fish already swimming within the float's own reach: the bait is a spot in
+  // the water, not a call across the whole sea (see BAIT_REACH in rig.js). With
+  // nobody in reach the float simply lies there, and a fish that swims into the
+  // reach later is taken the moment it arrives.
   if (bait && bait.phase === 'waiting' && !bait.fishId && bait.ticks >= OFFER_TICKS) {
-    const tempted = pickTempted(fishes, sea);
+    const tempted = pickTempted(fishes, bait, sea.trip);
     if (tempted) {
       bait = { ...bait, fishId: tempted.id };
       const chaseFrom = { x: tempted.x, y: tempted.lane };
