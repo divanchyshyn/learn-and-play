@@ -11,7 +11,7 @@ import { FISH_PHOTOS } from './photos.js';
 // species also carries its own size correction (`.species-…` in style.css): a tall
 // reef fish must not tower over a slim mackerel just because its picture is taller.
 
-export const FISH_SPECIES = ['bass', 'mackerel', 'trout', 'flounder', 'puffer', 'tropical'];
+export const FISH_SPECIES = ['bass', 'mackerel', 'trout', 'crappie', 'puffer', 'tropical'];
 
 // Any word always gets the very same species, whatever else happens in the sea.
 export function speciesForWord(word) {

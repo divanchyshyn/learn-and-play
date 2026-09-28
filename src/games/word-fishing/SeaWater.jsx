@@ -83,6 +83,12 @@ export function WaterBody() {
 
 // The surface: a strip of real water, repeated sideways and drifting. It is the
 // only strip in the scene, and it is what tells a child where the water starts.
+//
+// Its picture is the sea just below the horizon, so it holds no sky and, above
+// all, no sun: the sun belongs to the sky plate above, and a repeated strip that
+// carried its own sun would print a row of suns right across the waterline. Its
+// two halves are mirrors of each other (see the asset pipeline), so the repeat has
+// no seam, in the tile or at the wrap.
 export function WaveLine() {
   return <span
     className="sea-waves"

@@ -6,10 +6,13 @@ import { PhotoSprite } from './PhotoSprite.jsx';
 // the scenery a child always finds down there – kelp at the edges, a rock cluster,
 // the old anchor, a piece of driftwood and a scatter of stones.
 //
-// The sand is pasted with `cover` and anchored to its bottom edge, and its top
-// edge is faded in by a mask (see style.css): the floor has no edge of its own in
-// the water, so it must never end in a line. The sprites keep sea-box coordinates,
-// so trip.js and the scene still agree on where a find lands.
+// The picture is sand and nothing else: the aerial shot it came from also held a
+// shoreline, a tidal channel and a pale strip down one edge, and all of that is
+// cut away, because whatever a plate holds is what the floor will show. The sand
+// is pasted with `cover` and anchored to its bottom edge, and its top edge is
+// faded in by a mask (see style.css): the floor has no edge of its own in the
+// water, so it must never end in a line. The sprites keep sea-box coordinates, so
+// trip.js and the scene still agree on where a find lands.
 //
 // Every sprite here is decorative, never focusable and never read out.
 

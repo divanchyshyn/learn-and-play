@@ -173,8 +173,17 @@ the float. They live in `src/games/word-fishing/photo-assets/`, imported by
   bounds. A plate (a backdrop) is a full frame **without** alpha. Both are WebP
   lossy (`VP8 ` chunk), and the cut-outs are `RGBA`.
 - Sizes are chosen per subject at the long side that its on-page box needs (fish
-  and boat 900 px, plates 1536 px wide, a float 320 px), and a sprite stays within
-  roughly 30-100 KB. The plates are the only files that may weigh more.
+  and boat 900 px, the water column 1536 px wide, the sand band 900 px, a float
+  320 px), and a sprite stays within roughly 30-100 KB. The plates are the only
+  files that may weigh more.
+- A plate holds **only** what its layer shows: the sky plate is the dawn
+  photograph cut off at its own horizon row, the sand plate is sand with no water,
+  shoreline or pale edge left in it, and the surface tile is the sea just below the
+  horizon, with no sky and no sun in it. This is not fussiness. A plate is pasted
+  `cover` into a box of a different shape, so whatever the picture holds is what
+  the child sees: a near-square aerial photograph that was also a sky band filled
+  the sky with open ocean, and a strip that carried its own horizon printed a row
+  of suns along the waterline.
 - A photograph is **never stretched**: a sprite box changes size, the picture
   inside keeps its proportions (`height: auto` or `background-size: contain`), and
   a plate is `cover` with the position that keeps the part that matters. A plate's
