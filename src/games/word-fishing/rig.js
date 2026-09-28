@@ -18,11 +18,18 @@
 // Percent offsets from the boat's own left edge to the three points that matter:
 // where the angler holds the rod, where the rod tip is, and where the net sits on
 // deck. The rod is drawn in the scene's line layer and the net in the boat
-// drawing, and both hang off these anchors, so neither can ever come loose from
-// the angler – whatever the size of the sea. The bait is lowered from the rod
-// tip, so `rodTip` is also the column the float ends up in.
+// drawing, and both hang off these anchors, so the whole rig travels with the boat
+// and neither can come loose from her. What the anchors cannot follow is the boat's
+// own frame: their offsets are shares of the sea box, while the boat is sized by a
+// share of the sea's height (see BoatArt.jsx), so on a sea of a very different
+// shape the rod's grip sits a little off the angler's hands. The bait is lowered
+// from the rod tip, so `rodTip` is also the column the float ends up in.
 export const RIG_DX = { rodBase: 5, rodTip: 14.5, net: 6 };
-export const RIG_Y = { rodBase: 13, rodTip: 5, net: 19 };
+// The grip sits at the height the angler's hands are at in his picture, and the tip
+// the same 8% above it, so the rod keeps its angle up over the wheelhouse (see the
+// angler's place in style.css). The net's own height is where the fish is brought
+// alongside: a spot by the waterline, which does not move with the hull's paint.
+export const RIG_Y = { rodBase: 10.5, rodTip: 2.5, net: 19 };
 
 // ---------------------------------------------------------------------------
 // The boat
