@@ -390,10 +390,11 @@ describe('word-fishing waiting for a bite', () => {
   });
 
   it('only a bite can be struck: nothing happens before it or after it', () => {
-    const cast = castBait(createSea(freeSortTrip()));
+    const cast = castNearFish(createSea(freeSortTrip()));
     expect(strikeFish(cast)).toBe(cast); // still flying
     const tasting = tickTimes(cast, CAST_TICKS + OFFER_TICKS + CHASE_TICKS);
-    expect(strikeFish(tasting)).toBe(tasting); // only tasting
+    expect(baitFish(tasting).status).toBe('nibbling'); // a fish really is tasting
+    expect(strikeFish(tasting)).toBe(tasting); // but that is not a bite yet
     const gone = tickTimes(biteReady(createSea(freeSortTrip())), BITE_TICKS);
     expect(strikeFish(gone)).toBe(gone); // the moment has passed
   });

@@ -11,8 +11,9 @@ import { SeaScene } from './SeaScene.jsx';
 import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
 import { BOAT_KEY_STEP, sailTargetForTap } from './rig.js';
 import {
-  TICK_MS, WATERLINE, aboardFish, baitPosition, canSail, canStrike, castBait, createSea, deliverFish,
-  fishWithinReach, fishWord, lineTarget, pullInBait, rotateReel, sailBoat, slipFish, strikeFish, tickSea,
+  TICK_MS, WATERLINE, OFFER_TICKS, aboardFish, baitPosition, canSail, canStrike, castBait, createSea,
+  deliverFish, fishWithinReach, fishWord, lineTarget, pullInBait, rotateReel, sailBoat, slipFish, strikeFish,
+  tickSea,
 } from './sea.js';
 import {
   createTripPlan, crateForWord, rewardForTrip, tripComplete, tripProgress, tripRequest, unlockedRewards,
@@ -62,6 +63,19 @@ export function seaStage(sea, tripCard = null, finale = false) {
   return 'sail';
 }
 
+// Is the float lying in empty water: out and settled, with nobody swimming
+// within its reach and nobody already on it? This is the one state where waiting
+// longer changes nothing, so the hint line, the narration and the nudge all say
+// the same thing about it. The float has to have had its own moment first (see
+// OFFER_TICKS in sea.js), so a cast never reads as barren the second it lands.
+export function floatInEmptyWater(sea) {
+  return Boolean(sea.bait)
+    && sea.bait.phase === 'waiting'
+    && !sea.bait.fishId
+    && sea.bait.ticks >= OFFER_TICKS
+    && !fishWithinReach(sea);
+}
+
 // What the child should do next, in plain words. Short on purpose: the game is
 // played on a tablet, so this line is a nudge, not a manual.
 export function stageHint(sea, tripCard = null, finale = false) {
@@ -76,9 +90,7 @@ export function stageHint(sea, tripCard = null, finale = false) {
     // The float is in empty water: waiting longer changes nothing until a fish
     // happens to swim into the bait's reach, so the child is sent to the fish
     // rather than left to stare at a bait nobody will take (see BAIT_REACH).
-    if (sea.bait.phase === 'waiting' && !sea.bait.fishId && !fishWithinReach(sea)) {
-      return 'Ingen fisk nær agnet – dra opp lina og seil nærmere en fisk 🎣';
-    }
+    if (floatInEmptyWater(sea)) return 'Ingen fisk nær agnet – dra opp lina og seil nærmere en fisk 🎣';
     return 'Vent på at en fisk tar agnet …';
   }
   return 'Trykk i vannet der båten skal seile 🎣';
@@ -99,7 +111,7 @@ export function statusLine(sea, trip, finale = false) {
   if (stage === 'bite') return 'Napp! Trykk på duppen for å feste kroken.';
   // A float in empty water is worth saying out loud too: it is the one moment
   // where the child has to sail to a fish instead of waiting.
-  if (stage === 'bait' && sea.bait.phase === 'waiting' && !sea.bait.fishId && !fishWithinReach(sea)) {
+  if (stage === 'bait' && floatInEmptyWater(sea)) {
     return 'Ingen fisk er nær agnet ennå. Dra opp lina og seil nærmere en fisk.';
   }
   return `${tripRequest()}. ${tripProgress(trip)} i dag.`;
@@ -242,10 +254,11 @@ export function WordFishing() {
     if (tripCard || finale) return;
     if (!canSail(sea)) {
       // A float lying in empty water means the child is most likely tapping to go
-      // to a fish they can see, so the nudge answers that wish; every other tap
-      // that cannot sail is simply told to pull the line up first.
-      showNudge(sea.bait && sea.bait.phase === 'waiting' && !sea.bait.fishId && !fishWithinReach(sea)
-        ? 'Ingen fisk nær agnet – dra opp snøret og seil bort til en fisk 🎣'
+      // to a fish they can see, so the nudge tells them what that takes; every
+      // other tap that cannot sail is simply told to pull the line up first. Both
+      // stay short: the pill sits inside the sea, which clips its own overflow.
+      showNudge(floatInEmptyWater(sea)
+        ? 'Dra opp og seil til en fisk 🎣'
         : 'Dra opp snøret først 🎣');
       return;
     }

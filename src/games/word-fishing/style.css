@@ -334,7 +334,12 @@
   transform: translateX(-50%);
   padding: 6px 12px; border: 2px solid #0c8fb6; border-radius: 999px;
   background: rgba(255, 253, 243, .96); color: #0b7897;
-  font-size: .85rem; font-weight: 900; white-space: nowrap;
+  font-size: .85rem; font-weight: 900;
+  /* The pill lives inside the sea, and the sea clips its own overflow, so it can
+     never be wider than the water: a nudge running off both edges would lose the
+     very instruction it carries. A short one stays on one line, a longer one
+     wraps and stays centred, whichever way the screen is turned. */
+  max-width: calc(100% - 20px); white-space: normal; text-align: center;
   animation: nudge-pop .2s ease;
   pointer-events: none;
 }

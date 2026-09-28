@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, act, screen, cleanup, within } from '@testing-library/react';
 import { TIMING, WordFishing, seaStage, stageHint } from './WordFishing.jsx';
 import {
-  DELIVER_TICKS, FISH_ON_SCREEN, LANES, TICK_MS, castBait, createSea, strikeFish,
+  DELIVER_TICKS, FISH_ON_SCREEN, LANES, OFFER_TICKS, TICK_MS, castBait, createSea, strikeFish,
 } from './sea.js';
 import { BITE_TICKS, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET, CAST_TICKS, RIG_DX, RIG_Y } from './rig.js';
 import {
@@ -287,10 +287,15 @@ describe('word-fishing the opening screen', () => {
     expect(seaStage(bait)).toBe('bait');
     expect(stageHint(bait)).toMatch(/flyr utover/i);
 
-    // A float in empty water says so: waiting longer changes nothing until a fish
-    // swims into the bait's reach, so the child is sent to the fish instead.
-    const empty = { ...bait, bait: { ...bait.bait, phase: 'waiting', ticks: 0 } };
+    // A float that has landed and had its own moment in empty water says so:
+    // waiting longer changes nothing until a fish swims into the bait's reach, so
+    // the child is sent to the fish instead.
+    const empty = { ...bait, bait: { ...bait.bait, phase: 'waiting', ticks: OFFER_TICKS } };
     expect(stageHint(empty)).toMatch(/ingen fisk/i);
+
+    // A cast is never called barren before the water has had that moment.
+    const justLanded = { ...bait, bait: { ...bait.bait, phase: 'waiting', ticks: 0 } };
+    expect(stageHint(justLanded)).toMatch(/vent/i);
 
     // With a fish inside the reach of that float, it is simply waiting for it.
     const withinReach = { id: 99, status: 'swim', x: empty.bait.x + 4, lane: LANES[0] };
@@ -453,7 +458,8 @@ describe('word-fishing the bait and the bite', () => {
   it('leaves a cast in empty water alone, and says why', () => {
     const view = render(<WordFishing />);
     // Every fish starts off stage, so a cast at the boat's home spot lands in
-    // water nothing swims in: no fish notices it, however long it lies there.
+    // water nothing swims in yet: nobody notices it at first – and the game says
+    // as much instead of leaving the float there unexplained.
     fireEvent.click(view.container.querySelector('.cast-button'));
     ticks(CAST_TICKS + 30);
     expect(view.container.querySelector('.fishing-float').className).toContain('float-waiting');
@@ -461,10 +467,10 @@ describe('word-fishing the bait and the bite', () => {
     expect(view.container.querySelector('.strike-ring')).toBeNull();
     expect(hintText(view)).toMatch(/ingen fisk/i);
 
-    // A tap on the water gets the same advice, because a child tapping there is
-    // very likely trying to sail to a fish they can see.
+    // A tap on the water is answered with what that takes, because a child tapping
+    // there is very likely trying to sail to a fish they can see.
     tapWater(view, 70);
-    expect(view.container.querySelector('.sea-nudge').textContent).toMatch(/ingen fisk/i);
+    expect(view.container.querySelector('.sea-nudge').textContent).toMatch(/seil til en fisk/i);
     expect(boatLeft(view)).toBe(`${BOAT_START_X}%`);
 
     // Nothing is counted and nothing is lost: the float is simply far from the
