@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  BITE_TICKS, BOAT_KEY_STEP, BOAT_MAX_X, BOAT_MIN_X, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET,
+  BAIT_REACH, BITE_TICKS, BOAT_KEY_STEP, BOAT_MAX_X, BOAT_MIN_X, BOAT_SPEED, BOAT_START_X, BOAT_TAP_OFFSET,
   CAST_TICKS, DROP_MAX_DEPTH, DROP_MIN_DEPTH, DROP_SWAY, KEY_TURN_DEGREES, LAND_DISTANCE,
-  NIBBLES_MAX, NIBBLES_MIN, NIBBLE_EACH, RIG_DX, WIND_PER_TURN, angleStep, clampBoatX,
+  NIBBLES_MAX, NIBBLES_MIN, NIBBLE_EACH, RIG_DX, WIND_PER_TURN, angleStep, baitReaches, clampBoatX,
   createBait, createBoat, createFight, dropPoint, dropSpot, fightProgress, isSailing, pointerAngle,
   sailTargetForTap, sailTo, startNibble, stepBait, stepBoat, stepFight,
   turnReel,
@@ -192,6 +192,47 @@ describe('word-fishing the bait', () => {
 
   it('has nothing to advance once the bait is gone', () => {
     expect(stepBait(null)).toBeNull();
+  });
+});
+
+describe("word-fishing the bait's reach", () => {
+  it('reaches a fish beside the float and lets go of one further along the water', () => {
+    const bait = createBait(40, 46);
+    // On the float, and right at the edge of the reach either way.
+    expect(baitReaches(bait, 40)).toBe(true);
+    expect(baitReaches(bait, 40 + BAIT_REACH)).toBe(true);
+    expect(baitReaches(bait, 40 - BAIT_REACH)).toBe(true);
+
+    // A fish past the reach swims on: this is what makes sailing to a fish the
+    // way to catch one, instead of casting wherever the boat happens to be.
+    expect(baitReaches(bait, 40 + BAIT_REACH + 0.1)).toBe(false);
+    expect(baitReaches(bait, 40 - BAIT_REACH - 0.1)).toBe(false);
+    expect(baitReaches(bait, 100)).toBe(false);
+    expect(baitReaches(createBait(15, 32), 106)).toBe(false);
+  });
+
+  it('measures from the float itself, and only while a float is in the water', () => {
+    const bait = createBait(30, 40);
+    // The float hangs off the rod's own column (RIG_DX.rodTip) from the boat's
+    // left edge, so the reach is a band around the float, not around the hull.
+    expect(baitReaches(bait, 30 + RIG_DX.rodTip)).toBe(true);
+    expect(baitReaches(bait, 30 - BAIT_REACH)).toBe(true);
+
+    // No float out is no reach at all, and a column the sea cannot hold is
+    // nobody's fish rather than a crash on the way to one.
+    expect(baitReaches(null, 30)).toBe(false);
+    expect(baitReaches(bait, Number.NaN)).toBe(false);
+    expect(baitReaches(bait, undefined)).toBe(false);
+  });
+
+  it('is wide enough to aim with and tight enough to matter: about half the screen', () => {
+    // The feel of the reach, kept here so a future tweak can see what it breaks.
+    const across = BAIT_REACH * 2;
+    expect(across).toBeGreaterThanOrEqual(40);
+    expect(across).toBeLessThanOrEqual(60);
+    // Wider than the rig's own column offset, so the float reaches well past the
+    // hull it hangs from.
+    expect(BAIT_REACH).toBeGreaterThan(DROP_SWAY);
   });
 });
 

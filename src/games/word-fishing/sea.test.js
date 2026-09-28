@@ -2,12 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   CHASE_TICKS, DELIVER_TICKS, FISH_ON_SCREEN, LANES, OFFER_TICKS, SPEED_MAX, SPEED_MIN, WATERLINE,
   aboardFish, baitFish, baitPosition, canCastBait, canPullIn, canSail, canStrike, castBait, createSea,
-  deliverFish, fishPosition, fishWord, hookedFish, lineTarget, netPoint, pullInBait, rodTipPoint, rotateReel,
-  sailBoat, slipFish, strikeFish, tickSea,
+  deliverFish, fishPosition, fishWithinReach, fishWord, hookedFish, lineTarget, netPoint, pullInBait,
+  rodTipPoint, rotateReel, sailBoat, slipFish, strikeFish, tickSea,
 } from './sea.js';
 import {
-  BITE_TICKS, BOAT_MAX_X, BOAT_SPEED, BOAT_START_X, CAST_TICKS, DROP_MAX_DEPTH, DROP_MIN_DEPTH, DROP_SWAY,
-  KEY_TURN_DEGREES, NIBBLE_EACH, NIBBLES_MIN, RIG_DX, RIG_Y,
+  BAIT_REACH, BITE_TICKS, BOAT_MAX_X, BOAT_MIN_X, BOAT_SPEED, BOAT_START_X, CAST_TICKS, createBait,
+  DROP_MAX_DEPTH, DROP_MIN_DEPTH, DROP_SWAY, KEY_TURN_DEGREES, NIBBLE_EACH, NIBBLES_MIN, RIG_DX, RIG_Y,
 } from './rig.js';
 import { createTripPlan } from './trip.js';
 import { WORD_BANK } from './words.js';
@@ -37,14 +37,29 @@ function tickTimes(sea, count) {
   return next;
 }
 
-// Cast, then wait exactly as long as the game needs for a fish to notice the
-// bait, swim over and commit to it. With Math.random pinned the numbers are
-// fixed: the float flies for CAST_TICKS, lies still for OFFER_TICKS, the fish
-// swims over in CHASE_TICKS, and NIBBLES_MIN tastes of NIBBLE_EACH ticks end in
-// the bite. The sea comes back with the float under and `canStrike` true.
+// Cast where a fish actually is: the bait only reaches a fish swimming within
+// BAIT_REACH of the float (see rig.js), so a cast at the boat's home spot looks
+// at empty water. The helper sails to the leftmost swimmer – always the same one
+// with Math.random pinned – and waits for the boat to settle there.
+function castNearFish(sea, guard = 60) {
+  const swimmers = sea.fishes.filter((fish) => fish.status === 'swim');
+  if (swimmers.length === 0) return castBait(sea);
+  const nearest = swimmers.reduce((best, fish) => (fish.x < best.x ? fish : best));
+  let sailed = sailBoat(sea, nearest.x - RIG_DX.rodTip - 8);
+  for (let tick = 0; tick < guard && sailed.boat.x !== sailed.boat.targetX; tick += 1) {
+    sailed = tickSea(sailed);
+  }
+  return castBait(sailed);
+}
+
+// Cast next to a fish, then wait exactly as long as the game needs for it to
+// notice the bait, swim over and commit to it. With Math.random pinned the
+// numbers are fixed: the float flies for CAST_TICKS, lies still for OFFER_TICKS,
+// the fish swims over in CHASE_TICKS, and NIBBLES_MIN tastes of NIBBLE_EACH ticks
+// end in the bite. The sea comes back with the float under and `canStrike` true.
 function biteReady(sea) {
   const wait = CAST_TICKS + OFFER_TICKS + CHASE_TICKS + NIBBLES_MIN * NIBBLE_EACH;
-  const next = tickTimes(castBait(sea), wait);
+  const next = tickTimes(castNearFish(sea), wait);
   expect(next.bait.phase).toBe('biting');
   return next;
 }
@@ -223,7 +238,7 @@ describe('word-fishing putting the line out', () => {
   });
 
   it('pulls the line up again, and the fish that was after it swims on', () => {
-    const cast = castBait(createSea(freeSortTrip()));
+    const cast = castNearFish(createSea(freeSortTrip()));
     expect(canPullIn(cast)).toBe(true);
     const up = pullInBait(cast);
     expect(up.bait).toBeNull();
@@ -247,9 +262,75 @@ describe('word-fishing putting the line out', () => {
 });
 
 
+describe("word-fishing the bait's reach", () => {
+  it('takes the fish inside the reach and lets the one further off swim on', () => {
+    // Two fish swimming beside the float, one just inside the bait's reach and
+    // one just outside it: only the near one notices anything at all.
+    const bait = { ...createBait(30, 40), phase: 'waiting', ticks: OFFER_TICKS };
+    const far = { id: 1, status: 'swim', x: 30 + BAIT_REACH + 1, lane: LANES[0], dir: -1, speed: SPEED_MIN, wordIndex: 0 };
+    const near = { id: 2, status: 'swim', x: 30 + BAIT_REACH - 1, lane: LANES[LANES.length - 1], dir: -1, speed: SPEED_MIN, wordIndex: 1 };
+    const next = tickSea({ ...createSea(freeSortTrip()), bait, fishes: [far, near] });
+
+    expect(baitFish(next).id).toBe(near.id);
+    expect(fishById(next, near.id).status).toBe('chasing');
+    expect(fishById(next, far.id).status).toBe('swim');
+  });
+
+  it('leaves the float in empty water until a fish swims into its reach', () => {
+    // The boat's home spot is empty water: the whole shoal is still off stage,
+    // well outside the bait's reach, so nobody comes – and nothing is counted
+    // for it either.
+    const waited = tickTimes(castBait(createSea(freeSortTrip())), 120);
+    expect(waited.bait.phase).toBe('waiting');
+    expect(waited.bait.fishId).toBeNull();
+    expect(waited.fishes.every((fish) => fish.status === 'swim')).toBe(true);
+    expect(fishWithinReach(waited)).toBeNull();
+
+    // The shoal keeps swimming in, and the first fish to come within reach is
+    // taken the moment it arrives: waiting is never a dead end, only slow.
+    let next = waited;
+    let tempted = null;
+    for (let tick = 0; tick < 400 && !tempted; tick += 1) {
+      next = tickSea(next);
+      tempted = baitFish(next);
+    }
+    expect(tempted).not.toBeNull();
+    expect(tempted.status).toBe('chasing');
+    expect(Math.abs(tempted.x - next.bait.x)).toBeLessThanOrEqual(BAIT_REACH);
+  });
+
+  it('names the nearest fish in reach, and nobody at all in empty water', () => {
+    const bait = createBait(20, 40);
+    const fish = (id, x, lane, status = 'swim') => ({ id, x, lane, status });
+    const sea = { bait, fishes: [fish(1, 60, LANES[0]), fish(2, 30, LANES[5]), fish(3, 18, LANES[5])] };
+    // The nearest swimmer inside the reach. The lane a fish swims in is not part
+    // of the question, so the deepest lane counts exactly as the surface does.
+    expect(fishWithinReach(sea).id).toBe(3);
+
+    // Nobody in reach, no shoal at all, and no float out: nobody to name.
+    expect(fishWithinReach({ bait, fishes: [fish(1, 90, LANES[0])] })).toBeNull();
+    expect(fishWithinReach({ bait, fishes: [] })).toBeNull();
+    expect(fishWithinReach({ bait: null, fishes: [fish(1, 20, LANES[0])] })).toBeNull();
+    // A fish already on its way to the float is not a candidate: the float is
+    // waiting for the next one, not for the one it has.
+    expect(fishWithinReach({ bait, fishes: [fish(1, 18, LANES[0], 'chasing')] })).toBeNull();
+  });
+
+  it('can be sailed within reach of any fish in the water, edge to edge', () => {
+    // The reach is a band along the water (see BAIT_REACH in rig.js), so the only
+    // thing that could leave a fish uncatchable is a gap at the edges of the sea:
+    // the boat has to be able to bring the float within reach of every column a
+    // fish can swim in.
+    const leftmost = BOAT_MIN_X + RIG_DX.rodTip - DROP_SWAY - BAIT_REACH;
+    const rightmost = BOAT_MAX_X + RIG_DX.rodTip + DROP_SWAY + BAIT_REACH;
+    expect(leftmost).toBeLessThanOrEqual(0);
+    expect(rightmost).toBeGreaterThanOrEqual(100);
+  });
+});
+
 describe('word-fishing waiting for a bite', () => {
   it('lets the float lie still before anything happens, then a fish comes over', () => {
-    const cast = castBait(createSea(freeSortTrip()));
+    const cast = castNearFish(createSea(freeSortTrip()));
     const landed = tickTimes(cast, CAST_TICKS);
     expect(landed.bait.phase).toBe('waiting');
     expect(baitFish(landed)).toBeNull();
@@ -309,10 +390,11 @@ describe('word-fishing waiting for a bite', () => {
   });
 
   it('only a bite can be struck: nothing happens before it or after it', () => {
-    const cast = castBait(createSea(freeSortTrip()));
+    const cast = castNearFish(createSea(freeSortTrip()));
     expect(strikeFish(cast)).toBe(cast); // still flying
     const tasting = tickTimes(cast, CAST_TICKS + OFFER_TICKS + CHASE_TICKS);
-    expect(strikeFish(tasting)).toBe(tasting); // only tasting
+    expect(baitFish(tasting).status).toBe('nibbling'); // a fish really is tasting
+    expect(strikeFish(tasting)).toBe(tasting); // but that is not a bite yet
     const gone = tickTimes(biteReady(createSea(freeSortTrip())), BITE_TICKS);
     expect(strikeFish(gone)).toBe(gone); // the moment has passed
   });
