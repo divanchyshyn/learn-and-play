@@ -43,10 +43,13 @@
 .sea-sky {
   position: absolute; left: 0; right: 0; top: 0; height: var(--waterline, 22%);
   overflow: hidden;
-  /* The band's colour is a photograph: pasted with `cover` and anchored to its
-     lower edge, so the horizon in the picture lands exactly on the waterline and
-     the sky is never stretched - the band is four times wider than it is tall on a
-     phone and eight times wider on a desktop screen. */
+  /* The band is a photograph of the sky alone, cut off along its own horizon row:
+     pasted with `cover` and anchored to its lower edge, the horizon lands exactly
+     on the waterline, and the crop can only ever show sky, because the picture
+     holds nothing else. A near-square plate here would be the whole outdoors - sky
+     *and* sea - and a `cover` paste would fill the band with whichever end it
+     anchored to. The sky is never stretched: the band is four times wider than it
+     is tall on a phone and eight times wider on a desktop screen. */
   background-image: var(--sky-photo); background-size: cover; background-position: 50% 100%;
 }
 /* A haze of the water's own colour along the lower edge, so sky and sea meet in
@@ -100,11 +103,11 @@
    the one arriving at the right edge and the repeat has no seam to drift over. */
 .sea-waves {
   /* The waterline is one tile of the strip drawn at the picture's own proportions:
-     the picture is 2048x171 px, so a 26px-tall line repeats every 311px. The tile
+     the picture is 622x52 px, so a 26px-tall line repeats every 311px. The tile
      is derived from the height, so a taller waterline can never fall out of step
      with its own pattern. */
   --wave-h: 26px;
-  --surface-tile: calc(var(--wave-h) * 2048 / 171);
+  --surface-tile: calc(var(--wave-h) * 622 / 52);
   position: absolute; left: 0; top: var(--waterline, 22%); z-index: 3; width: 100%; height: var(--wave-h); margin-top: calc(var(--wave-h) * -0.5); display: block; overflow: hidden;
 }
 .sea-waves::before {
@@ -135,11 +138,14 @@
 @keyframes sway { from { rotate: -5deg; } to { rotate: 6deg; } }
 
 /* ---- The seabed ---------------------------------------------------------- */
-/* The sand is a photograph, pasted with `cover` and anchored to its lower edge,
-   with its top edge faded in by a mask: a floor has no edge of its own in the
-   water, so it must never end in a line. The grain and the light dapples stay CSS
-   tiles over it. The decorations keep sea-box coordinates, so trip.js and the
-   scene still agree on where each reward lands. */
+/* The sand is a photograph of sand alone - no water, no shoreline and no pale
+   edge - pasted with `cover` and anchored to its lower edge, with its top edge
+   faded in by a mask: a floor has no edge of its own in the water, so it must
+   never end in a line. The plate is a wide band, so a bottom-anchored crop always
+   lands on sand; a plate that was as tall as it is wide would put its own sea and
+   its own shoreline into the floor. The grain and the light dapples stay CSS tiles
+   over it. The decorations keep sea-box coordinates, so trip.js and the scene
+   still agree on where each reward lands. */
 .sea-bed {
   position: absolute; left: 0; right: 0; top: 84%; bottom: 0; z-index: 2;
   background-image: var(--seabed-photo); background-size: cover; background-position: 50% 100%;
@@ -402,9 +408,9 @@
 .fish.species-bass { --fish-scale: 1; }
 .fish.species-mackerel { --fish-scale: 1.16; }
 .fish.species-trout { --fish-scale: 1.04; }
-.fish.species-flounder { --fish-scale: .94; }
+.fish.species-crappie { --fish-scale: .92; }
 .fish.species-puffer { --fish-scale: .82; }
-.fish.species-tropical { --fish-scale: .72; }
+.fish.species-tropical { --fish-scale: 1.04; }
 
 .fish-art {
   display: block; width: 100%; padding: 0; border: 0; background: none;

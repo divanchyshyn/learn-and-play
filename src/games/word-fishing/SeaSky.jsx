@@ -3,8 +3,9 @@ import { PHOTOS } from './photos.js';
 // The sky above the waterline: a photographed dawn sky – the sun is already in
 // the picture – with clouds drifting across it and a couple of gulls.
 //
-// The band's own colour is the photograph, pasted with `cover` and anchored to
-// its bottom edge, so the sky's horizon lands exactly on the waterline and the
+// The plate holds the sky on its own: it is the dawn photograph cut off along its
+// own horizon row, so it is pasted with `cover` and anchored to its bottom edge,
+// which lands that horizon on the waterline whatever shape the band has. The
 // picture is never stretched: the band is about four times wider than it is tall
 // on a phone and eight times wider on a desktop screen.
 //

@@ -16,8 +16,21 @@
 // with a hole in it. A picture is never named after what it shows in Norwegian:
 // filenames are English, like every other name in the codebase.
 
+// Two of the fish pictures came off the internet and are committed here already
+// cut out, so the licence travels with the picture:
+//
+//   * fish-crappie.webp  - a black crappie (Pomoxis nigromaculatus), photographed
+//     for the UBC Library Digitization Centre's Flickr stream, on Wikimedia
+//     Commons: public domain, no known copyright restrictions.
+//   * fish-tropical.webp - a Spanish hogfish (Bodianus rufus, adult), photographed
+//     for the Smithsonian Institution, on Wikimedia Commons: no known copyright
+//     restrictions.
+//
+// Both were shot as a side view on a plain background, which is what makes a
+// clean cut-out possible: the background is keyed away, the fish is mirrored so
+// it faces right like every other sprite here, and the long side is 900 px.
 import fishBassPhoto from './photo-assets/fish-bass.webp';
-import fishFlounderPhoto from './photo-assets/fish-flounder.webp';
+import fishCrappiePhoto from './photo-assets/fish-crappie.webp';
 import fishMackerelPhoto from './photo-assets/fish-mackerel.webp';
 import fishPufferPhoto from './photo-assets/fish-puffer.webp';
 import fishTropicalPhoto from './photo-assets/fish-tropical.webp';
@@ -59,7 +72,7 @@ export const FISH_PHOTOS = {
   bass: fishBassPhoto,
   mackerel: fishMackerelPhoto,
   trout: fishTroutPhoto,
-  flounder: fishFlounderPhoto,
+  crappie: fishCrappiePhoto,
   puffer: fishPufferPhoto,
   tropical: fishTropicalPhoto,
 };
