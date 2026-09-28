@@ -90,6 +90,19 @@ describe('word-fishing photographs', () => {
     expect(tile.height).toBe(Number(match[2]));
   });
 
+  it('anchors the hull in the picture\'s own proportions, so she cannot be stretched', () => {
+    // The hull is the one sprite whose box is not fixed by the stylesheet: it is a
+    // frame in the picture's own proportions (`aspect-ratio`), and the picture is
+    // pasted into it. A frame that is not this picture's shape stretches her - and
+    // every row of her paint, waterline included, moves with it.
+    const hull = readWebp(PHOTOS.boat);
+    expect(hull.chunk, 'the hull is not a cut-out').toBe('VP8X');
+    expect(hull.alpha, 'the hull lost its alpha channel').toBe(true);
+    const frame = styleSheet.match(/\.boat-hull \{[^}]*aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/);
+    expect(frame, 'the hull has no frame in her own proportions').toBeTruthy();
+    expect(Number(frame[1]) * hull.height).toBe(Number(frame[2]) * hull.width);
+  });
+
   it('gives every species the size correction the stylesheet knows it by', () => {
     for (const species of FISH_SPECIES) {
       expect(styleSheet, `${species} has no size correction`).toContain(`.fish.species-${species} {`);

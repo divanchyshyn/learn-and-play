@@ -214,6 +214,25 @@ the float. They live in `src/games/word-fishing/photo-assets/`, imported by
   a plate is `cover` with the position that keeps the part that matters. A plate's
   top or bottom edge that must vanish into the next layer is faded with a CSS
   `mask-image`, not baked into the file, so the fade always matches its box.
+- The boat is the one sprite whose box is a frame of its own: `.boat-hull` is the
+  hull photograph's proportions (`aspect-ratio: 900 / 553`), and she is **anchored
+  by the waterline drawn inside the picture**, never by her lower edge. Her paint
+  ends along row 88 of 100 and the picture's water fills the rows below it, so
+  `--hull-waterline` and the `--hull-dip` that follows from it (style.css) rest
+  row 88 on the sea's surface and hang the rest of the picture under it. Anchoring
+  her lower edge there instead - which is what she used to do - leaves the whole
+  hull, and her own strip of water, hovering in the air over the surface. The
+  angler is a second photograph inside that frame, placed in frame percentages so
+  his boots stay on the foredeck, and the flag and the counter board stay drawn in
+  the boat box's own coordinates, sinking by the same `--hull-dip` so they keep
+  their place on her paint.
+- The rig the line layer draws (RIG_DX/RIG_Y in rig.js) is measured in shares of
+  the **sea** box, not of the boat's frame - the sea box is what a child sails her
+  around in. The two only agree on a sea whose proportions are the ones those
+  anchors were tuned on (the boat's box is a share of the sea's height, while the
+  rig's offsets are shares of its height *and* its width); on a sea of a very
+  different shape the rod's grip drifts from the angler's hands. That is a change
+  to the rig, not to where he stands, so leave his place in the frame alone.
 - Photographs come from different places, so the scene is tied together by grading:
   one shared colour pass over every sprite and plate at build time, plus the depth,
   grain and vignette layers the scene paints over everything.

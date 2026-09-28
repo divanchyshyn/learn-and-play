@@ -268,15 +268,23 @@
 
 
 /* ---- The boat, the angler and the fishing line --------------------------- */
-/* The boat sails along the surface: its own waterline sits at 78% of the
-   drawing, so the hull always floats at the surface. Its `left` comes from the
-   game (`boat.x`), and the rod, the float and the crate at the bow hang off the
-   same anchor (see RIG_DX in rig.js), so the whole rig travels as one. The
-   drawing itself is BoatArt.jsx – planked hull, boot-top stripe, framed glass and
-   the crew's gear – painted from the shared paints. */
+/* The boat sails along the surface. Its own box is her frame: `top` puts it on the
+   waterline and `translateY(-78%)` lifts it so that 22% of the box hangs under that
+   line, which is the room the hull picture needs to sit in the water (see
+   `.boat-hull`). Its `left` comes from the game (`boat.x`), and the rod, the float
+   and the net hang off the same anchor (see RIG_DX in rig.js), so the whole rig
+   travels as one. The drawing itself is BoatArt.jsx - a photographed hull and
+   angler, with the day's trip number and the catch counter drawn on her paint. */
 .boat {
   position: absolute; top: var(--waterline, 22%);
   height: clamp(96px, 23%, 148px); width: auto; aspect-ratio: 220 / 190;
+  /* How tall the hull picture is in this box, which row of the picture her own
+     waterline lies on, and how much of the picture therefore hangs below the sea's
+     surface once that row rests on it. The one number the two rules below cannot do
+     without: everything painted on the hull sinks by exactly this much. */
+  --hull-height: 78%;
+  --hull-waterline: 88;
+  --hull-dip: calc(var(--hull-height) * (100 - var(--hull-waterline)) / 100);
   transform: translateY(-78%);
   z-index: 4; pointer-events: none;
   /* The boat sails on the same heartbeat as the fish, and glides between ticks
@@ -301,15 +309,24 @@
   animation: spray-hop .8s ease-out infinite;
 }
 @keyframes spray-hop { from { opacity: .9; translate: 0 0; scale: .6; } to { opacity: 0; translate: -14px -12px; scale: 1.1; } }
-/* The hull and the angler are photographs. The hull's own waterline is the
-   picture's lower edge, so anchoring that edge on the box's waterline is what
-   floats her; the angler is placed so his hands sit on the rod's grip - the anchor
-   the line layer starts from (RIG_DX.rodBase, RIG_Y.rodBase in rig.js). What stays
-   drawn is the day's trip number on the flag and the catch counter on the hull,
-   because those are what a child reads. */
-.boat-photo { position: absolute; left: 0; bottom: 22%; height: 78%; width: auto; }
-.angler-photo { position: absolute; left: 21%; top: 12%; height: 46%; width: auto; }
-.boat-signs { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+/* The hull's frame: a box in the picture's own proportions, so the photograph can
+   never be stretched - the box changes size, the picture inside keeps its shape.
+   `bottom` is the sea's waterline less `--hull-dip`, which rests the picture's *own*
+   waterline row on that surface: her paint ends along row 88 and the picture's water
+   hangs below it, in the sea. Anchoring the picture's lower edge there instead - as
+   this once did - left her hovering over the surface with her water in the air. */
+.boat-hull { position: absolute; left: 0; bottom: calc(var(--waterline, 22%) - var(--hull-dip)); height: var(--hull-height); aspect-ratio: 900 / 553; }
+.boat-photo { display: block; width: 100%; height: auto; }
+/* The angler stands in the hull's frame, in her own percentages, so his boots stay
+   on the foredeck whatever the size of the sea. He is the size a person is standing
+   next to this wheelhouse: his boots on the foredeck's white stripe, his head up
+   beside the roof of the wheelhouse, and his hands where the rod's grip is (see
+   RIG_Y.rodBase in rig.js). */
+.angler-photo { position: absolute; left: 19%; top: -1%; height: 53%; width: auto; }
+/* The flag and the counter board keep the drawn boat's own coordinates - they are
+   painted on her, not part of the photograph - and sink by the same `--hull-dip` her
+   paint does, so they stay where they belong on her. */
+.boat-signs { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; translate: 0 var(--hull-dip); }
 .boat-flag-number { fill: #fffdf3; font-size: 22px; font-weight: 900; font-family: inherit; }
 .boat-trip-board { stroke: rgba(111, 75, 34, .7); stroke-width: 1.4; }
 .boat-trip-progress { fill: #fffdf3; font-size: 15px; font-weight: 900; font-family: inherit; }
