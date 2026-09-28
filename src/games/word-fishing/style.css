@@ -52,9 +52,11 @@
      is tall on a phone and eight times wider on a desktop screen. */
   background-image: var(--sky-photo); background-size: cover; background-position: 50% 100%;
 }
-/* A haze of the water's own colour along the lower edge, so sky and sea meet in
-   the same light instead of in a hard line. */
-.sky-haze { position: absolute; left: 0; right: 0; bottom: 0; height: 38%; background: linear-gradient(rgba(124, 196, 230, 0), rgba(158, 214, 240, .6)); }
+/* A haze of dawn light along the lower edge, so sky and sea meet in the same light
+   instead of in a hard line. It used to be a wash of the water's own blue, which
+   turned the horizon a cool lavender exactly along the sun's reflection; the light
+   that really stands between this sky and this sea is the sun's, so it is warm. */
+.sky-haze { position: absolute; left: 0; right: 0; bottom: 0; height: 38%; background: linear-gradient(rgba(255, 228, 190, 0), rgba(255, 222, 176, .3) 55%, rgba(255, 212, 164, .44)); }
 /* Each cloud crosses the whole sky and loops: it enters at the right edge and
    leaves past the left one, so the restart happens in the clipped strip outside
    the sky and the drift never jumps back into view. The static `left` each cloud
@@ -92,15 +94,31 @@
      the sunlit surface in the picture stays where the waterline is. */
   background-image: var(--water-photo); background-size: cover; background-position: 50% 0;
 }
+/* The first of the surface light: a veil of the water's own pale blue that reaches
+   a little way down from the waterline. The strip above it is a photograph of the
+   same water, so without this the two meet in a visible edge; with it the strip and
+   the top of the water column read as one surface. It sits under the depth gradient,
+   the light and everything that swims (z-index 0, ahead of them in tree order). */
+.sea-water::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 26%; z-index: 0; pointer-events: none;
+  background: linear-gradient(rgba(120, 190, 222, .25), rgba(118, 188, 220, .36) 10%, rgba(108, 178, 214, .26) 45%, rgba(96, 168, 208, 0));
+}
 /* The light that reaches down is the photograph's own; this only deepens the water
    towards the bottom, so the seabed reads as farther away than the fish. */
 .water-depth { position: absolute; inset: 0; z-index: 2; background: linear-gradient(rgba(12, 60, 82, 0) 28%, rgba(9, 44, 62, .42) 76%, rgba(7, 34, 48, .58)); }
-/* The surface is a strip of real water, repeated sideways. The strip is built so
-   that its own two halves are mirrors of each other (see the asset pipeline), and
-   the drift is a `transform` on the strip inside a clipped box, which the browser
-   composites instead of repainting. The strip is one tile wider than the box and
-   travels exactly one tile per cycle, so the pattern that leaves the left edge is
-   the one arriving at the right edge and the repeat has no seam to drift over. */
+/* The surface is a strip of real water, repeated sideways to span a sea that is
+   many tiles wide. Its own two halves are mirrors of each other (see the asset
+   pipeline), so the repeat has no seam at any width.
+   It does not drift, and that is deliberate. This band *is* the horizon: the
+   furthest water in the scene, seen at a grazing angle, where real crests
+   foreshorten into an almost unbroken line and the water travels nowhere in view.
+   A pattern scrolling along that line reads as flow - the eye can only ask how
+   fast the river runs - which is why the strip used to look like a river running
+   past the boat. Slowing it down would only have made a slower river: a change of
+   speed cannot repair a movement in the wrong direction, in the wrong place. What
+   moves at the line is the light on it (`glint-breathe` below), and what moves in
+   the scene is everything that should: the clouds, the gulls, the snow, the kelp,
+   the boat she is fishing from. */
 .sea-waves {
   /* The waterline is one tile of the strip drawn at the picture's own proportions:
      the picture is 622x52 px, so a 26px-tall line repeats every 311px. The tile
@@ -108,16 +126,45 @@
      with its own pattern. */
   --wave-h: 26px;
   --surface-tile: calc(var(--wave-h) * 622 / 52);
-  position: absolute; left: 0; top: var(--waterline, 22%); z-index: 3; width: 100%; height: var(--wave-h); margin-top: calc(var(--wave-h) * -0.5); display: block; overflow: hidden;
+  position: absolute; left: 0; top: var(--waterline, 22%); z-index: 3; width: 100%; height: var(--wave-h); margin-top: calc(var(--wave-h) * -0.5); display: block;
 }
 .sea-waves::before {
-  content: ""; position: absolute; left: 0; top: 0; height: 100%; width: calc(100% + var(--surface-tile));
+  content: ""; position: absolute; inset: 0;
   background-image: var(--surface-photo); background-repeat: repeat-x; background-size: var(--surface-tile) 100%;
-  animation: surface-drift 11s linear infinite;
+  /* The band's own two edges are faded, not drawn. Above it the sky ends in its own
+     sunrise haze and below it the water's sunlit surface begins, and neither is a
+     place a real waterline shows a line: without the fade the edges are the last
+     hard lines at the horizon - a bright seam drawn across the sky and a pale shelf
+     over the water - and the whole band reads as a slate bar laid on the sea. The
+     fade is a mask, the same trick the sand plate's top edge uses, so it follows the
+     band wherever the waterline is, and the middle third stays at full strength so
+     the line still reads as real water rather than a haze. Feathered this way the
+     band stops at nothing: what the eye sees is the sky's light, then the water's
+     own ripples a little way out, then the sunlit near surface. */
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0), #000 30%, #000 70%, rgba(0, 0, 0, 0));
+  mask-image: linear-gradient(rgba(0, 0, 0, 0), #000 30%, #000 70%, rgba(0, 0, 0, 0));
 }
-/* One tile per cycle. The cycle is shorter than the old 34s because it no longer
-   travels a whole sea width, which keeps the crests drifting at the pace they had. */
-@keyframes surface-drift { from { translate: 0 0; } to { translate: calc(-1 * var(--surface-tile)) 0; } }
+/* The other half of the surface light: the sun's reflection, caught by the water.
+   The sky's sun and the water's bright column are the same light, and the strip
+   alone cannot carry that light across the line, so this is a warm wash with a
+   small pale core, both straddling the waterline. It is drawn over the strip (same
+   z-index, later in the tree) and under everything that floats on the surface.
+   It stays exactly where it is - it is the strip's stillness that put the light in
+   charge of this line - and the one thing that moves up here is its brightness. */
+.sea-glint {
+  position: absolute; left: 0; right: 0; top: var(--waterline, 22%); translate: 0 -50%; height: 160px; z-index: 3; pointer-events: none;
+  background:
+    radial-gradient(ellipse 11% 24px at 49.5% 52.5%, rgba(255, 250, 235, .74), rgba(255, 244, 220, .34) 55%, rgba(255, 240, 210, 0)),
+    radial-gradient(ellipse 29% 56px at 47% 55%, rgba(255, 238, 206, .45), rgba(255, 230, 192, .21) 50%, rgba(255, 226, 182, 0));
+  animation: glint-breathe 12s ease-in-out infinite alternate;
+}
+/* The glare on real water is never steady: it brightens and dims as the surface
+   tilts. That is a change of light and never of place, so it cannot be read as a
+   current however long a child watches it - and it is what keeps the line alive
+   now that the strip no longer drifts. Slow and shallow on purpose (12s, a fifth of
+   the wash's own strength): it should be noticed as a living sea, never as a
+   blinking sign. Only opacity moves, so no filter is ever re-rendered. */
+@keyframes glint-breathe { from { opacity: .8; } to { opacity: 1; } }
 .sea-beam { position: absolute; top: -8%; width: 82px; height: 122%; background: linear-gradient(rgba(255, 253, 243, .4), rgba(255, 253, 243, 0) 74%); transform: skewX(-12deg); filter: blur(6px); animation: ray-breathe 9s ease-in-out infinite alternate; }
 .beam-a { left: 22%; }
 .beam-b { left: 44%; width: 52px; animation-duration: 11s; animation-delay: -3s; }
