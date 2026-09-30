@@ -2,7 +2,7 @@ import { PHOTOS } from './photos.js';
 import { PhotoSprite } from './PhotoSprite.jsx';
 import { RIG_DX, RIG_Y } from './rig.js';
 import { BoatArt } from './BoatArt.jsx';
-import { Anchor, Driftwood, RockCluster, SandFloor, Stones } from './SeaFloor.jsx';
+import { Anchor, Driftwood, ForegroundWeed, RockCluster, SandFloor, Stones } from './SeaFloor.jsx';
 import { SkyLayer } from './SeaSky.jsx';
 import { WaterBody, WaveLine, SurfaceGlint } from './SeaWater.jsx';
 import { ReefArt } from './ReefRewards.jsx';
@@ -21,8 +21,9 @@ import { ReefArt } from './ReefRewards.jsx';
 //
 //   SeaSky      – the sky, the drifting clouds and the gulls
 //   SeaWater    – the water column, the surface strip, the sun's glint on it,
-//                 the light, the snow, the kelp
-//   SeaFloor    – the sand, rocks, the old anchor, driftwood, stones
+//                 the light, the snow
+//   SeaFloor    – the sand, rocks, the old anchor, driftwood, stones, and the
+//                 weed that grows at the front of the stage
 //   ReefRewards – the ten treasures a finished trip unlocks
 //   BoatArt     – the boat, the angler, the flag and the counter on the hull
 //   FishArt     – the six fish species (worn by FishSprite)
@@ -206,6 +207,9 @@ export function SeaScene({
     <WaveLine />
     <SurfaceGlint />
     <SeaBed decorations={decorations} newRewardId={newRewardId} />
+    {/* The weed is the nearest thing in the scene, so it is painted last of the
+        seabed: over the sand and over everything the collection stands on it. */}
+    <ForegroundWeed />
     <SailMarker boat={boat} nudge={nudge} />
     <Boat boat={boat} tripNumber={tripNumber} tripProgress={tripProgress} />
     <LineLayer boat={boat} target={lineTo} taut={taut} />

@@ -5,6 +5,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { FISH_SPECIES } from './FishArt.jsx';
 import { FISH_PHOTOS, PHOTOS } from './photos.js';
+import { REEF_REWARDS } from './trip.js';
 
 // The whole stage is photographs, so a fault in the art is a fault in the game:
 // a plate that carries its own sea, a cut-out that lost its alpha channel or a
@@ -40,8 +41,70 @@ function readWebp(url) {
 }
 
 // The stylesheet beside the pictures: found through the pictures' own folder, so
-// it moves with them.
+// it moves with them. Comments come out first, so a rule that is commented out can
+// never satisfy a layout assertion below.
 const styleSheet = readFileSync(join(dirname(localFile(PHOTOS.sky)), '..', 'style.css'), 'utf8');
+const rules = styleSheet.replace(/\/\*[\s\S]*?\*\//g, '');
+
+// The sea box the layout is designed at, the same reference the reef layout test
+// uses (see trip.test.js). Sizes and offsets in this test are read from the rules
+// the scene is actually laid out with, never copied from them.
+const SEA = { width: 1080, height: 640 };
+
+// The declarations of one rule, collapsed to a single line. The rule has to start
+// where the selector does (a `}` or the start of the file in front of it), so the
+// narrow-screen override rather than the rule it overrides is never picked up.
+function declarations(selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rule = rules.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`));
+  expect(rule, `style.css has no ${selector} rule`).toBeTruthy();
+  return rule[1].replace(/\s+/g, ' ');
+}
+
+// One number out of a rule - or out of the rule it inherits it from, which is how
+// the clumps take their width from `.lake-kelp` unless their own rule sets one.
+function pixelsIn(selector, property, inheritsFrom = null) {
+  const pattern = new RegExp(`${property}:\\s*(-?[\\d.]+)`);
+  const found = declarations(selector).match(pattern)
+    ?? (inheritsFrom ? declarations(inheritsFrom).match(pattern) : null);
+  expect(found, `${selector} has no ${property}`).toBeTruthy();
+  return Number(found[1]);
+}
+
+// The box a sprite covers on the stage: the picture's own shape (a photograph is
+// never stretched) at the width one of the game's rules gives it, centred on the
+// percentage the floor places it at - which is what `translate(-50%, -50%)` means.
+function centredBox(photo, { left, top, width }) {
+  const { width: pictureWidth, height: pictureHeight } = readWebp(photo);
+  const height = (width * pictureHeight) / pictureWidth;
+  const centreX = (left / 100) * SEA.width;
+  const centreY = (top / 100) * SEA.height;
+  return {
+    left: centreX - width / 2,
+    right: centreX + width / 2,
+    top: centreY - height / 2,
+    bottom: centreY + height / 2,
+  };
+}
+
+// A clump of weed instead hangs off the bottom edge of the sea box by its own
+// `bottom`, and is placed by its left or right edge rather than by a centre.
+function clumpBox(photo, selector) {
+  const width = pixelsIn(selector, 'width', '.lake-kelp');
+  const { width: pictureWidth, height: pictureHeight } = readWebp(photo);
+  const height = (width * pictureHeight) / pictureWidth;
+  const drop = Math.abs(pixelsIn('.lake-kelp', 'bottom'));
+  const placement = declarations(selector);
+  const fromRight = placement.match(/right:\s*(-?[\d.]+)%/);
+  const fromLeft = placement.match(/left:\s*(-?[\d.]+)%/);
+  const left = fromRight
+    ? SEA.width - (Number(fromRight[1]) / 100) * SEA.width - width
+    : (Number(fromLeft[1]) / 100) * SEA.width;
+  return { left, right: left + width, top: SEA.height + drop - height, bottom: SEA.height + drop };
+}
+
+const overlapsOnStage = (a, b) => Math.min(a.right, b.right) > Math.max(a.left, b.left)
+  && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
 
 describe('word-fishing photographs', () => {
   it('pastes every plate as a full frame, with no alpha to crop against', () => {
@@ -77,6 +140,21 @@ describe('word-fishing photographs', () => {
     }
   });
 
+  it('cuts every treasure out of its own picture, with alpha', () => {
+    // The ten treasures are cut-outs like the fish: a picture of their own, keyed out
+    // of its background, with the alpha channel carrying the shape. One that lost it
+    // would paint its own rectangle of background onto the sand, and one drawn from a
+    // postage stamp would go soft in the box the floor gives it.
+    for (const reward of REEF_REWARDS) {
+      const head = readWebp(PHOTOS[reward.id]);
+      expect(head.chunk, `${reward.id} is not a cut-out`).toBe('VP8X');
+      expect(head.alpha, `${reward.id} lost its alpha channel`).toBe(true);
+      const long = Math.max(head.width, head.height);
+      expect(long, `${reward.id} is too small for the box it fills`).toBeGreaterThanOrEqual(320);
+      expect(long, `${reward.id} carries more pixels than its box can show`).toBeLessThanOrEqual(900);
+    }
+  });
+
   it('repeats the waterline at the proportions of its picture', () => {
     // The strip is drawn as one tile per repeat, at a size derived from the tile's
     // own numbers in the stylesheet. Those numbers and the picture are two halves
@@ -106,6 +184,51 @@ describe('word-fishing photographs', () => {
   it('gives every species the size correction the stylesheet knows it by', () => {
     for (const species of FISH_SPECIES) {
       expect(styleSheet, `${species} has no size correction`).toContain(`.fish.species-${species} {`);
+    }
+  });
+
+  it('stands the weed in front of the sand, and clear of the collection', () => {
+    // The kelp grows at the very front of the stage, so it is painted over the
+    // floor (see `.sea-weed`): an item drawn across a plant is what made the stones
+    // look like they were lying on top of the weed. That layer is what guarantees it
+    // at every screen size. The clumps' own places then keep the layer from
+    // swallowing a find on the sea the layout is designed at.
+    const zIndexOf = (selector) => Number(declarations(selector).match(/z-index:\s*(\d+)/)[1]);
+    expect(zIndexOf('.sea-weed'), 'the weed does not paint over the sand')
+      .toBeGreaterThan(zIndexOf('.sea-floor'));
+
+    const props = [
+      ['rock', '.reef-rock', PHOTOS.rockCluster],
+      ['anchor', '.reef-anchor', PHOTOS.anchor],
+      ['driftwood', '.reef-driftwood', PHOTOS.driftwood],
+      ['stones', '.reef-stones', PHOTOS.stones],
+    ].map(([name, selector, photo]) => ({
+      name,
+      ...centredBox(photo, {
+        left: pixelsIn(selector, 'left'),
+        top: pixelsIn(selector, 'top'),
+        width: pixelsIn(selector, 'width'),
+      }),
+    }));
+
+    const finds = REEF_REWARDS.map((reward) => ({
+      name: reward.id,
+      ...centredBox(PHOTOS[reward.id], { left: reward.x, top: reward.y, width: reward.size }),
+    }));
+
+    const clumps = [
+      ['kelp-a', PHOTOS.kelpA],
+      ['kelp-b', PHOTOS.kelpB],
+      ['kelp-c', PHOTOS.kelpB],
+    ].map(([name, photo]) => ({ name, ...clumpBox(photo, `.${name}`) }));
+    expect(clumps).toHaveLength(3);
+
+    // Every clump stands in clear sand: no find and no prop is underneath it, so
+    // the foreground layer never hides part of the child's collection.
+    for (const clump of clumps) {
+      for (const item of [...finds, ...props]) {
+        expect(overlapsOnStage(clump, item), `${clump.name} grows across the ${item.name}`).toBe(false);
+      }
     }
   });
 });

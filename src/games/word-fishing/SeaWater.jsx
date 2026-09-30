@@ -1,10 +1,10 @@
 import { PHOTOS } from './photos.js';
-import { Kelp } from './SeaFloor.jsx';
 
 // The water itself: a photograph of the water column with the light falling in
 // from the surface at the top, the surface line as a repeating strip of real
-// water, the sun's own light caught by that surface, drifting marine snow, the
-// kelp at the edge, and a dim shoal far away.
+// water, the sun's own light caught by that surface, drifting marine snow, and a
+// dim shoal far away. The weed is not in here: it grows at the front of the stage
+// and is painted over the sand (see ForegroundWeed in SeaFloor.jsx).
 //
 // The water plate is pasted with `cover`, anchored to its top edge, so the sunlit
 // surface stays where the surface strip puts the waterline, and neither the plate
@@ -78,9 +78,6 @@ export function WaterBody() {
     <GodRays />
     <DistantShoal />
     <MarineSnow />
-    <span className="lake-kelp kelp-a"><Kelp variant="a" /></span>
-    <span className="lake-kelp kelp-b"><Kelp variant="b" /></span>
-    <span className="lake-kelp kelp-c"><Kelp variant="b" /></span>
   </div>;
 }
 

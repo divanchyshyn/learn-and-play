@@ -251,6 +251,17 @@ the float. They live in `src/games/word-fishing/photo-assets/`, imported by
   the plain background, light grade, resize with LANCZOS, save as WebP lossy
   (`quality` 84-86, `method=6`), then re-open the result and print size, format,
   mode and the chunk bytes to confirm the contract.
+- The seabed is layered by what a child can see, and two rules hold that layering
+  together:
+  - **No control ever hides the collection.** Word Fishing's one control (`.action-bar`)
+    is not in the water: it sits on its own shelf in the stage, under the sea box,
+    and the `.sea` height pays for that shelf (the clamp subtracts it). A control
+    floating over the seabed was hiding the finds that land in the middle of it.
+  - **Nothing is painted across the weed.** `ForegroundWeed` grows at the front of
+    the stage in a layer of its own, painted over the floor (`z-index` above
+    `.sea-floor`) so no find is ever drawn on top of a plant, and its clumps are
+    planted where the collection is not - a rule `PhotoAssets.test.js` measures at
+    the reference sea, the same way the reef layout test measures the finds.
 - Adding, replacing or removing a picture is the same four-step change as above:
   copy the `.webp` in, import it in `photos.js` and reference it from the module
   that draws it, extend the test that guards it (`FishArt.test.jsx`,

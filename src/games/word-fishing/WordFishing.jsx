@@ -45,7 +45,7 @@ const REEL_CLICK_DEGREES = 90;
 export const TIMING = { TICK_MS, LANDED_MS, NUDGE_MS, REWARD_POP_MS };
 
 // What the trip is doing right now. One stage drives the hint, the one control
-// on the water and the narration, so the three can never disagree:
+// and the narration, so the three can never disagree:
 //
 //   sail   – no line in the water: tap the sea to sail, cast to start fishing
 //   bait   – the float is out (flying, waiting or being tasted)
@@ -425,15 +425,6 @@ export function WordFishing() {
           {sea.fishes.map((fish) => <FishSprite key={fish.id} fish={fish} boat={sea.boat} />)}
         </SeaScene>
 
-        <ActionBar
-          stage={stage}
-          fight={sea.fight}
-          onCast={castLine}
-          onPullIn={pullInLine}
-          onStrike={strike}
-          onTurn={turnReel}
-        />
-
         {aboard && <div className="catch-card">
           <p className="catch-kicker">På dekk! Hvilken kasse hører ordet til?</p>
           <p className="catch-word">{fishWord(aboard)}</p>
@@ -476,6 +467,19 @@ export function WordFishing() {
 
         {bookOpen && <FishingBook journal={journal} onClose={() => setBookOpen(false)} />}
       </div>
+
+      {/* The one control, on its own shelf under the water. It used to float on the
+          sea, where everything the child collected in the middle of the seabed
+          landed behind it - a whole find could be unlocked and never seen. Art and
+          controls now have separate places, so no control can ever hide the stage. */}
+      <ActionBar
+        stage={stage}
+        fight={sea.fight}
+        onCast={castLine}
+        onPullIn={pullInLine}
+        onStrike={strike}
+        onTurn={turnReel}
+      />
 
       <p className="dock-hint" id="sea-hint">
         <span className="dock-hint-stage">{stageHint(sea, tripCard, finale)}</span>
