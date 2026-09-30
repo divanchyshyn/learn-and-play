@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { KEY_TURN_DEGREES, angleStep, pointerAngle } from './rig.js';
 
-// The one control on the water, changing with what the child can do right now:
+// The one control, in the middle of the crates' own row (see `.crate-dock`), changing
+// with what the child can do right now:
 //   * "Kast ut"     – put the line out: the bait goes down under the boat
 //   * "Dra opp"     – take the line up again while the float lies waiting
 //   * "Napp!"       – the float is under: strike, right now
 //   * the reel      – a fish is hooked: draw circles round the spool to wind in
 //
 // It is deliberately one button in one place in the thumb's reach, so a child
-// never has to find a different control for every step of the trip.
+// never has to find a different control for every step of the trip - and it never
+// stands on the water, so it can never cover a find.
 
 // The reel. Drawing a finger in circles around the spool winds the fish in, and
 // that is the whole fight: nothing beside the spool has to be watched while the

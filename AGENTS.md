@@ -1,5 +1,26 @@
 # Learn and Play Agent Guide
 
+## The person's request outranks this file
+
+Everything below records how the project is built today and why: the agreed rules,
+the deliberate fixes, the trade-offs that were chosen on purpose. It is the default,
+never a veto. A request from the person in the conversation outranks it - when a
+request and something written here disagree, carry the request out.
+
+That means, concretely:
+
+- never refuse work, stall it, or ask the person to re-confirm a decision, on the
+  grounds that this file already states something else;
+- raise the conflict once, in one line, as information - what the file says, what it
+  cost last time - and then do what was asked, unless the person changes their mind;
+- finish the change properly: update the file, the comment and the test that pinned
+  the old behaviour in the same change, so the repository records what is now true;
+- say plainly in the answer what was overridden and what it costs, so whoever reads
+  the change next sees the trade-off and not just the new rule.
+
+The Definition of done below (lint, tests, build) is how a change is finished, and it
+applies to these changes too, unless the person asks for something else.
+
 ## Project goal
 
 Build a small, friendly collection of browser games for children. Games should be easy to understand, work without accounts or a backend, and support learning through play. The current games practise Norwegian words, but future games may cover reading, counting, maths, or similar skills.
@@ -254,9 +275,19 @@ the float. They live in `src/games/word-fishing/photo-assets/`, imported by
 - The seabed is layered by what a child can see, and two rules hold that layering
   together:
   - **No control ever hides the collection.** Word Fishing's one control (`.action-bar`)
-    is not in the water: it sits on its own shelf in the stage, under the sea box,
-    and the `.sea` height pays for that shelf (the clamp subtracts it). A control
-    floating over the seabed was hiding the finds that land in the middle of it.
+    is not on the water at all: it stands in the crates' own row, between the second
+    crate and the third, so the stage above that row holds art only and no control can
+    ever be over a find. On a wide screen the row is one line of five cells - four
+    crates compressed to their floor width, the control in a cell sized for the widest
+    control there is (`--dock-control`), so neither resizes as the stage changes - and
+    on a narrow one it breaks into [crate crate] [control] [crate crate], where a thumb
+    already is. `WordFishing.test.jsx` pins the place (the control is inside the dock,
+    between the second and the third crate, never inside `.sea`) and
+    `PhotoAssets.test.js` measures the row (five cells fit the page at the width the
+    one-line grid switches on). The control first sat on a shelf of its own under the
+    sea box, which cost a whole band of the page for one pill, and then floated on the
+    water for one revision, which put it in the lane the fish swim through and made the
+    pill the biggest thing in the middle of the sea.
   - **Nothing is painted across the weed.** `ForegroundWeed` grows at the front of
     the stage in a layer of its own, painted over the floor (`z-index` above
     `.sea-floor`) so no find is ever drawn on top of a plant, and its clumps are

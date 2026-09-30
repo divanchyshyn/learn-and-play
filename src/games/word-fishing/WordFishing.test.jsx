@@ -219,13 +219,16 @@ describe('word-fishing the opening screen', () => {
     expect(view.container.querySelector('.sea-surface')).toBeTruthy();
     expect(view.container.querySelector('.cast-button').textContent).toMatch(/Kast ut/);
 
-    // The one control sits on its own shelf under the water, never over it: the
-    // middle of the seabed is where the biggest finds land, and a control floating
-    // there used to hide a treasure the child had just earned.
+    // The one control sits in the crates' own row, between the second crate and the
+    // third: the water above it holds art only, so no control can ever stand over a
+    // find, and the row the crates already needed is what carries the control.
     const actionBar = view.container.querySelector('.action-bar');
     expect(actionBar).toBeTruthy();
     expect(view.container.querySelector('.sea').contains(actionBar)).toBe(false);
-    expect(actionBar.parentElement).toBe(view.container.querySelector('.sea-stage'));
+    expect(actionBar.parentElement).toBe(view.container.querySelector('.crate-dock'));
+    const cratesInRow = view.container.querySelectorAll('.crate-dock .crate');
+    expect(actionBar.previousElementSibling).toBe(cratesInRow[1]);
+    expect(actionBar.nextElementSibling).toBe(cratesInRow[2]);
 
     // Four crates, none of them an answer yet.
     const crates = [...view.container.querySelectorAll('.crate')];

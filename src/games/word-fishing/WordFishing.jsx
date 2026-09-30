@@ -468,19 +468,6 @@ export function WordFishing() {
         {bookOpen && <FishingBook journal={journal} onClose={() => setBookOpen(false)} />}
       </div>
 
-      {/* The one control, on its own shelf under the water. It used to float on the
-          sea, where everything the child collected in the middle of the seabed
-          landed behind it - a whole find could be unlocked and never seen. Art and
-          controls now have separate places, so no control can ever hide the stage. */}
-      <ActionBar
-        stage={stage}
-        fight={sea.fight}
-        onCast={castLine}
-        onPullIn={pullInLine}
-        onStrike={strike}
-        onTurn={turnReel}
-      />
-
       <p className="dock-hint" id="sea-hint">
         <span className="dock-hint-stage">{stageHint(sea, tripCard, finale)}</span>
         {!finale && <span className="dock-hint-tally">
@@ -488,6 +475,8 @@ export function WordFishing() {
         </span>}
       </p>
 
+      {/* The one control, in the crates' own row: [crate] [crate] [control] [crate]
+          [crate]. Nothing a child presses stands on the water, where the finds do. */}
       <CrateDock
         trip={trip}
         journal={journal}
@@ -495,6 +484,14 @@ export function WordFishing() {
         hintCrateId={hintCrateId}
         landed={landed}
         onPut={putInCrate}
+        control={<ActionBar
+          stage={stage}
+          fight={sea.fight}
+          onCast={castLine}
+          onPullIn={pullInLine}
+          onStrike={strike}
+          onTurn={turnReel}
+        />}
       />
 
       <p className="visually-hidden" role="status">{landed

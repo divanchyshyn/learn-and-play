@@ -71,6 +71,33 @@ function pixelsIn(selector, property, inheritsFrom = null) {
   return Number(found[1]);
 }
 
+// One of a rule's own custom properties, in pixels: the dock sizes the cell the one
+// control stands in with one, so the number the row is measured against is the number
+// the row is laid out with.
+function variableIn(selector, name) {
+  const found = declarations(selector).match(new RegExp(`${name}:\\s*(-?[\\d.]+)px`));
+  expect(found, `${selector} has no ${name}`).toBeTruthy();
+  return Number(found[1]);
+}
+
+// The viewport width the dock's five-cell row switches on at: the query that turns
+// the dock into the one-line grid, read from the stylesheet.
+function oneRowBreakpoint() {
+  const found = [...rules.matchAll(/@media\s*\(min-width:\s*(\d+)px\)\s*\{([\s\S]*?)\n\}/g)]
+    .find((query) => query[2].includes('var(--dock-control)'));
+  expect(found, 'no media query puts the dock on one row').toBeTruthy();
+  return Number(found[1]);
+}
+
+// The page - and with it the sea and the dock - on a screen of a given viewport
+// width: `min(100% - <inset>, <cap>)`, read from that rule rather than copied.
+function seaWidthOn(viewport) {
+  const page = declarations('.game-page.fishing-page');
+  const inset = Number(page.match(/100%\s*-\s*([\d.]+)px/)[1]);
+  const cap = Number(page.match(/,\s*([\d.]+)px\s*\)/)[1]);
+  return Math.min(viewport - inset, cap);
+}
+
 // The box a sprite covers on the stage: the picture's own shape (a photograph is
 // never stretched) at the width one of the game's rules gives it, centred on the
 // percentage the floor places it at - which is what `translate(-50%, -50%)` means.
@@ -105,6 +132,35 @@ function clumpBox(photo, selector) {
 
 const overlapsOnStage = (a, b) => Math.min(a.right, b.right) > Math.max(a.left, b.left)
   && Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
+
+// The scenery that is always on the sand, whoever is fishing: each prop's box, read
+// from the rule that places it. The weed may not grow across one, so the layout guard
+// below needs them beside the finds.
+const STAGE_PROPS = [
+  ['rock', '.reef-rock', PHOTOS.rockCluster],
+  ['anchor', '.reef-anchor', PHOTOS.anchor],
+  ['driftwood', '.reef-driftwood', PHOTOS.driftwood],
+  ['stones', '.reef-stones', PHOTOS.stones],
+];
+
+function stageProps() {
+  return STAGE_PROPS.map(([name, selector, photo]) => ({
+    name,
+    ...centredBox(photo, {
+      left: pixelsIn(selector, 'left'),
+      top: pixelsIn(selector, 'top'),
+      width: pixelsIn(selector, 'width'),
+    }),
+  }));
+}
+
+// Every find a finished trip can stand on the sand, in the same coordinates.
+function stageFinds() {
+  return REEF_REWARDS.map((reward) => ({
+    name: reward.id,
+    ...centredBox(PHOTOS[reward.id], { left: reward.x, top: reward.y, width: reward.size }),
+  }));
+}
 
 describe('word-fishing photographs', () => {
   it('pastes every plate as a full frame, with no alpha to crop against', () => {
@@ -197,24 +253,9 @@ describe('word-fishing photographs', () => {
     expect(zIndexOf('.sea-weed'), 'the weed does not paint over the sand')
       .toBeGreaterThan(zIndexOf('.sea-floor'));
 
-    const props = [
-      ['rock', '.reef-rock', PHOTOS.rockCluster],
-      ['anchor', '.reef-anchor', PHOTOS.anchor],
-      ['driftwood', '.reef-driftwood', PHOTOS.driftwood],
-      ['stones', '.reef-stones', PHOTOS.stones],
-    ].map(([name, selector, photo]) => ({
-      name,
-      ...centredBox(photo, {
-        left: pixelsIn(selector, 'left'),
-        top: pixelsIn(selector, 'top'),
-        width: pixelsIn(selector, 'width'),
-      }),
-    }));
+    const props = stageProps();
 
-    const finds = REEF_REWARDS.map((reward) => ({
-      name: reward.id,
-      ...centredBox(PHOTOS[reward.id], { left: reward.x, top: reward.y, width: reward.size }),
-    }));
+    const finds = stageFinds();
 
     const clumps = [
       ['kelp-a', PHOTOS.kelpA],
@@ -230,5 +271,33 @@ describe('word-fishing photographs', () => {
         expect(overlapsOnStage(clump, item), `${clump.name} grows across the ${item.name}`).toBe(false);
       }
     }
+  });
+
+  it('keeps the four crates and the one control on one row', () => {
+    // The control lives in the crates' own row now (see `.crate-dock`), so the five
+    // cells have to fit the page the layout is designed at, on the one line the dock
+    // switches to: four crates at their narrowest, the control's own cell, and the
+    // gaps between them. The breakpoint and every size below are read from the rules
+    // the row is actually laid out with, never copied from them.
+    const gap = pixelsIn('.crate-dock', 'gap');
+    const crateFloor = pixelsIn('.crate', 'min-width');
+    const controlCell = variableIn('.crate-dock', '--dock-control');
+    const widestControl = Math.max(
+      pixelsIn('.action-button', 'min-width'),
+      pixelsIn('.bite-button', 'min-width'),
+      pixelsIn('.reel', 'width'),
+    );
+    const fiveCells = 4 * crateFloor + controlCell + 4 * gap;
+
+    // The control's cell is the widest control there is, so the pill and the reel
+    // never resize the crates they stand between.
+    expect(controlCell, 'the control does not fit its own cell').toBeGreaterThanOrEqual(widestControl);
+
+    // …and the five cells fit the page at the width the row goes onto one line, with
+    // the page's own inset taken off (`min(100% - <inset>, <cap>)`, see the page rule).
+    const breakpoint = oneRowBreakpoint();
+    const pageAtBreakpoint = seaWidthOn(breakpoint);
+    expect(fiveCells, `the row needs ${fiveCells}px at ${breakpoint}px, where the page is ${pageAtBreakpoint}px`)
+      .toBeLessThanOrEqual(pageAtBreakpoint);
   });
 });
