@@ -1,6 +1,15 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, fireEvent, screen, within, cleanup } from '@testing-library/react';
 import { Shop, MAX_PER_TRANSACTION, SELLER_START_MONEY, START_MONEY } from './Shop.jsx';
+import { setMuted } from './sounds.js';
+
+beforeEach(() => {
+  // The mute setting lives on the shared audio engine, so one test that mutes
+  // the shop would otherwise decide what the next test opens with.
+  window.localStorage.clear();
+  setMuted(false);
+});
+
 afterEach(() => {
   cleanup();
 });
@@ -260,5 +269,27 @@ it('starts a fresh day on demand', () => {
 
     expect(screen.queryByText('Hvor mye koster alle varene sammen?')).not.toBeInTheDocument();
     expect(screen.getByText('1 av 3 valgt til kjøp')).toBeInTheDocument();
+  });
+
+  // The speaker button used to forget its setting on every page load: the shop
+  // was the one game that never read the shared engine's saved value back, so a
+  // child in a quiet room had to mute it again on every visit. This is what a
+  // reload looks like from the module's point of view.
+  it('remembers a mute choice across a reload, under the shop\u2019s own key', async () => {
+    render(<Shop />);
+    expect(screen.getByRole('button', { name: 'Slå av lyd' })).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Slå av lyd' }));
+    expect(window.localStorage.getItem('shop:muted')).toBe('1');
+    cleanup();
+
+    // A fresh page: the module is evaluated again and re-reads its key.
+    vi.resetModules();
+    const fresh = await import('./Shop.jsx');
+    render(<fresh.Shop />);
+
+    const mutedToggle = screen.getByRole('button', { name: 'Slå på lyd' });
+    expect(mutedToggle).toBeInTheDocument();
+    expect(mutedToggle).toHaveAttribute('aria-pressed', 'true');
   });
 });

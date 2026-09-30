@@ -1,4 +1,4 @@
-import { PUZZLE_PIECE_COUNT } from './PiecePuzzle.jsx';
+import { PUZZLE_PIECE_COUNT } from './puzzle.js';
 import { migrateStorage } from '../../shared/persistence.js';
 import { THEMES } from './mazes.js';
 
@@ -6,7 +6,7 @@ import { THEMES } from './mazes.js';
 // pieces of state are saved:
 //
 //  * the earned puzzle pieces and the picture they belong to (pieceSession
-//    from PiecePuzzle.jsx),
+//    from puzzle.js),
 //  * the maze session itself – the carved labyrinth, which spelling locks are
 //    already open, whether the exit was celebrated, and exactly where the
 //    runner stood – so a reload drops the child back onto the same tile
@@ -92,8 +92,8 @@ export const pieceSessionCodec = {
 // The codec cannot know how many pictures ship with the game, so a stored index
 // is accepted as any whole number `>= 0` - the same rule the piece session uses
 // for `imageIndex`. Picking a picture only ever offers indices inside the
-// current rotation (see nextImageIndex in PiecePuzzle.jsx), so a rotation that
-// grows or shrinks keeps every saved gallery working.
+// current rotation (see nextImageIndex in puzzle.js), so a rotation that grows
+// or shrinks keeps every saved gallery working.
 
 export function createGallery() {
   return { seen: [], round: [] };

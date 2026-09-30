@@ -8,10 +8,7 @@
 .game-controls { position: absolute; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
 .rounds-chip { padding: 6px 11px; border: 2px solid #d09b45; border-radius: 999px; background: #fff3d6; color: #7a4c08; font-size: .88rem; font-weight: 900; white-space: nowrap; }
 .rounds-chip.hidden-chip { visibility: hidden; }
-.chip { min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
-.chip:hover { transform: translateY(-2px); }
 .chip.active { border-color: #e46e4b; background: #ffe4d8; color: #b34a26; }
-.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* The market floor: seller – shop shelf – your shelf – customer. */
 .market-layout { display: grid; grid-template-columns: minmax(128px, 185px) minmax(0, 1fr) minmax(0, 1fr) minmax(128px, 185px); grid-template-areas: 'seller buy owned customer'; gap: 18px; align-items: start; position: relative; }

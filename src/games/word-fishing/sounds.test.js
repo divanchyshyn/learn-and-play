@@ -1,16 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { isMuted, setMuted, sounds } from './sounds.js';
 
 describe('word-fishing sound settings', () => {
-  beforeEach(() => {
+  afterEach(() => {
+    // The mute setting lives on the shared audio engine, so leaving it set
+    // would decide what the next test file opens with.
     setMuted(false);
   });
 
-  it('starts unmuted', () => {
-    expect(isMuted()).toBe(false);
-  });
-
-  it('persists the mute setting to localStorage', () => {
+  it('remembers the mute setting under the game\u2019s own storage key', () => {
     setMuted(true);
     expect(isMuted()).toBe(true);
     expect(window.localStorage.getItem('wordFishing:muted')).toBe('1');

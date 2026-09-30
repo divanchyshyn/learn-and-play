@@ -1,16 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { sounds, setMuted, isMuted } from './sounds.js';
 
 describe('number-line-hop sound settings', () => {
-  beforeEach(() => {
+  afterEach(() => {
+    // The mute setting lives on the shared audio engine, so leaving it set
+    // would decide what the next test file opens with.
     setMuted(false);
   });
 
-  it('starts unmuted', () => {
-    expect(isMuted()).toBe(false);
-  });
-
-  it('persists the mute setting to localStorage', () => {
+  it('remembers the mute setting under the game\u2019s own storage key', () => {
     setMuted(true);
     expect(isMuted()).toBe(true);
     expect(window.localStorage.getItem('numberLineHop:muted')).toBe('1');

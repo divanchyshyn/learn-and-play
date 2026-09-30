@@ -1,85 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isDragStart } from './drag.js';
+import { isDragStart, useTileDrag } from './drag.js';
 import { sounds } from './sounds.js';
+import {
+  PUZZLE_PIECE_COUNT,
+  cellForPiece,
+  isBoardFull,
+  isPuzzleCorrect,
+} from './puzzle.js';
 
-export const PUZZLE_PIECE_COUNT = 4;
-
-// Which picture does this run collect? A picture the child has already seen
-// whole is excluded (see the gallery in progress.js), so a finished picture
-// stays out of the rotation until the other pictures have had their turn. When
-// nothing is left to exclude, the whole library is allowed again. `excluded`
-// may name indices the library no longer has – a renamed or removed picture
-// never breaks a save – so only real indices are offered. Pure and injectable,
-// so tests can pin Math.random and stay deterministic.
-export function nextImageIndex(imageCount, excluded = [], random = Math.random) {
-  if (imageCount <= 0) return 0;
-  const used = new Set(excluded);
-  const unseen = [];
-  for (let index = 0; index < imageCount; index += 1) {
-    if (!used.has(index)) unseen.push(index);
-  }
-  const pool = unseen.length > 0
-    ? unseen
-    : Array.from({ length: imageCount }, (_, index) => index);
-  return pool[Math.floor(random() * pool.length)];
-}
-
-// A puzzle session is one whole picture run: which picture is being collected,
-// the order the pieces were found, and which pieces already sit on the board
-// (indexed by cell).
-export function createPuzzleSession(imageCount, random = Math.random, excluded = []) {
-  return {
-    imageIndex: nextImageIndex(imageCount, excluded, random),
-    earned: [],
-    cells: [null, null, null, null], // cell -> piece index, or null when empty
-  };
-}
-
-// Earning the piece for one solved maze, in a fixed reward order.
-export function earnPiece(session) {
-  if (session.earned.length >= PUZZLE_PIECE_COUNT) return session;
-  return { ...session, earned: [...session.earned, session.earned.length] };
-}
-
-// Which cell is this piece sitting in, or -1 when it is still up in a slot.
-export function cellForPiece(session, piece) {
-  return session.cells.findIndex((cell) => cell === piece);
-}
-
-// The child may place any found piece into any cell – the picture only works
-// when the right quadrant lands in the right place. Dropping onto a cell that
-// already holds a piece sends that piece back to the slot row (the spelling
-// board swaps letters rather than losing any, and so does the puzzle).
-// Moving a placed piece to another cell moves it there, freeing its old cell.
-export function placePiece(session, piece, cell) {
-  if (!session.earned.includes(piece)) return session;
-  if (cell < 0 || cell >= PUZZLE_PIECE_COUNT) return session;
-  const cells = [...session.cells];
-  const current = cells.indexOf(piece);
-  if (current === cell) return session;
-  if (current !== -1) cells[current] = null;
-  cells[cell] = piece;
-  return { ...session, cells };
-}
-
-// Taking a piece off the board returns it to the slot row.
-export function recallPiece(session, piece) {
-  const cell = cellForPiece(session, piece);
-  if (cell === -1) return session;
-  const cells = [...session.cells];
-  cells[cell] = null;
-  return { ...session, cells };
-}
-
-// The board is full once every cell holds a piece...
-export function isBoardFull(session) {
-  return session.cells.every((cell) => cell !== null);
-}
-
-// ...and correct when the quadrants line up: piece n belongs in cell n.
-export function isPuzzleCorrect(session) {
-  return session.cells.every((piece, cell) => piece === cell);
-}
+// The puzzle's pure rules - which picture a run collects, the reward order, and
+// where a piece may go - live in puzzle.js, because the saved-progress codec
+// needs them and must not import a component module. They are re-exported here
+// so the game keeps one import site for the puzzle.
+export {
+  PUZZLE_PIECE_COUNT,
+  cellForPiece,
+  createPuzzleSession,
+  earnPiece,
+  isBoardFull,
+  isPuzzleCorrect,
+  nextImageIndex,
+  placePiece,
+  recallPiece,
+} from './puzzle.js';
 
 // Assembler panel for the collected picture. Found pieces wait in the slot row
 // on top; every piece can be dragged into any of the four cells (or tapped
@@ -144,49 +87,41 @@ export function PiecePuzzle({ images, session, onClose, onPlace, onRecall, onRes
 
   // Follow the pointer while dragging. On release: over a board cell the piece
   // lands there, over the top slot row it goes back to a slot, and a plain tap
-  // places a top piece (into the first free cell) or recalls a placed one.
-  useEffect(() => {
-    if (drag === null) return undefined;
-    const onMove = (event) => {
-      setDrag((prev) => (prev
-        ? { ...prev, moved: prev.moved || isDragStart(prev.startX, prev.startY, event.clientX, event.clientY, prev.pointerType) }
-        : prev));
-      setGhost({ x: event.clientX, y: event.clientY });
-    };
-    const onUp = (event) => {
-      const active = dragRef.current;
-      if (active) {
-        const target = active.moved ? pieceDropTarget(event.clientX, event.clientY) : null;
-        if (target?.area === 'board') {
-          onPlace(active.piece, target.cell);
-        } else if (active.moved && target?.area === 'slots') {
-          onRecall(active.piece);
-        } else if (!active.moved && active.from === 'slot') {
-          const free = sessionRef.current.cells.indexOf(null);
-          if (free >= 0) onPlace(active.piece, free);
-        } else if (!active.moved && active.from === 'board') {
-          onRecall(active.piece);
-        }
+  // places a top piece (into the first free cell) or recalls a placed one. The
+  // listeners and their cleanup are shared with the spelling lock (useTileDrag);
+  // what a drop means for a quadrant is this puzzle's own rule.
+  const onMove = useCallback((event) => {
+    setDrag((prev) => (prev
+      ? { ...prev, moved: prev.moved || isDragStart(prev.startX, prev.startY, event.clientX, event.clientY, prev.pointerType) }
+      : prev));
+    setGhost({ x: event.clientX, y: event.clientY });
+  }, []);
+
+  const onRelease = useCallback((event) => {
+    const active = dragRef.current;
+    if (active) {
+      const target = active.moved ? pieceDropTarget(event.clientX, event.clientY) : null;
+      if (target?.area === 'board') {
+        onPlace(active.piece, target.cell);
+      } else if (active.moved && target?.area === 'slots') {
+        onRecall(active.piece);
+      } else if (!active.moved && active.from === 'slot') {
+        const free = sessionRef.current.cells.indexOf(null);
+        if (free >= 0) onPlace(active.piece, free);
+      } else if (!active.moved && active.from === 'board') {
+        onRecall(active.piece);
       }
-      setDrag(null);
-      setGhost(null);
-    };
-    // When a mobile browser claims a gesture (usually for scrolling or an
-    // overscroll edge) it fires pointercancel instead of pointerup; clear the
-    // drag so a piece is never left in a half-finished state.
-    const onCancel = () => {
-      setDrag(null);
-      setGhost(null);
-    };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onCancel);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onCancel);
-    };
-  }, [drag, onPlace, onRecall]);
+    }
+    setDrag(null);
+    setGhost(null);
+  }, [onPlace, onRecall]);
+
+  const onCancel = useCallback(() => {
+    setDrag(null);
+    setGhost(null);
+  }, []);
+
+  useTileDrag({ active: drag, onMove, onRelease, onCancel });
 
   const slotClass = (piece) => {
     let className = 'puzzle-slot';

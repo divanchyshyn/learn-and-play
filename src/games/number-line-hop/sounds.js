@@ -1,14 +1,15 @@
-import { isMuted as engineIsMuted, loadMuted, setMuted as setEngineMuted, tone } from '../../shared/audio.js';
-import { migrateStorage } from '../../shared/persistence.js';
+import { createMuteStore, tone } from '../../shared/audio.js';
 
 const MUTE_STORAGE_KEY = 'numberLineHop:muted';
-// The mute choice used to be saved under the game's old Norwegian name; adopt
-// it once so nobody loses their sound setting to the rename.
+// The mute choice used to be saved under the game's old Norwegian name; the
+// store adopts it once so nobody loses their sound setting to the rename.
 const LEGACY_MUTE_STORAGE_KEY = 'tierhopp:muted';
-migrateStorage(LEGACY_MUTE_STORAGE_KEY, MUTE_STORAGE_KEY);
 
 // Number Line Hop remembers your mute choice between visits.
-loadMuted(MUTE_STORAGE_KEY);
+const mute = createMuteStore({
+  storageKey: MUTE_STORAGE_KEY,
+  legacyKey: LEGACY_MUTE_STORAGE_KEY,
+});
 
 // The meadow's own sound character – effect definitions stay with the game,
 // the Web Audio engine comes from src/shared.
@@ -31,8 +32,4 @@ export const sounds = {
   },
 };
 
-export { engineIsMuted as isMuted };
-
-export function setMuted(value) {
-  setEngineMuted(value, MUTE_STORAGE_KEY);
-}
+export const { isMuted, setMuted } = mute;

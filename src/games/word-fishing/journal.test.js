@@ -5,7 +5,7 @@ import {
   recordDecoration, recordTrip, tripCodec, unavailableWords, uncaughtWordsInCrate,
   wordsCaught, wordsLeftToCatch,
 } from './journal.js';
-import { CATCHES_PER_TRIP, createTripPlan, REEF_REWARDS } from './trip.js';
+import { createTripPlan, REEF_REWARDS } from './trip.js';
 import {
   CATEGORY_CRATE_IDS, CRATE_TARGET, TARGET_WORD_COUNT, WORD_COUNT, crateWordCount, wordsInCrate,
 } from './words.js';
@@ -177,22 +177,10 @@ describe('word-fishing trip storage', () => {
     expect(tripCodec.parse('ikke json')).toBeNull();
   });
 
-  it('reads an old one-crate order trip back as free sorting', () => {
-    // A save from the version that still dealt one-crate trips: the boat keeps
-    // its number and its progress, and all four crates are open again.
-    const raw = JSON.stringify({
-      version: 1,
-      trip: { number: 4, kind: 'order', crates: ['nature'], goal: 3, collected: 2, orderCrateId: 'nature' },
-    });
-    expect(tripCodec.parse(raw)).toEqual({
-      number: 4,
-      kind: 'freeSort',
-      crates: CATEGORY_CRATE_IDS,
-      goal: CATCHES_PER_TRIP,
-      collected: 2,
-      orderCrateId: null,
-    });
-  });
+  // The one-crate order trip migration is a rule of readTrip, and trip.js owns
+  // it: trip.test.js pins it there, and tripCodec.parse is only JSON.parse plus
+  // a version check plus readTrip (see journal.js), so asserting it again here
+  // would re-test readTrip through a wrapper that adds nothing to it.
 
   it('refuses progress that runs past the goal', () => {
     // A delivery is always clamped to the goal (see withDelivery), so a trip

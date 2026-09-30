@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isDragStart } from './drag.js';
+import { isDragStart, useTileDrag } from './drag.js';
 import { sounds } from './sounds.js';
 import { speakWord } from './words.js';
 
@@ -144,65 +144,57 @@ export function SpellPuzzle({ word, emoji, onSolve, onClose }) {
     setGhost({ x: event.clientX, y: event.clientY });
   }, []);
 
-  // While a tile is being dragged, follow the pointer and drop on release.
+  // While a tile is being dragged, follow the pointer and drop on release. The
+  // listeners and their cleanup are shared with the picture puzzle (useTileDrag);
+  // what a drop means for a letter is this puzzle's own rule.
   const dragRef = useRef(drag);
   dragRef.current = drag;
 
-  useEffect(() => {
-    if (!drag) return undefined;
-    const onMove = (event) => {
-      setDrag((prev) => (prev
-        ? { ...prev, moved: prev.moved || isDragStart(prev.startX, prev.startY, event.clientX, event.clientY, prev.pointerType) }
-        : prev));
-      setGhost({ x: event.clientX, y: event.clientY });
-    };
-    const onUp = (event) => {
-      const active = dragRef.current;
-      if (active) {
-        let acted = false;
-        if (active.moved) {
-          const target = dropTargetAt(event.clientX, event.clientY);
-          if (target) {
-            if (target.area === 'slots') {
-              acted = commitDrop(active, { slot: target.index });
-            } else if (target.index >= 0) {
-              acted = commitDrop(active, { traySpot: target.index });
-            } else {
-              // Dropped somewhere on the tray background: send the letter to
-              // the first free top spot (or re-home a slot letter up there).
-              const traySpot = trayRef.current.indexOf(null);
-              if (traySpot >= 0) acted = commitDrop(active, { traySpot });
-            }
+  const onMove = useCallback((event) => {
+    setDrag((prev) => (prev
+      ? { ...prev, moved: prev.moved || isDragStart(prev.startX, prev.startY, event.clientX, event.clientY, prev.pointerType) }
+      : prev));
+    setGhost({ x: event.clientX, y: event.clientY });
+  }, []);
+
+  const onRelease = useCallback((event) => {
+    const active = dragRef.current;
+    if (active) {
+      let acted = false;
+      if (active.moved) {
+        const target = dropTargetAt(event.clientX, event.clientY);
+        if (target) {
+          if (target.area === 'slots') {
+            acted = commitDrop(active, { slot: target.index });
+          } else if (target.index >= 0) {
+            acted = commitDrop(active, { traySpot: target.index });
+          } else {
+            // Dropped somewhere on the tray background: send the letter to
+            // the first free top spot (or re-home a slot letter up there).
+            const traySpot = trayRef.current.indexOf(null);
+            if (traySpot >= 0) acted = commitDrop(active, { traySpot });
           }
-        } else if (active.area === 'tray') {
-          // Tapping a tray tile places it. A tap on a filled slot is left for
-          // that button's own onClick to recall, so only tray taps act here.
-          acted = commitDrop(active, { slot: slotsRef.current.indexOf(null) });
         }
-        // Guard the click that follows a tap on the same button. A real drag
-        // settles on a shared ancestor instead, so its stale flag must not be
-        // left behind to swallow the child's next tap.
-        if (acted && !active.moved) pointerHandledRef.current = true;
+      } else if (active.area === 'tray') {
+        // Tapping a tray tile places it. A tap on a filled slot is left for
+        // that button's own onClick to recall, so only tray taps act here.
+        acted = commitDrop(active, { slot: slotsRef.current.indexOf(null) });
       }
-      setDrag(null);
-      setGhost(null);
-    };
-    // When a mobile browser claims a gesture (usually for scrolling or an
-    // overscroll edge) it fires pointercancel instead of pointerup; clear the
-    // drag so a letter is never left in a half-finished state.
-    const onCancel = () => {
-      setDrag(null);
-      setGhost(null);
-    };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onCancel);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onCancel);
-    };
-  }, [drag, commitDrop]);
+      // Guard the click that follows a tap on the same button. A real drag
+      // settles on a shared ancestor instead, so its stale flag must not be
+      // left behind to swallow the child's next tap.
+      if (acted && !active.moved) pointerHandledRef.current = true;
+    }
+    setDrag(null);
+    setGhost(null);
+  }, [commitDrop]);
+
+  const onCancel = useCallback(() => {
+    setDrag(null);
+    setGhost(null);
+  }, []);
+
+  useTileDrag({ active: drag, onMove, onRelease, onCancel });
 
   // A wrong answer shakes the word red, buzzes, and reads the misspelling
   // back aloud so the child hears that the order is off.

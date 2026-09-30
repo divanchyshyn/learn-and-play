@@ -6,13 +6,13 @@
 .game-page.fishing-page { width: min(100% - 24px, 1080px); margin: 0 auto; padding: 14px 0 34px; }
 
 .game-controls { position: absolute; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
-.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
-.chip:hover { transform: translateY(-2px); }
+/* The pill itself is the shared `.chip` in base.css; the badges it carries need
+   a flex row, so that is what this game adds. */
+.chip { display: inline-flex; align-items: center; gap: 6px; }
 .chip:disabled { opacity: .55; cursor: default; }
 .chip:disabled:hover { transform: none; }
 .chip-icon { padding: 5px 10px; }
 .chip-badge { padding: 1px 7px; border-radius: 999px; background: #e4f4f9; color: #0b7897; font-size: .78rem; }
-.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---- The scene ---------------------------------------------------------- */
 /* The sea is the play surface and the biggest thing on the page: with the

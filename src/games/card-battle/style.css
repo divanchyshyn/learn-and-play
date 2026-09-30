@@ -4,8 +4,6 @@
 
 .game-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .found-chip { padding: 6px 11px; border: 2px solid #d09b45; border-radius: 999px; background: #fff3d6; color: #7a4c08; font-size: .88rem; font-weight: 900; white-space: nowrap; }
-.chip { min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
-.chip:hover { transform: translateY(-2px); }
 .chip:focus-visible, .hand-card:focus-visible, .lay-button:focus-visible, .next-button:focus-visible, .restart-button:focus-visible { outline: 3px dashed #e46e4b; outline-offset: 3px; }
 
 /* The card table: Rex, the riddle and the hand sit on one felt-like surface. */

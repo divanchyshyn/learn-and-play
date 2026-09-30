@@ -1,14 +1,29 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { sounds, setMuted, isMuted } from './sounds.js';
 
 describe('sound-labyrinth sound settings', () => {
-  it('starts muted by default and only speaks once the child turns sound on', () => {
-    // The module init reads an empty storage on a fresh page and opens silent.
-    expect(isMuted()).toBe(true);
+  afterEach(() => {
+    // The mute setting lives on the shared audio engine, so leaving it set would
+    // decide what the next test file opens with.
+    setMuted(true);
+    window.localStorage.clear();
+  });
+
+  // This is the one game that opens silent on a fresh page, so the default is
+  // worth pinning. It is pinned the way the browser actually produces it - by
+  // evaluating the module with an empty storage - rather than by asserting on
+  // the state another test happened to leave behind.
+  it('opens silent on a fresh page and only speaks once the child turns sound on', async () => {
+    window.localStorage.clear();
+    vi.resetModules();
+
+    const fresh = await import('./sounds.js');
+
+    expect(fresh.isMuted()).toBe(true);
     expect(window.localStorage.getItem('soundLabyrinth:muted')).toBeNull();
   });
 
-  it('persists the mute setting to localStorage', () => {
+  it('remembers the mute setting under the game\u2019s own storage key', () => {
     setMuted(false);
     expect(isMuted()).toBe(false);
     expect(window.localStorage.getItem('soundLabyrinth:muted')).toBe('0');

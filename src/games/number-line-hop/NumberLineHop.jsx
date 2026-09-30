@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { GameHeader } from '../../shared/GameHeader.jsx';
+import { SoundToggle } from '../../shared/SoundToggle.jsx';
+import { useSoundToggle } from '../../shared/useSoundToggle.js';
 import { speakNorwegian } from '../../shared/speech.js';
 import { LINE_MAX, LINE_MIN, clampToLine, needsAdjust, tapToValue } from './line.js';
 import { nextProblem, problemAnswer, problemSpeech, problemText } from './problems.js';
-import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
+import { setMuted as setAudioMuted, sounds } from './sounds.js';
 
 // The little story every round tells, and how long each beat lasts. Exported
 // so the tests (and the CSS hop/transition durations) stay in step.
@@ -50,7 +52,7 @@ export function NumberLineHop() {
   const [tap, setTap] = useState(null); // where the player pointed this round
   const [aim, setAim] = useState(null); // keyboard aim marker
   const [hopCount, setHopCount] = useState(0); // restarts the jump animation each hop
-  const [soundOn, setSoundOn] = useState(!isMuted());
+  const { soundOn, toggleSound } = useSoundToggle(setAudioMuted, sounds.select);
 
   const answer = problemAnswer(problem);
 
@@ -67,20 +69,20 @@ export function NumberLineHop() {
         // A near-enough tap already counts as landed; otherwise the frog
         // does its small "let's land exactly here" hop to the flag.
         if (tap !== null && needsAdjust(tap, answer)) {
-        setPosition(answer);
-        setHopCount((count) => count + 1);
+          setPosition(answer);
+          setHopCount((count) => count + 1);
           setPhase('adjusting');
-      } else {
+        } else {
           setPhase('celebrating');
-      }
+        }
       } else if (phase === 'adjusting') {
         setPhase('celebrating');
       } else {
-    setProblem((current) => nextProblem(current));
-    setTap(null);
-    setAim(null);
-    setPhase('ready');
-  }
+        setProblem((current) => nextProblem(current));
+        setTap(null);
+        setAim(null);
+        setPhase('ready');
+      }
     }, PHASE_MS[phase]);
     return () => window.clearTimeout(timer);
   }, [phase, tap, answer]);
@@ -129,13 +131,6 @@ export function NumberLineHop() {
     setPhase('ready');
   }
 
-  function toggleSound() {
-    const next = !soundOn;
-    setSoundOn(next);
-    setAudioMuted(!next);
-    if (next) sounds.select();
-  }
-
   const airborne = phase === 'hopping' || phase === 'adjusting';
   const resolved = tap !== null && phase !== 'ready';
   const showAnswer = phase === 'revealing' || phase === 'adjusting' || phase === 'celebrating';
@@ -148,15 +143,7 @@ export function NumberLineHop() {
       </p>
       <div className="game-controls">
         <button className="chip" type="button" onClick={restartJourney}>Nytt spor 🔄</button>
-        <button
-          className="chip"
-          type="button"
-          aria-pressed={!soundOn}
-          aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'}
-          onClick={toggleSound}
-        >
-          {soundOn ? '🔊' : '🔇'}
-        </button>
+        <SoundToggle soundOn={soundOn} onToggle={toggleSound} />
       </div>
     </GameHeader>
 

@@ -1,6 +1,8 @@
 // One Web Audio engine for the whole collection. Each game keeps its own
 // sound *definitions* (they are part of that game's character) in its local
 // sounds.js and builds them on top of `tone` from here.
+import { migrateStorage } from './persistence.js';
+
 let audioCtx = null;
 let muted = false;
 
@@ -60,4 +62,32 @@ export function loadMuted(storageKey, fallback = false) {
     muted = fallback;
   }
   return muted;
+}
+
+// A game's mute setting, bound to its own storage key. One call at the top of a
+// game's sounds.js replaces the hand-written load/migrate/set dance, so every
+// game in the collection remembers the choice the same way – the only thing
+// that differs between games is the key and the default:
+//
+//   const mute = createMuteStore({ storageKey: 'shop:muted' });
+//   export const { isMuted, setMuted } = mute;
+//
+// `legacyKey` adopts a value saved under an old key once (see migrateStorage),
+// so the English-slug renames never cost a child their sound setting. A game
+// that opens silent passes `fallback: true`, which is only read when nothing
+// has been stored yet – a stored choice always wins.
+//
+// This reads the saved value immediately, so import order in a game's sounds.js
+// does not matter, and calling it again for the same key re-reads rather than
+// resetting.
+export function createMuteStore({ storageKey, legacyKey, fallback = false } = {}) {
+  if (legacyKey && storageKey && legacyKey !== storageKey) {
+    migrateStorage(legacyKey, storageKey);
+  }
+  loadMuted(storageKey, fallback);
+  return {
+    isMuted,
+    setMuted: (value) => setMuted(value, storageKey),
+    storageKey,
+  };
 }

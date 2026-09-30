@@ -196,3 +196,25 @@ describe('card-battle narration', () => {
     expect(view.container.querySelector('.reveal')).not.toBeNull();
   });
 });
+
+// The speaker button used to forget its setting on every page load: Kortkrig
+// was one of two games that never read the shared engine's saved value back.
+// This is what a reload looks like from the module's point of view.
+describe('card-battle sound settings', () => {
+  it('remembers a mute choice across a reload, under the game\u2019s own key', async () => {
+    render(<CardBattle />);
+    expect(screen.getByRole('button', { name: 'Slå av lyd' })).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Slå av lyd' }));
+    expect(window.localStorage.getItem('cardBattle:muted')).toBe('1');
+    cleanup();
+
+    // A fresh page: the module is evaluated again and re-reads its key.
+    vi.resetModules();
+    const fresh = await import('./CardBattle.jsx');
+    render(<fresh.CardBattle />);
+
+    const mutedToggle = screen.getByRole('button', { name: 'Slå på lyd' });
+    expect(mutedToggle).toHaveAttribute('aria-pressed', 'true');
+  });
+});

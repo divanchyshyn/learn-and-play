@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { GameHeader } from '../../shared/GameHeader.jsx';
+import { SoundToggle } from '../../shared/SoundToggle.jsx';
 import { usePersistentState } from '../../shared/usePersistentState.js';
+import { useSoundToggle } from '../../shared/useSoundToggle.js';
+import { useTransientState } from '../../shared/useTransientState.js';
 import { ActionBar } from './ActionBar.jsx';
 import { CrateDock } from './CrateDock.jsx';
 import { FishingBook } from './FishingBook.jsx';
 import { FishSprite } from './FishSprite.jsx';
 import { ReefArt } from './ReefRewards.jsx';
 import { SeaScene } from './SeaScene.jsx';
-import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
+import { setMuted, sounds } from './sounds.js';
 import { BOAT_KEY_STEP, sailTargetForTap } from './rig.js';
 import {
   TICK_MS, WATERLINE, OFFER_TICKS, aboardFish, baitPosition, canSail, canStrike, castBait, createSea,
@@ -122,13 +125,16 @@ export function WordFishing() {
   const [journal, setJournal] = usePersistentState(JOURNAL_KEY, createJournal, journalCodec);
   const [trip, setTrip] = usePersistentState(TRIP_KEY, () => createTripPlan(1), tripCodec);
   const [sea, setSea] = useState(() => createSea(trip, unavailableWords(journal)));
-  const [soundOn, setSoundOn] = useState(!isMuted());
+  const { soundOn, toggleSound } = useSoundToggle(setMuted, sounds.hook);
   const [bookOpen, setBookOpen] = useState(false);
   const [tripCard, setTripCard] = useState(null); // { tripNumber, reward }
-  const [hintCrateId, setHintCrateId] = useState(null);
-  const [landed, setLanded] = useState(null); // { crateId, word, gain, key } just after a catch lands
-  const [nudge, setNudge] = useState(null); // { text, key } a tap that could not sail
-  const [newRewardId, setNewRewardId] = useState(null); // the treasure that just arrived
+  // Four little moments, each cleared by its own clock: the glow that says "try
+  // another crate", the pop on the crate a catch landed in, the nudge under a
+  // tap that could not sail, and the glow on the treasure a trip just added.
+  const [hintCrateId, showHintCrate, clearHintCrate] = useTransientState(HINT_MS);
+  const [landed, showLanded, clearLanded] = useTransientState(LANDED_MS); // { crateId, word, gain, key }
+  const [nudge, showNudge, clearNudge] = useTransientState(NUDGE_MS); // { text, key }
+  const [newRewardId, showNewReward] = useTransientState(REWARD_POP_MS);
 
   const aboard = aboardFish(sea);
   const rewards = unlockedRewards(journal.decorations);
@@ -162,14 +168,6 @@ export function WordFishing() {
     lastBait.current = bait;
   }, [sea]);
 
-  // The treasure a finished trip just added glows where it landed for a few
-  // seconds, then settles into the collection like every other find.
-  useEffect(() => {
-    if (!newRewardId) return undefined;
-    const timer = window.setTimeout(() => setNewRewardId(null), REWARD_POP_MS);
-    return () => window.clearTimeout(timer);
-  }, [newRewardId]);
-
   // A fish landing on deck, and a fish letting go of the bait, are moments too:
   // both are read off the one-tick marks the sea leaves.
   const hadFish = useRef(false);
@@ -190,26 +188,9 @@ export function WordFishing() {
     }
   }, [sea]);
 
-  // The "try another crate" glow is a moment, not a state: it fades by itself.
-  useEffect(() => {
-    if (!hintCrateId) return undefined;
-    const timer = window.setTimeout(() => setHintCrateId(null), HINT_MS);
-    return () => window.clearTimeout(timer);
-  }, [hintCrateId]);
-
-  // The same goes for the pop on the crate a catch just landed in.
-  useEffect(() => {
-    if (!landed) return undefined;
-    const timer = window.setTimeout(() => setLanded(null), LANDED_MS);
-    return () => window.clearTimeout(timer);
-  }, [landed]);
-
-  // …and for the nudge that answers a tap which could not sail.
-  useEffect(() => {
-    if (!nudge) return undefined;
-    const timer = window.setTimeout(() => setNudge(null), NUDGE_MS);
-    return () => window.clearTimeout(timer);
-  }, [nudge]);
+  // The "try another crate" glow, the pop on the crate a catch landed in and
+  // the nudge that answers a tap which could not sail all clear themselves (see
+  // useTransientState above); nothing here has to time them out.
 
   useEffect(() => {
     if (!bookOpen) return undefined;
@@ -226,9 +207,10 @@ export function WordFishing() {
     setTrip(plan);
     setSea(createSea(plan, unavailableWords(planJournal)));
     setTripCard(null);
-    setHintCrateId(null);
-    setLanded(null);
-    setNudge(null);
+    // The previous trip's little messages belong to the previous trip.
+    clearHintCrate();
+    clearLanded();
+    clearNudge();
   }
 
   // The whole book is full: back to a brand-new hunt, with an empty book. The
@@ -243,9 +225,10 @@ export function WordFishing() {
 
   // A tap that cannot sail – the line is out, or a catch is waiting on deck –
   // is answered with a nudge instead of silence, so it never feels like the
-  // game ignoring the child.
-  function showNudge(text) {
-    setNudge((prev) => ({ text, key: (prev?.key ?? 0) + 1 }));
+  // game ignoring the child. The key makes a repeated nudge a fresh moment, so
+  // its little fade starts again instead of inheriting the first one's clock.
+  function nudgeFor(text) {
+    showNudge({ text, key: (nudge?.key ?? 0) + 1 });
   }
 
   // Sailing: tap the water and the boat sets off for that spot. The end card and
@@ -257,7 +240,7 @@ export function WordFishing() {
       // to a fish they can see, so the nudge tells them what that takes; every
       // other tap that cannot sail is simply told to pull the line up first. Both
       // stay short: the pill sits inside the sea, which clips its own overflow.
-      showNudge(floatInEmptyWater(sea)
+      nudgeFor(floatInEmptyWater(sea)
         ? 'Dra opp og seil til en fisk 🎣'
         : 'Dra opp snøret først 🎣');
       return;
@@ -278,7 +261,7 @@ export function WordFishing() {
   function castLine() {
     if (tripCard || finale) return;
     sounds.cast();
-    setHintCrateId(null);
+    clearHintCrate();
     setSea((prev) => castBait(prev));
   }
 
@@ -319,7 +302,7 @@ export function WordFishing() {
     if (wanted !== crateId) {
       sounds.blub();
       setSea((prev) => slipFish(prev, fish.id));
-      if (wanted) setHintCrateId(wanted);
+      if (wanted) showHintCrate(wanted);
       return;
     }
 
@@ -334,7 +317,7 @@ export function WordFishing() {
 
     // The crate pops for every catch, but only a word that is new to the book
     // gets the "+1": the crate's count is a count of different words.
-    setLanded((prev) => ({ crateId, word, gain: isNewWord ? 1 : 0, key: (prev?.key ?? 0) + 1 }));
+    showLanded({ crateId, word, gain: isNewWord ? 1 : 0, key: (landed?.key ?? 0) + 1 });
     const nextTrip = withDelivery(trip);
 
     // The trip is celebrated on the delivery that completes it, and the very
@@ -350,7 +333,7 @@ export function WordFishing() {
       // A newly found treasure lands on the seabed with a glow of its own, so the
       // trip's reward is impossible to miss.
       if (reward) {
-        setNewRewardId(reward.id);
+        showNewReward(reward.id);
         sounds.discovery();
       }
       // The final catch ends the whole game; the finale screen takes over.
@@ -376,13 +359,6 @@ export function WordFishing() {
     startTrip(journal.trips + 1);
   }
 
-  function toggleSound() {
-    const next = !soundOn;
-    setSoundOn(next);
-    setAudioMuted(!next);
-    if (next) sounds.hook();
-  }
-
 
   return <main className="game-page fishing-page">
     <GameHeader title="Ordfiske">
@@ -392,15 +368,7 @@ export function WordFishing() {
           <span className="chip-badge">{wordsCaught(journal)}/{TARGET_WORD_COUNT}</span>
         </button>
         <button className="chip" type="button" onClick={newTrip} disabled={finale}>Ny tur <span aria-hidden="true">🎣</span></button>
-        <button
-          className="chip chip-icon"
-          type="button"
-          aria-pressed={!soundOn}
-          aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'}
-          onClick={toggleSound}
-        >
-          {soundOn ? '🔊' : '🔇'}
-        </button>
+        <SoundToggle soundOn={soundOn} onToggle={toggleSound} className="chip chip-icon" />
       </div>
     </GameHeader>
 

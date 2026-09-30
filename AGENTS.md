@@ -68,7 +68,7 @@ Build a small, friendly collection of browser games for children. Games should b
 ```text
 index.html                              Game library entry point
 src/home/                               Library React view and styles
-src/shared/                             Shared helpers used by several games (audio engine, random helpers, speech, ConfettiLayer, GameHeader) with their own tests
+src/shared/                             Shared helpers used by several games (audio engine and mute stores, random helpers, speech, persistence, ConfettiLayer, GameHeader, SoundToggle) with their own tests
 games/<game-slug>/index.html            Deployable entry point for one game
 src/games/<game-slug>/main.jsx          React entry point for one game
 src/games/<game-slug>/<Game>.jsx        Game component and game logic
@@ -76,9 +76,9 @@ src/games/<game-slug>/*.test.js(x)      Tests for one game (logic + rendered beh
 src/games/<game-slug>/style.css         Game-specific styles
 src/games/<game-slug>/puzzle-assets/    Committed game artwork imported by the component (Sound Labyrinth's puzzle pictures)
 src/games/<game-slug>/photo-assets/     Committed photographic artwork imported through that game's photos.js (Word Fishing's whole scene)
-src/styles/base.css                     Shared reset and base styles
+src/styles/base.css                     Shared reset, base styles and the shared `.chip` / `.visually-hidden` rules every game reuses
 src/test/setup.js                       Vitest setup (jest-dom matchers)
-vite.config.js                          Multi-page build entry points and test config
+vite.config.js                          Multi-page build entry points and test config (timeout, coverage)
 eslint.config.js                        ESLint flat config (core, react, react-hooks rules)
 .github/workflows/ci.yml                Runs lint, tests and the build on pushes and pull requests
 .github/workflows/deploy-cloudflare.yml Cloudflare Workers deploy: verify, then a deploy job behind the cloudflare-production environment's required reviewers
@@ -92,6 +92,9 @@ wrangler.jsonc                          Cloudflare Workers config: serves dist/ 
 opencode.json                           Coding agent config: model, permissions, provider
 .opencode/agents/review.md              Read-only reviewer agent used by the review workflow
 docs/agent-pipeline.md                  How the agent pipeline is wired up and how to run it
+docs/audit/BASELINE.md                  Build, lint, test and coverage gate as measured before the last audit
+docs/audit/PLAN.md                      The audit's findings and its ordered work packages
+docs/audit/SUMMARY.md                   What the audit fixed, skipped, and left for a human
 ```
 
 ## Adding a game
@@ -108,7 +111,7 @@ For a new game with the slug `word-match`:
 
 The trailing slash in a game URL is intentional: it lets the static host load that game's `index.html` directly (Cloudflare Workers redirects `/games/<slug>` to `/games/<slug>/` and serves `index.html` there, exactly as GitHub Pages does).
 
-Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`pickOne`, the audio engine (`tone`, mute state), `speakNorwegian`, `ConfettiLayer`, and `GameHeader`. Sound *definitions* stay per game in its local `sounds.js`, built on the shared engine.
+Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`pickOne`, the audio engine (`tone`, and `createMuteStore` for a game's own remembered mute key), `speakNorwegian`, `ConfettiLayer`, `GameHeader`, and `SoundToggle` with `useSoundToggle` for the speaker button every game shows. The shared `.chip` pill and `.visually-hidden` helper live in `src/styles/base.css`; a game adds to them, never copies them. Sound *definitions* stay per game in its local `sounds.js`, built on the shared engine.
 
 ## Game artwork
 
@@ -304,11 +307,23 @@ the float. They live in `src/games/word-fishing/photo-assets/`, imported by
 ## Testing
 
 - Vitest with jsdom and React Testing Library. Configuration lives in the `test` block of `vite.config.js`; shared matchers are loaded by `src/test/setup.js`.
+- `testTimeout` is set suite-wide (20 s) rather than per test: the long tests walk a whole maze or fish a whole trip through the real component, and a private ceiling on one of them only moves the flake to its neighbour.
 - Test files sit next to the code they cover as `*.test.js` / `*.test.jsx`. They are never imported by an entry point, so they stay out of the production build in `dist/`.
 - Cover each game's rules as pure-logic tests (board or maze integrity, word banks, option generators, dice and turn flow) plus at least one rendered happy path through the UI.
 - Export existing pure helpers from game components instead of duplicating their logic in tests (see the Shop's `expectedAnswer` or Snakes and ladders' `makeWords`).
 - Keep tests deterministic: pin `Math.random` with `vi.spyOn`, use fake timers for movement/animation locks, and derive expectations from whatever random content a component actually rendered instead of assuming specific items or words.
+- A test that sets the shared mute state restores it in `afterEach`, and a test about a game's default reads it the way a page load does (`vi.resetModules()` and a fresh import). Otherwise the setting leaks into whichever test runs next.
 - Respect each game's design constraints inside its tests – for example, Sound Labyrinth keeps no failure states: letters stay freely placeable and reorderable, and a wrong spelling may only shake red and be read back, never punished.
+
+## Coverage
+
+Coverage is a gate for the audit's test consolidation, not a CI threshold, and it is generated on demand:
+
+```sh
+npm run test:coverage
+```
+
+`vite.config.js` scopes the report to `src/**/*.{js,jsx}` (excluding test files and the page entry points, which are one `createRoot` call each), so a module nobody imports appears at 0 % instead of being absent. Coverage must never fall below the figures recorded in `docs/audit/BASELINE.md` — overall and per file for any file a change touches.
 
 ## CI
 
@@ -369,6 +384,7 @@ npm.cmd run build
 npm.cmd run preview
 npm.cmd run lint
 npm.cmd run test
+npm.cmd run test:coverage
 npm.cmd run test:watch
 ```
 

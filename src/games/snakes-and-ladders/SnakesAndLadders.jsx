@@ -170,7 +170,7 @@ export function SnakesAndLadders() {
   }
 
   return <main className="game-page">
-    <GameHeader title="Slanger og stiger spill">
+    <GameHeader title="Slanger og stiger">
       <p>Les ordet høyt når du lander på en rute. Klatre opp stiger og prøv å unngå slangene.</p>
       <div className="game-controls"><button className="outline-button" onClick={resetGame} type="button">Nytt spill</button></div>
     </GameHeader>

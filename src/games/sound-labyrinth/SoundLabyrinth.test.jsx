@@ -159,92 +159,89 @@ describe('sound-labyrinth spelling puzzle helpers', () => {
     expect([...letters].sort().join('')).toBe([...'i dag'].sort().join(''));
   });
 
-  it('applyDrop places a tray tile on any empty slot and leaves it empty on top', () => {
-    const result = applyDrop({
+  // Every drop rule is `applyDrop` applied to one arrangement and judged by the
+  // rows it returns. Written out, that was seven tests with seven near-identical
+  // bodies differing only in the arrangement - so it is one table, and the name
+  // of each row says which rule it pins. The one arrangement that must come back
+  // untouched says so with SAME_ARRAYS, because "unchanged" means the very same
+  // arrays came back, not merely equal ones.
+  const SAME_ARRAYS = Symbol('same arrays');
+  it.each([
+    {
+      rule: 'places a tray tile on any empty slot and leaves it empty on top',
       slots: [null, null, null],
       tray: ['e', 'v', 'r'],
       active: { letter: 'e', area: 'tray', index: 0 },
       slot: 1,
-    });
-    expect(result.changed).toBe(true);
-    expect(result.slots).toEqual([null, 'e', null]);
-    // The top row keeps every position; the moved letter's spot stays empty.
-    expect(result.tray).toEqual([null, 'v', 'r']);
-  });
-
-  it('applyDrop swaps a tray tile onto an occupied slot and keeps the top row whole', () => {
-    const result = applyDrop({
+      expectSlots: [null, 'e', null],
+      expectTray: [null, 'v', 'r'],
+    },
+    {
+      rule: 'swaps a tray tile onto an occupied slot and keeps the top row whole',
       slots: ['r', null, null],
       tray: ['e', 'v', 'r'],
       active: { letter: 'e', area: 'tray', index: 0 },
       slot: 0,
-    });
-    expect(result.changed).toBe(true);
-    expect(result.slots).toEqual(['e', null, null]);
-    // The displaced letter returns to the first free top slot (the freed one).
-    expect(result.tray).toEqual(['r', 'v', 'r']);
-  });
-
-  it('applyDrop swaps letters between slots', () => {
-    const result = applyDrop({
+      expectSlots: ['e', null, null],
+      // The displaced letter returns to the first free top slot (the freed one).
+      expectTray: ['r', 'v', 'r'],
+    },
+    {
+      rule: 'swaps letters between slots',
       slots: ['r', 'e', 'v'],
       tray: [],
       active: { letter: 'e', area: 'slot', index: 1 },
       slot: 2,
-    });
-    expect(result.changed).toBe(true);
-    expect(result.slots).toEqual(['r', 'v', 'e']);
-    expect(result.tray).toEqual([]);
-  });
-
-  it('applyDrop leaves an out-of-range drop untouched', () => {
-    const slots = [null, null, null];
-    const tray = ['e', 'v', 'r'];
-    const result = applyDrop({
-      slots,
-      tray,
+      expectSlots: ['r', 'v', 'e'],
+      expectTray: [],
+    },
+    {
+      rule: 'leaves an out-of-range drop untouched',
+      slots: [null, null, null],
+      tray: ['e', 'v', 'r'],
       active: { letter: 'e', area: 'tray', index: 0 },
       slot: 99,
-    });
-    expect(result.changed).toBe(false);
-    expect(result.slots).toBe(slots);
-    expect(result.tray).toBe(tray);
-  });
-
-  it('applyDrop drags a slot letter back to an empty top spot', () => {
-    const result = applyDrop({
+      expectSlots: SAME_ARRAYS,
+      expectTray: SAME_ARRAYS,
+    },
+    {
+      rule: 'drags a slot letter back to an empty top spot',
       slots: ['r', 'e', 'v'],
       tray: [null, null, null],
       active: { letter: 'v', area: 'slot', index: 2 },
       traySpot: 0,
-    });
-    expect(result.changed).toBe(true);
-    expect(result.slots).toEqual(['r', 'e', null]);
-    expect(result.tray).toEqual(['v', null, null]);
-  });
-
-  it('applyDrop swaps a slot letter with an occupied top spot', () => {
-    const result = applyDrop({
+      expectSlots: ['r', 'e', null],
+      expectTray: ['v', null, null],
+    },
+    {
+      rule: 'swaps a slot letter with an occupied top spot',
       slots: ['r', null, 'e'],
       tray: ['v', null, null],
       active: { letter: 'e', area: 'slot', index: 2 },
       traySpot: 0,
-    });
-    expect(result.changed).toBe(true);
-    expect(result.slots).toEqual(['r', null, 'v']);
-    expect(result.tray).toEqual(['e', null, null]);
-  });
-
-  it('applyDrop reorders letters within the top row', () => {
-    const result = applyDrop({
+      expectSlots: ['r', null, 'v'],
+      expectTray: ['e', null, null],
+    },
+    {
+      rule: 'reorders letters within the top row',
       slots: [null, null, null],
       tray: ['e', 'v', 'r'],
       active: { letter: 'e', area: 'tray', index: 0 },
       traySpot: 2,
-    });
-    expect(result.changed).toBe(true);
-    expect(result.slots).toEqual([null, null, null]);
-    expect(result.tray).toEqual(['r', 'v', 'e']);
+      expectSlots: [null, null, null],
+      expectTray: ['r', 'v', 'e'],
+    },
+  ])('applyDrop $rule', ({ slots, tray, active, slot, traySpot, expectSlots, expectTray }) => {
+    const result = applyDrop({ slots, tray, active, slot, traySpot });
+
+    expect(result.changed).toBe(expectSlots !== SAME_ARRAYS);
+    if (expectSlots === SAME_ARRAYS) {
+      expect(result.slots).toBe(slots);
+      expect(result.tray).toBe(tray);
+      return;
+    }
+    expect(result.slots).toEqual(expectSlots);
+    expect(result.tray).toEqual(expectTray);
   });
 });
 
@@ -375,9 +372,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(screen.queryByRole('dialog')).toBeNull();
     // The runner steps onto the solved door tile, not past it.
     expect(runnerPosition(view)).toEqual({ x: door.x, y: door.y });
-    // A full maze walk plus two spell rounds takes a while on slow CI machines
-    // under parallel load – the same generous timeout as the exit-walk tests.
-  }, 15000);
+  });
 
   it('can close a lock without solving it, and no new door ever opens', () => {
     const view = renderGame();
@@ -448,8 +443,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     expect(screen.getByText(/Havet/)).toBeInTheDocument();
     expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
     expect(screen.getAllByRole('button', { name: /Hør ordet/ }).length).toBeGreaterThanOrEqual(5);
-    // A full maze walk takes a while on slow machines under parallel load.
-  }, 15000);
+  });
 
   it('offers an always-available restart from the header', () => {
     const view = renderGame();
@@ -535,8 +529,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     // months and seasons maze in the rotation.
     expect(screen.getByText(/Måneder og årstider/)).toBeInTheDocument();
     expect(runnerPosition(view)).toEqual({ x: 1, y: 1 });
-    // Four full maze walks in one test take a while; give it room on slow CI.
-  }, 20000);
+  });
 
   it('awards only one piece per solved maze', () => {
     const view = renderGame();
@@ -566,7 +559,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     advance(600);
     expect(screen.queryByText('Du fant veien ut!')).not.toBeInTheDocument();
     expect(view.container.querySelector('.puzzle-chip')).toHaveTextContent('1/4');
-  }, 15000);
+  });
 
   it('opens the puzzle screen from the header chip with earned pieces in their slots', () => {
     const view = renderGame();
@@ -602,7 +595,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     press(view, arrowFor(openDir));
     advance(200);
     expect(runnerPosition(view)).not.toEqual(pos);
-  }, 15000);
+  });
 
   it('keeps the earned pieces, the maze and the exact position across a refresh', () => {
     const view = renderGame();
@@ -645,7 +638,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     const dialog = screen.getByRole('dialog', { name: 'Puslespill' });
     expect(within(dialog).getByRole('button', { name: 'Brikke 1 – dra den til bildet eller trykk' })).toBeInTheDocument();
     expect(within(dialog).getAllByRole('button', { name: /Tom plass/ })).toHaveLength(3);
-  }, 15000);
+  });
 
   it('restores a saved maze session and its exact position when it mounts', () => {
     const game = expectedGame();
@@ -707,7 +700,7 @@ it('places letters freely, shakes red on a wrong spelling, and unlocks on check'
     // The saved maze session is replaced too: a reload after the reset starts
     // from the fresh start tile, not the old position.
     expect(gameCodec.parse(window.localStorage.getItem(GAME_KEY)).pos).toEqual({ x: 1, y: 1 });
-  }, 15000);
+  });
 
   it('starts a new child on a picture they have not seen yet', () => {
     window.localStorage.setItem(
