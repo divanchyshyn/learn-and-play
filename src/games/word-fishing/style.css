@@ -16,12 +16,15 @@
 
 /* ---- The scene ---------------------------------------------------------- */
 /* The sea is the play surface and the biggest thing on the page: with the
-   description gone it takes all the height a tablet can spare, and the crate
-   dock below it stays in the thumb's reach. */
+   description gone it takes all the height a tablet can spare, and the hint, the
+   crates and the one control below it stay in the thumb's reach - the control lives
+   in the crates' own row (see `.action-bar`). The clamp keeps a band under the water
+   that the old control shelf used to fill; that band is left to the page now, so the
+   water keeps the size it was tuned at and the row below it sits higher. */
 .sea-stage { position: relative; }
 .sea {
   position: relative;
-  height: clamp(430px, 60vh, 640px);
+  height: clamp(320px, calc(60vh - 110px), 530px);
   border: 4px solid #14688a;
   border-radius: 16px;
   overflow: hidden;
@@ -177,11 +180,24 @@
 .sea-shoal { position: absolute; left: 1%; top: 26%; width: 190px; opacity: .45; animation: shoal-drift 36s ease-in-out infinite alternate; }
 .shoal-fish path { fill: #c7e7f1; }
 @keyframes shoal-drift { to { translate: 70px 12px; } }
-.lake-kelp { position: absolute; bottom: -6px; z-index: 3; width: 48px; opacity: .9; transform-origin: bottom center; animation: sway 7s ease-in-out infinite alternate; }
+/* The weed grows at the very front of the stage, so it lives in its own layer
+   painted over the floor: over the sand, and over every find and prop standing on
+   it. Nothing is ever drawn on top of the plant. It used to sit in the water layer,
+   under the sand, so the floor painted over it - which is how the stones ended up
+   lying across the weed, and an item across a plant is the one thing a real
+   foreground never looks like.
+   The clumps are planted where the collection is not (the guard in
+   PhotoAssets.test.js keeps them there): a patch between the station and the
+   driftwood, a tuft beside the old anchor, and one at the right edge past the
+   stones. A narrow sea squeezes the collection - its finds are sized in pixels,
+   its clumps sit at percentages - so a clump may end up brushing the edge of a
+   prop that moved in under it; the plant wins, and the prop stays readable. */
+.sea-weed { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.lake-kelp { position: absolute; bottom: -6px; width: 48px; opacity: .9; transform-origin: bottom center; animation: sway 7s ease-in-out infinite alternate; }
 .lake-kelp img { width: 100%; height: auto; display: block; }
-.kelp-a { left: 5%; }
-.kelp-b { right: 8%; width: 38px; animation-duration: 9s; animation-delay: -2s; }
-.kelp-c { left: 29%; width: 30px; opacity: .75; animation-duration: 11s; animation-delay: -5s; }
+.kelp-a { left: 27%; }
+.kelp-b { right: 1%; width: 38px; animation-duration: 9s; animation-delay: -2s; }
+.kelp-c { left: 0%; width: 30px; opacity: .75; animation-duration: 11s; animation-delay: -5s; }
 @keyframes sway { from { rotate: -5deg; } to { rotate: 6deg; } }
 
 /* ---- The seabed ---------------------------------------------------------- */
@@ -635,15 +651,18 @@
 .finale-tally { font-size: .92rem; }
 
 
-/* ---- The one control on the water ---------------------------------------- */
-/* It changes with what the child can do right now (cast, pull up, strike, wind
-   in), and it always sits in the same place: bottom centre of the sea, in the
-   thumb's reach of a tablet held in two hands. */
+/* ---- The one control, in the crates' row --------------------------------- */
+/* It changes with what the child can do right now (cast, pull up, strike, wind in),
+   and it always sits in the same place: the middle cell of the crates' own row (see
+   `.crate-dock`), where a thumb already is on a tablet held in two hands.
+   It never stands on the water. It first sat on a shelf of its own under the sea box,
+   which cost a whole band of the page for one pill; then it floated on the water just
+   above the wreck, which put it in the lane the fish swim through and made the pill
+   the biggest thing in the middle of the sea. Now the row pays for it: the crates
+   share their line with the control, nothing overlays the stage, and no control can
+   ever be over a find. */
 .action-bar {
-  position: absolute; left: 0; right: 0; bottom: 10px; z-index: 11;
-  display: flex; justify-content: center; align-items: flex-end;
-  pointer-events: none; /* only its own controls take taps */
-  padding: 0 12px;
+  display: flex; justify-content: center; align-items: center;
 }
 .action-button {
   pointer-events: auto;
@@ -696,16 +715,45 @@
 }
 .reel-label { font-size: .72rem; letter-spacing: .5px; text-transform: uppercase; }
 
-/* ---- The crates --------------------------------------------------------- */
+/* ---- The crates, with the one control in their own row -------------------- */
 /* While a catch waits on deck the crates are live answer buttons; the rest of the
    time they are quiet progress meters. The difference has to be unmistakable –
-   a tap on a crate with nothing to carry out must never feel like being ignored. */
-.crate-dock { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
+   a tap on a crate with nothing to carry out must never feel like being ignored.
+   The one control lives in this row as well, between the second crate and the
+   third: a wide screen keeps all five cells on one line (the crates compressed to
+   share it with the control), and a narrow one breaks the row into [crate crate]
+   [control] [crate crate], which is where a child's thumb already is. Either way
+   nothing a child presses stands on the water, so no control can ever stand over a
+   find - the stage above this row holds art only.
+   The middle cell is `--dock-control` wide: the widest control the bar can hold, so
+   the crates neither resize between a cast and a strike nor move when a stage has no
+   control to show (the cell keeps its place and stays empty). */
+.crate-dock {
+  --dock-control: 200px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px; margin-top: 12px;
+}
+.crate-dock .action-bar { grid-column: 1 / -1; }
 .crate-dock:not(.live) .crate { filter: saturate(.72) brightness(.97); opacity: .82; box-shadow: inset 0 -4px 0 rgba(125, 85, 24, .18), 0 3px 0 rgba(20, 63, 78, .1); }
 .crate-dock.live .crate { border-color: #e46e4b; animation: crate-ready 1.1s ease-in-out infinite alternate; }
 @keyframes crate-ready {
   from { box-shadow: inset 0 -4px 0 rgba(125, 85, 24, .18), 0 5px 0 rgba(20, 63, 78, .14); }
   to { box-shadow: inset 0 -4px 0 rgba(125, 85, 24, .18), 0 0 0 5px rgba(228, 110, 75, .3), 0 5px 0 rgba(20, 63, 78, .14); }
+}
+/* Five cells on one line from here up: four crates at their narrowest, the control's
+   own cell, and the gaps between them have to fit the page this breakpoint gives
+   (PhotoAssets.test.js measures exactly that, so the row can never be crowded or
+   wrapped at the width it switches at). */
+@media (min-width: 820px) {
+  .crate-dock { grid-template-columns: repeat(2, minmax(0, 1fr)) var(--dock-control) repeat(2, minmax(0, 1fr)); }
+  .crate-dock .action-bar { grid-column: 3; }
+  /* The crates keep the cells either side of the control's, in the order the boat
+     deals them, wherever the control sits in the tree - and they keep those cells
+     when the middle one is empty. */
+  .crate-dock .crate:nth-of-type(1) { grid-column: 1; }
+  .crate-dock .crate:nth-of-type(2) { grid-column: 2; }
+  .crate-dock .crate:nth-of-type(3) { grid-column: 4; }
+  .crate-dock .crate:nth-of-type(4) { grid-column: 5; }
 }
 /* The one status line under the sea: what to do next, and how full the fishing
    book is. Two spans on one line, so the sea gets the height instead. */
@@ -716,10 +764,13 @@
 .dock-hint-stage { color: #0b7897; font-size: 1rem; font-weight: 900; }
 .dock-hint-tally { color: #285362; font-size: .84rem; font-weight: 700; }
 
+/* A crate is a compact box, because it shares its row with the control: it keeps the
+   width and the height a thumb needs and no more (`min-width` is the floor the five
+   cells are measured against, see `.crate-dock`). */
 .crate {
-  position: relative; flex: 1 1 150px; max-width: 250px; min-height: 96px;
+  position: relative; justify-self: center; width: 100%; min-width: 120px; max-width: 250px; min-height: 82px;
   display: grid; grid-template-rows: auto auto auto; align-items: center; justify-items: center; gap: 1px;
-  padding: 14px 10px 10px;
+  padding: 10px 8px 8px;
   border: 3px solid #a9752f; border-radius: 10px;
   background: linear-gradient(#f6e2b6, #e6c98d); color: #6b4413;
   font-weight: 900;
@@ -823,25 +874,33 @@
 
 @media (max-width: 640px) {
   .game-controls { position: static; justify-content: flex-start; margin-top: 4px; }
-  .sea { height: clamp(360px, 58vh, 470px); }
+  .sea { height: clamp(280px, calc(58vh - 100px), 370px); }
   .fish { --fish-w: 84px; }
   .fish-tag { font-size: .88rem; padding: 1px 9px; }
   .boat { height: clamp(78px, 21%, 112px); }
   .catch-card { top: 52%; padding: 12px 14px 11px; }
   .strike-ring { width: 84px; height: 84px; }
-  .action-bar { bottom: 6px; }
   .action-button { min-height: 54px; min-width: 132px; padding: 8px 18px; font-size: 1rem; }
   .bite-button { min-width: 180px; min-height: 62px; font-size: 1.15rem; }
   .reel { width: 94px; height: 94px; }
   .reel-spool { width: 70px; height: 70px; }
   .crate-dock { gap: 8px; }
-  .crate { flex: 1 1 44%; min-height: 88px; padding: 13px 6px 8px; }
+  .crate { min-height: 78px; padding: 9px 6px 7px; }
+  .crate-icon { font-size: 1.4rem; }
   .crate-label { font-size: .95rem; }
   /* The scenery steps aside and the whole collection shrinks together, so every
      find still fits a phone's seabed. */
   .reef-item.reef-rock, .reef-item.reef-anchor, .reef-item.reef-driftwood { display: none; }
   .reef-stones { width: 86px; left: 84%; }
   .sea-floor { --reward-scale: .58; }
+  /* A phone's sea is small and the collection fills it: the weed shrinks to two
+     tiny tufts in the two gaps the finds leave between them (the station and the
+     wreck, the amphora and the submarine), and the third clump steps aside with
+     the rest of the scenery. Placed by the same arithmetic the desktop clumps are
+     (see the guard in PhotoAssets.test.js): shrink a clump and it fits the gap. */
+  .kelp-a { left: 31.5%; width: 12px; }
+  .kelp-b { right: 33%; width: 12px; }
+  .kelp-c { display: none; }
   .trip-done-art { width: 84px; height: 62px; }
   .dock-hint-stage { font-size: .92rem; }
   .book { padding: 13px; }
@@ -852,7 +911,7 @@
 /* A tablet held in landscape has little height: the sea takes what there is,
    and the control sits low where the thumb reaches without looking. */
 @media (min-width: 641px) and (max-height: 860px) {
-  .sea { height: clamp(380px, 62vh, 560px); }
+  .sea { height: clamp(300px, calc(62vh - 110px), 450px); }
   .game-page.fishing-page { padding: 10px 0 24px; }
 }
 

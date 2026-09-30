@@ -45,7 +45,7 @@ const REEL_CLICK_DEGREES = 90;
 export const TIMING = { TICK_MS, LANDED_MS, NUDGE_MS, REWARD_POP_MS };
 
 // What the trip is doing right now. One stage drives the hint, the one control
-// on the water and the narration, so the three can never disagree:
+// and the narration, so the three can never disagree:
 //
 //   sail   – no line in the water: tap the sea to sail, cast to start fishing
 //   bait   – the float is out (flying, waiting or being tasted)
@@ -425,15 +425,6 @@ export function WordFishing() {
           {sea.fishes.map((fish) => <FishSprite key={fish.id} fish={fish} boat={sea.boat} />)}
         </SeaScene>
 
-        <ActionBar
-          stage={stage}
-          fight={sea.fight}
-          onCast={castLine}
-          onPullIn={pullInLine}
-          onStrike={strike}
-          onTurn={turnReel}
-        />
-
         {aboard && <div className="catch-card">
           <p className="catch-kicker">På dekk! Hvilken kasse hører ordet til?</p>
           <p className="catch-word">{fishWord(aboard)}</p>
@@ -484,6 +475,8 @@ export function WordFishing() {
         </span>}
       </p>
 
+      {/* The one control, in the crates' own row: [crate] [crate] [control] [crate]
+          [crate]. Nothing a child presses stands on the water, where the finds do. */}
       <CrateDock
         trip={trip}
         journal={journal}
@@ -491,6 +484,14 @@ export function WordFishing() {
         hintCrateId={hintCrateId}
         landed={landed}
         onPut={putInCrate}
+        control={<ActionBar
+          stage={stage}
+          fight={sea.fight}
+          onCast={castLine}
+          onPullIn={pullInLine}
+          onStrike={strike}
+          onTurn={turnReel}
+        />}
       />
 
       <p className="visually-hidden" role="status">{landed

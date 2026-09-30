@@ -29,6 +29,33 @@
 // Both were shot as a side view on a plain background, which is what makes a
 // clean cut-out possible: the background is keyed away, the fish is mirrored so
 // it faces right like every other sprite here, and the long side is 900 px.
+
+// Four of the reef's treasures were replaced in a later pass, and their sources
+// travel with them the same way:
+//
+//   * anchor.webp    - an ink engraving of an admiralty anchor from rawpixel's CC0
+//     collection (published as "Anchor png sticker, vintage object"): public domain,
+//     no author named. The paper it is drawn on is the light checkerboard a preview
+//     bakes in, so the ink is everything dark; the anchor's own outline then encloses
+//     its body, making it one solid shape, and the ink's own shading is kept as the
+//     iron it is given. The long side is 900 px.
+//   * bell.webp      - the ship's bell of the research vessel Roald Amundsen,
+//     photographed by Mark Olich, on Wikimedia Commons: CC BY 4.0 - credited here
+//     because the licence asks for it. Her brass is measured in the frame and her
+//     profile drawn inside it, so no barge comes along with her.
+//   * chest.webp     - the chest the game already had, filled: a barrel of coins
+//     ("MONEY COINS GOLD SPECIE", rawpixel, CC0) is pasted into her open mouth and
+//     warmed from silver to gold. Her own picture is untouched - same canvas, same
+//     cut-out edge - so the child sees the chest they know, now full of treasure.
+//   * submarine.webp - a yellow tourist submarine, photographed by Djay78 (German
+//     Wikipedia) and released into the public domain, on Wikimedia Commons. Her
+//     upper half is kept - tower, rails and the row of portholes - against a blue sky
+//     that keys away cleanly, with her lowest rows faded into the sand, so she lies
+//     on the seabed rather than being sliced off by the edge of a crop.
+//
+// The station and the bottle keep their old pictures for now: NOAA's Aquarius habitat
+// (public domain) and a message-in-a-bottle photograph are the candidates, but neither
+// separates from its own background cleanly enough to ship yet.
 import fishBassPhoto from './photo-assets/fish-bass.webp';
 import fishCrappiePhoto from './photo-assets/fish-crappie.webp';
 import fishMackerelPhoto from './photo-assets/fish-mackerel.webp';
