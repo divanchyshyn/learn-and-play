@@ -3,7 +3,9 @@ import { pickOne } from '../../shared/random.js';
 import { speakNorwegian } from '../../shared/speech.js';
 import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { GameHeader } from '../../shared/GameHeader.jsx';
+import { SoundToggle } from '../../shared/SoundToggle.jsx';
 import { usePersistentState } from '../../shared/usePersistentState.js';
+import { useSoundToggle } from '../../shared/useSoundToggle.js';
 import {
   CREATURES, PAGES, attempt, creaturesInPage, equationText, makeRiddle,
   pageById, riddleLabel, spokenEquation, tierForDiscovered,
@@ -69,7 +71,7 @@ export function CardBattle() {
   const [mistake, setMistake] = useState(null);
   const [solved, setSolved] = useState(null);
   const [rexLine, setRexLine] = useState(() => pickOne(REX_LINES.ready));
-  const [soundOn, setSoundOn] = useState(true);
+  const { soundOn, toggleSound } = useSoundToggle(setAudioMuted, sounds.select);
   const [voiceOn, setVoiceOn] = useState(false);
 
   const found = foundCount(album);
@@ -124,13 +126,6 @@ export function CardBattle() {
     if (voiceOn) speakNorwegian(spokenEquation(riddle.operation, selected, riddle.rexValue));
   }
 
-  function toggleSound() {
-    const next = !soundOn;
-    setSoundOn(next);
-    setAudioMuted(!next);
-    if (next) sounds.select();
-  }
-
   function toggleVoice() {
     setVoiceOn((on) => !on);
     sounds.select();
@@ -149,7 +144,7 @@ export function CardBattle() {
       <div className="game-controls">
         <span className="found-chip">🃏 {found} av {CREATURES.length} kort funnet</span>
         <button className="chip toggle" type="button" aria-pressed={voiceOn} aria-label={voiceOn ? 'Slå av opplesning' : 'Les regnestykket høyt'} onClick={toggleVoice}>{voiceOn ? '🗣 Lesing: på' : '🗣 Lesing: av'}</button>
-        <button className="chip toggle" type="button" aria-pressed={!soundOn} aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'} onClick={toggleSound}>{soundOn ? '🔊' : '🔇'}</button>
+        <SoundToggle soundOn={soundOn} onToggle={toggleSound} className="chip toggle" />
       </div>
     </GameHeader>
 

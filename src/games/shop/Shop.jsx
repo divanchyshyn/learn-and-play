@@ -3,6 +3,8 @@ import { shuffle } from '../../shared/random.js';
 import { speakNorwegian } from '../../shared/speech.js';
 import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { GameHeader } from '../../shared/GameHeader.jsx';
+import { SoundToggle } from '../../shared/SoundToggle.jsx';
+import { useSoundToggle } from '../../shared/useSoundToggle.js';
 import { setMuted as setAudioMuted, sounds } from './sounds.js';
 
 // Every item costs a whole number of kroner. Two-digit prices keep their ones
@@ -156,7 +158,7 @@ export function Shop() {
   const [returnIds, setReturnIds] = useState([]);
   const [customerMoney, setCustomerMoney] = useState(START_MONEY);
   const [sellerMoney, setSellerMoney] = useState(SELLER_START_MONEY);
-  const [soundOn, setSoundOn] = useState(true);
+  const { soundOn, toggleSound } = useSoundToggle(setAudioMuted, sounds.select);
   const [phase, setPhase] = useState('trade');
   const [pendingKind, setPendingKind] = useState('buy');
   const [pendingIds, setPendingIds] = useState([]);
@@ -290,13 +292,6 @@ export function Shop() {
     completeTransaction();
   }
 
-  function toggleSound() {
-    const next = !soundOn;
-    setSoundOn(next);
-    setAudioMuted(!next);
-    if (next) sounds.select();
-  }
-
   function newDay() {
     setShopItems(sampleShop());
     setOwnedIds([]);
@@ -333,7 +328,7 @@ export function Shop() {
       <div className="game-controls">
         <span className={`rounds-chip${rounds === 0 ? ' hidden-chip' : ''}`}>🛒 {rounds} {rounds === 1 ? 'handel' : 'handler'} i dag</span>
         <button className="chip" onClick={newDay} type="button">🔁 Ny dag</button>
-        <button className="chip toggle" aria-pressed={!soundOn} aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'} onClick={toggleSound} type="button">{soundOn ? '🔊' : '🔇'}</button>
+        <SoundToggle soundOn={soundOn} onToggle={toggleSound} className="chip toggle" />
       </div>
     </GameHeader>
 
@@ -404,7 +399,7 @@ export function Shop() {
             </div>
           )}
           {policeLine && attemptsLeft < MAX_ATTEMPTS && (
-            <p className="police-note" role="status">Prøv igjen – du har {attemptsLeft} {attemptsLeft === 1 ? 'forsøk' : 'forsøk'} igjen.</p>
+            <p className="police-note" role="status">Prøv igjen – du har {attemptsLeft} forsøk igjen.</p>
           )}
           <form className="answer-form" onSubmit={submitAnswer}>
             <div className="answer-row">

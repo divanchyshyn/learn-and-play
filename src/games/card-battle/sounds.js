@@ -1,4 +1,8 @@
-import { tone, setMuted } from '../../shared/audio.js';
+import { createMuteStore, tone } from '../../shared/audio.js';
+
+// Kortkrigen remembers your mute choice between visits, exactly like the other
+// games: the setting used to last only until the page was reloaded.
+const mute = createMuteStore({ storageKey: 'cardBattle:muted' });
 
 // Kortkrigen's own sound character – effect definitions stay with the game,
 // the Web Audio engine comes from src/shared.
@@ -20,4 +24,4 @@ export const sounds = {
   },
 };
 
-export { setMuted };
+export const { isMuted, setMuted } = mute;

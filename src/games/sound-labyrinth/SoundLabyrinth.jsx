@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ConfettiLayer } from '../../shared/ConfettiLayer.jsx';
 import { GameHeader } from '../../shared/GameHeader.jsx';
+import { SoundToggle } from '../../shared/SoundToggle.jsx';
+import { useSoundToggle } from '../../shared/useSoundToggle.js';
 import { THEMES, generateMaze } from './mazes.js';
 import { pickWords, speakWord } from './words.js';
 import { SpellPuzzle } from './SpellPuzzle.jsx';
@@ -12,7 +14,7 @@ import {
   placePiece,
   recallPiece,
 } from './PiecePuzzle.jsx';
-import { isMuted, setMuted as setAudioMuted, sounds } from './sounds.js';
+import { setMuted as setAudioMuted, sounds } from './sounds.js';
 import {
   GALLERY_KEY,
   GAME_KEY,
@@ -137,7 +139,7 @@ export function SoundLabyrinth() {
     gameCodec,
   );
   const [fx, setFx] = useState(null);
-  const [soundOn, setSoundOn] = useState(!isMuted());
+  const { soundOn, toggleSound } = useSoundToggle(setAudioMuted, sounds.pop);
   // Which pictures the child has already assembled survives a page refresh in
   // its own saved value, and even survives "Start på nytt": that reset clears
   // the piece session, never the pictures the child has seen (see progress.js).
@@ -415,13 +417,6 @@ export function SoundLabyrinth() {
     sounds.select();
   };
 
-  function toggleSound() {
-    const next = !soundOn;
-    setSoundOn(next);
-    setAudioMuted(!next);
-    if (next) sounds.pop();
-  }
-
   const lastPointerRef = useRef(0);
   const pressPad = (direction) => (event) => {
     event.preventDefault();
@@ -596,15 +591,7 @@ export function SoundLabyrinth() {
         >
           {confirmReset ? 'Sikker? Trykk igjen' : `Start på nytt ${'\u{1F5D1}'}`}
         </button>
-        <button
-          className="chip toggle"
-          type="button"
-          aria-pressed={!soundOn}
-          aria-label={soundOn ? 'Slå av lyd' : 'Slå på lyd'}
-          onClick={toggleSound}
-        >
-          {soundOn ? '\u{1F50A}' : '\u{1F507}'}
-        </button>
+        <SoundToggle soundOn={soundOn} onToggle={toggleSound} className="chip toggle" />
       </div>
 
       <div className="dpad" role="group" aria-label={`Styr ${runner}`}>

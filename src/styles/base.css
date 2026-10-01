@@ -5,3 +5,14 @@ button, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .55; }
 a { color: inherit; }
+
+/* The small pill every game uses for its header controls. It was copied, byte
+   for byte, into five game stylesheets; a game that needs more than this adds
+   its own rule after this one (see `.chip` in Word Fishing's style.css, which
+   adds the inline-flex layout its badges need). */
+.chip { min-height: 40px; border: 2px solid #0c8fb6; border-radius: 999px; background: #fffdf3; color: #0b7897; padding: 5px 12px; font-weight: 900; transition: transform .12s ease, background .12s ease; }
+.chip:hover { transform: translateY(-2px); }
+
+/* Text that only a screen reader should reach. Also copied into four game
+   stylesheets. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

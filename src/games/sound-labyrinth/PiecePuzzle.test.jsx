@@ -271,4 +271,87 @@ describe('piece puzzle screen', () => {
     fireEvent.click(screen.getByRole('button', { name: /Brikke 1 ligger i rute 1/ }));
     expect(screen.getByRole('button', { name: /Brikke 1 – dra den til bildet eller trykk/ })).toBeInTheDocument();
   });
+
+  // Dragging is the other half of the panel's contract, and the half a child on
+  // a tablet actually uses. jsdom has no layout, so the board cells, the slot row
+  // and the two slots are given a geometry by hand and the pointer is flown
+  // across it, exactly as a finger would.
+  describe('dragging a piece with a finger', () => {
+    const SLOT_ROW = { left: 0, top: 0, right: 200, bottom: 60 };
+    const BOARD_CELLS = [0, 1, 2, 3].map((cell) => ({
+      left: (cell % 2) * 100, top: 100 + Math.floor(cell / 2) * 100, right: (cell % 2) * 100 + 100, bottom: 200 + Math.floor(cell / 2) * 100,
+    }));
+    const SLOTS = [0, 1, 2, 3].map((slot) => ({ left: slot * 50, top: 0, right: slot * 50 + 50, bottom: 60 }));
+    const AWAY = { left: 900, top: 900, right: 1000, bottom: 1000 };
+
+    // A rectangle as jsdom would report it, plus the empty space outside it.
+    function rectAt(rect) {
+      return { ...rect, width: rect.right - rect.left, height: rect.bottom - rect.top, x: rect.left, y: rect.top, toJSON: () => {} };
+    }
+
+    function mockLayout() {
+      Element.prototype.getBoundingClientRect = function bounding() {
+        if (this.classList.contains('puzzle-cell')) return rectAt(BOARD_CELLS[[...this.parentElement.children].indexOf(this)]);
+        if (this.classList.contains('puzzle-slots')) return rectAt(SLOT_ROW);
+        if (this.classList.contains('puzzle-slot')) return rectAt(SLOTS[[...this.parentElement.children].indexOf(this)]);
+        return rectAt(AWAY);
+      };
+    }
+
+    function centreOf(rect) {
+      return { clientX: (rect.left + rect.right) / 2, clientY: (rect.top + rect.bottom) / 2 };
+    }
+
+    beforeEach(mockLayout);
+
+    it('drops a piece from the slot row into the cell the finger released it over', () => {
+      let session = earnPiece(createPuzzleSession(1, () => 0));
+      session = placePiece(session, 1, 3); // piece 2 sits on the board already
+      render(<PuzzleHarness images={['a']} initial={session} />);
+
+      const piece = screen.getByRole('button', { name: /^Brikke 1 – dra den/ });
+      const target = screen.getByRole('application').children[2]; // third board cell
+
+      fireEvent.pointerDown(piece, centreOf(SLOTS[0]));
+      // A ghost follows the finger while the piece is in the air.
+      fireEvent.pointerMove(piece, { clientX: 10, clientY: 300 });
+      expect(document.querySelector('.puzzle-ghost')).toBeTruthy();
+
+      fireEvent.pointerMove(piece, centreOf(BOARD_CELLS[2]));
+      fireEvent.pointerUp(piece, centreOf(BOARD_CELLS[2]));
+
+      expect(target.className).toContain('filled');
+      expect(screen.getByRole('button', { name: /Brikke 1 ligger i rute 3/ })).toBeInTheDocument();
+      expect(document.querySelector('.puzzle-ghost')).toBeNull();
+    });
+
+    it('sends a dragged board piece back to the slot row when it is released there', () => {
+      let session = earnPiece(createPuzzleSession(1, () => 0));
+      session = placePiece(session, 0, 0);
+      render(<PuzzleHarness images={['a']} initial={session} />);
+
+      const onBoard = screen.getByRole('button', { name: /Brikke 1 ligger i rute 1/ });
+      fireEvent.pointerDown(onBoard, centreOf(BOARD_CELLS[0]));
+      fireEvent.pointerMove(onBoard, centreOf(SLOTS[1]));
+      fireEvent.pointerUp(onBoard, centreOf(SLOTS[1]));
+
+      expect(screen.getByRole('button', { name: /^Brikke 1 – dra den/ })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /ligger i rute/ })).toBeNull();
+    });
+
+    it('leaves the board alone when a drag is cancelled mid-air', () => {
+      let session = earnPiece(createPuzzleSession(1, () => 0));
+      session = placePiece(session, 0, 0);
+      render(<PuzzleHarness images={['a']} initial={session} />);
+
+      const onBoard = screen.getByRole('button', { name: /Brikke 1 ligger i rute 1/ });
+      fireEvent.pointerDown(onBoard, centreOf(BOARD_CELLS[0]));
+      fireEvent.pointerMove(onBoard, centreOf(BOARD_CELLS[3]));
+      // A mobile browser that claims the gesture fires cancel instead of up.
+      fireEvent.pointerCancel(onBoard, centreOf(BOARD_CELLS[3]));
+
+      expect(screen.getByRole('button', { name: /Brikke 1 ligger i rute 1/ })).toBeInTheDocument();
+      expect(document.querySelector('.puzzle-ghost')).toBeNull();
+    });
+  });
 });
