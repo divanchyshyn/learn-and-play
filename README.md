@@ -79,3 +79,21 @@ The build writes every published page into `dist/`:
 The library lives at <https://play2learn.divanchyshyn.com/>, and each game sits at `/games/<slug>/` - for example <https://play2learn.divanchyshyn.com/games/sound-labyrinth/>.
 
 GitHub Pages keeps publishing the same build through `.github/workflows/deploy-pages.yml` automatically, with no approval step, so the old `https://<user>.github.io/learn-and-play/` URLs keep working. Retire that workflow in its own change once the new domain has been verified. Progress saved in `localStorage` belongs to the origin it was saved on, so the new domain starts with fresh saves.
+
+## Planned: accounts and cross-device progress (not built yet)
+
+A backend that lets a child sign in and carry their progress between devices is
+planned but **not implemented** - the site is still fully static and nothing below
+exists in the code yet. The design, the alternatives that were rejected, and the
+costs of the choice are recorded in [`docs/backend/PLAN.md`](./docs/backend/PLAN.md);
+the step-by-step instructions for building it (toolchain install, Cloudflare
+dashboard setup, database migrations, deploy, rollback, troubleshooting) are in
+[`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md).
+
+In short: a Rust Worker (compiled to WebAssembly) on the Cloudflare Workers free
+plan, serving `/api/*` on this same Worker so the game pages keep being served as
+static assets and never touch the backend; a D1 (SQLite) database; and an account
+whose credential is a "player code" rather than a password - a choice forced by
+the Workers free plan's 10 ms CPU limit per request, which is well below the cost
+of a properly-expensive password hash. The schema is built so a passkey or
+email + password can be added later without a rewrite.

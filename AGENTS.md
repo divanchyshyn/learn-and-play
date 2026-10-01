@@ -92,6 +92,8 @@ wrangler.jsonc                          Cloudflare Workers config: serves dist/ 
 opencode.json                           Coding agent config: model, permissions, provider
 .opencode/agents/review.md              Read-only reviewer agent used by the review workflow
 docs/agent-pipeline.md                  How the agent pipeline is wired up and how to run it
+docs/backend/PLAN.md                    The planned Rust + Cloudflare backend for accounts and cross-device progress: decisions, design, work packages (NOT BUILT - the app is still static)
+docs/backend/RUNBOOK.md                 Step-by-step runbook for that backend: toolchain install, Cloudflare config, migrations, deploy, rollback, troubleshooting
 docs/audit/BASELINE.md                  Build, lint, test and coverage gate as measured before the last audit
 docs/audit/PLAN.md                      The audit's findings and its ordered work packages
 docs/audit/SUMMARY.md                   What the audit fixed, skipped, and left for a human
