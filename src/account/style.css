@@ -1,0 +1,181 @@
+/* The account page. Same warm palette as the game library, one card wide, and
+   readable on a phone held in one hand. */
+
+.account-shell {
+  width: min(100% - 32px, 620px);
+  margin: 0 auto;
+  padding: 48px 0 64px;
+}
+
+.account-header {
+  padding-bottom: 22px;
+  border-bottom: 5px solid #139fc1;
+}
+
+.account-header h1 {
+  margin: 0;
+  color: #0c8fb6;
+  font-size: clamp(2.2rem, 7vw, 3.4rem);
+  line-height: 1;
+}
+
+.account-header p {
+  margin: 12px 0 0;
+  color: #2f4858;
+}
+
+.account-kicker {
+  margin: 0 0 6px;
+  color: #d1663f;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-card {
+  margin-top: 24px;
+  padding: 22px;
+  border: 3px solid #d8e6ea;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.account-card h2 {
+  margin: 0 0 8px;
+  color: #0c8fb6;
+  font-size: 1.35rem;
+}
+
+.account-status {
+  margin-top: 24px;
+  color: #597483;
+}
+
+.account-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.account-tabs button {
+  flex: 1;
+}
+
+.account-form {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+
+.account-field {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.account-field label {
+  font-weight: 700;
+  color: #2f4858;
+}
+
+.account-field input {
+  padding: 12px 14px;
+  border: 2px solid #bcd5dc;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 1.05rem;
+  color: #22333d;
+  background: #fbfdfe;
+}
+
+.account-field input:focus-visible {
+  outline: 3px solid #139fc1;
+  outline-offset: 1px;
+}
+
+.account-hint {
+  color: #597483;
+  font-size: 0.92rem;
+}
+
+.account-form button,
+.account-card button {
+  padding: 12px 18px;
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
+  color: #ffffff;
+  background: #139fc1;
+  cursor: pointer;
+}
+
+.account-form button:disabled,
+.account-card button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.account-secondary {
+  color: #2f4858 !important;
+  background: #e7f1f4 !important;
+}
+
+.account-danger {
+  background: #d1663f !important;
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+}
+
+.account-warning {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 5px solid #e0a33c;
+  border-radius: 8px;
+  background: #fdf6e6;
+  color: #6b4a12;
+}
+
+.account-error {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 5px solid #d1663f;
+  border-radius: 8px;
+  background: #fdeee8;
+  color: #8a3316;
+}
+
+.account-notice {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-left: 5px solid #139fc1;
+  border-radius: 8px;
+  background: #e9f6fa;
+  color: #175a70;
+}
+
+.account-footer {
+  margin-top: 28px;
+  color: #597483;
+  font-size: 0.95rem;
+}
+
+.account-footer a {
+  color: #0c8fb6;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .account-shell {
+    padding: 28px 0 48px;
+  }
+
+  .account-card {
+    padding: 18px;
+  }
+}

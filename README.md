@@ -67,6 +67,7 @@ npm run build
 The build writes every published page into `dist/`:
 
 - `/` - game library
+- `/account/` - account page (sign in, create an account, change the password)
 - `/games/sound-labyrinth/` - Sound labyrinth ("Lyd-labyrinten")
 - `/games/snakes-and-ladders/` - Snakes and ladders ("Slanger og stiger")
 - `/games/card-battle/` - Card battle ("Kortkrig")

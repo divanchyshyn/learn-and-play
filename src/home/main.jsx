@@ -41,6 +41,10 @@ function Home() {
         <p className="library-kicker">Lek og lær</p>
         <h1>Spillbibliotek</h1>
         <p>Velg et spill og sett i gang.</p>
+        <p className="library-account">
+          <a href="./account/">Konto</a> – logg inn for å ta med framgangen din til
+          andre enheter.
+        </p>
       </header>
       <section className="game-library" aria-label="Tilgjengelige spill">
         {GAMES.map((game) => (

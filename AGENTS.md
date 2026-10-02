@@ -80,6 +80,10 @@ src/games/<game-slug>/style.css         Game-specific styles
 src/games/<game-slug>/puzzle-assets/    Committed game artwork imported by the component (Sound Labyrinth's puzzle pictures)
 src/games/<game-slug>/photo-assets/     Committed photographic artwork imported through that game's photos.js (Word Fishing's whole scene)
 src/styles/base.css                     Shared reset, base styles and the shared `.chip` / `.visually-hidden` rules every game reuses
+src/shared/api.js                       The one wrapper around fetch('/api/*'): failures are values, never exceptions
+src/shared/account.js                   useAccount(): who is signed in, and the Norwegian copy for every error code
+account/index.html                      The account page entry point (sign in, create an account, change the password, delete it)
+src/account/                            The account page component and styles, and the only page that talks about accounts
 src/test/setup.js                       Vitest setup (jest-dom matchers)
 vite.config.js                          Multi-page build entry points and test config (timeout, coverage)
 eslint.config.js                        ESLint flat config (core, react, react-hooks rules)
