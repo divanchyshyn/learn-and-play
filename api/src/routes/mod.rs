@@ -1,6 +1,7 @@
 pub mod accounts;
 pub mod health;
 pub mod password;
+pub mod progress;
 pub mod sessions;
 
 use axum::{

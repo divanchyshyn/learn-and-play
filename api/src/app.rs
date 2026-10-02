@@ -21,6 +21,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .merge(routes::accounts::router())
         .merge(routes::sessions::router())
         .merge(routes::password::router())
+        .merge(routes::progress::router())
         .fallback(routes::not_found)
         // Every state-changing request has to come from this site (see
         // `auth::require_origin`); the games' own pages are the only caller.

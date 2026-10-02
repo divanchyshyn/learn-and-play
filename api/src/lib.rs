@@ -19,6 +19,7 @@ pub mod error;
 pub mod routes;
 pub mod state;
 pub mod store;
+pub mod sync_keys;
 
 pub use app::{build_app, build_app_with_state};
 pub use config::{Command, Config};
