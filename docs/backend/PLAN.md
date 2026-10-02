@@ -220,9 +220,10 @@ Checked on the branch `feature/rust-backend` before writing this document.
   pinned devDependency (C5) so CI and the local machine agree.
 - Docker Desktop is installed but its daemon is not running. It is required for
   `docker build`, the dev Postgres, and `wrangler dev` with a container (H1).
-- `docs/audit/BASELINE.md`, `PLAN.md` and `SUMMARY.md` are referenced by
-  `AGENTS.md` and `README.md` but **do not exist in git history**; the coverage
-  baseline is re-established in C2.
+- `docs/audit/BASELINE.md` is referenced by `AGENTS.md` and `README.md` but did
+  not exist in git history (and the audit's own `PLAN.md` / `SUMMARY.md` were
+  never committed either): C2 re-establishes the baseline and drops the dead
+  references.
 - `opencode.json` allows the coding agent only `npm ci`, `npm run lint`,
   `npm run test*`, `npm run build` and read-only git — `cargo` is not in it (C4).
 

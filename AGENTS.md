@@ -97,9 +97,7 @@ opencode.json                           Coding agent config: model, permissions,
 docs/agent-pipeline.md                  How the agent pipeline is wired up and how to run it
 docs/backend/PLAN.md                    The planned backend for accounts and cross-device progress: decisions, design, work packages C1-C15 (NOT BUILT - the app is still static)
 docs/backend/RUNBOOK.md                 Step-by-step runbook for that backend: toolchain, Neon and Cloudflare setup, Cloudflare Access, migrations, secrets, deploy, rollback, troubleshooting
-docs/audit/BASELINE.md                  Build, lint, test and coverage gate as measured before the last audit
-docs/audit/PLAN.md                      The audit's findings and its ordered work packages
-docs/audit/SUMMARY.md                   What the audit fixed, skipped, and left for a human
+docs/audit/BASELINE.md                  The measured build, lint, test and coverage gate every later change is compared against
 ```
 
 ## Adding a game
