@@ -16,3 +16,9 @@ a { color: inherit; }
 /* Text that only a screen reader should reach. Also copied into four game
    stylesheets. */
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Shown by the sync gate while a device with no cached progress waits for the
+   database — at most `HYDRATION_TIMEOUT_MS`, and never because the server
+   disagreed with anything. It is the only loading state a child can ever see, so
+   it says something true and calm. */
+.sync-gate { margin: 0; padding: 48px 24px; text-align: center; color: #0b7897; font-weight: 700; }

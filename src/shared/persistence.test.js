@@ -1,5 +1,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { readStorage, writeStorage, removeStorage, migrateStorage } from './persistence.js';
+import {
+  migrateStorage,
+  onStorageWrite,
+  readStorage,
+  removeStorage,
+  writeStorage,
+} from './persistence.js';
 
 // A tiny in-memory store shaped like localStorage, for tests that want a store
 // which is not the browser's.
@@ -78,5 +84,56 @@ describe('shared persistence storage helpers', () => {
     writeStorage('same:key', 'value', store);
     expect(migrateStorage('same:key', 'same:key', store)).toBeNull();
     expect(readStorage('same:key', store)).toBe('value');
+  });
+
+  it('tells a listener what was written and what was removed', () => {
+    const seen = [];
+    const stop = onStorageWrite((key, value) => seen.push([key, value]));
+
+    writeStorage('game:draft', '{"a":1}');
+    removeStorage('game:draft');
+    stop();
+
+    expect(seen).toEqual([
+      ['game:draft', '{"a":1}'],
+      ['game:draft', null],
+    ]);
+  });
+
+  it('stops telling a listener that unsubscribed', () => {
+    const listener = vi.fn();
+    const stop = onStorageWrite(listener);
+
+    writeStorage('game:draft', 'first');
+    stop();
+    writeStorage('game:draft', 'second');
+
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a broken listener fail without breaking the save or the next listener', () => {
+    const good = vi.fn();
+    const stopBad = onStorageWrite(() => {
+      throw new Error('a listener that misbehaves');
+    });
+    const stopGood = onStorageWrite(good);
+
+    expect(() => writeStorage('game:draft', 'value')).not.toThrow();
+    expect(readStorage('game:draft')).toBe('value');
+    expect(good).toHaveBeenCalledWith('game:draft', 'value');
+
+    stopBad();
+    stopGood();
+  });
+
+  it('says nothing when the write itself failed', () => {
+    const listener = vi.fn();
+    const stop = onStorageWrite(listener);
+    const broken = { setItem: () => { throw new Error('full'); } };
+
+    writeStorage('game:draft', 'value', broken);
+    stop();
+
+    expect(listener).not.toHaveBeenCalled();
   });
 });

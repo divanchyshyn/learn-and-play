@@ -67,6 +67,7 @@ npm run build
 The build writes every published page into `dist/`:
 
 - `/` - game library
+- `/account/` - account page (sign in, create an account, change the password)
 - `/games/sound-labyrinth/` - Sound labyrinth ("Lyd-labyrinten")
 - `/games/snakes-and-ladders/` - Snakes and ladders ("Slanger og stiger")
 - `/games/card-battle/` - Card battle ("Kortkrig")
@@ -74,8 +75,45 @@ The build writes every published page into `dist/`:
 - `/games/word-fishing/` - Word fishing ("Ordfiske")
 - `/games/number-line-hop/` - Number-line hop ("Tierhopp")
 
-`.github/workflows/deploy-cloudflare.yml` runs lint, the whole test suite and the build on every push to `main`; the verified build is then handed to Cloudflare Workers static assets - but only after a human approves it. The deploy job sits behind the `cloudflare-production` environment's required reviewer, so you approve each production deploy in the workflow run. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
+`.github/workflows/deploy-cloudflare.yml` runs the Rust checks (format, lint, tests), lint, the whole test suite and the build on every push to `main`; the verified build is then handed to Cloudflare - but only after a human approves it. The deploy job sits behind the `cloudflare-production` environment's required reviewer, so you approve each production deploy in the workflow run. That job applies the database migrations, builds and pushes the container image, and publishes the Worker in one version, so a Worker rollback rolls back the image with it. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
+
+The site is one Worker with two halves: `/`, `/account/` and `/games/<slug>/` are static assets served by Cloudflare's asset router, and `/api/*` runs the Rust service in a container. Because a game page never invokes any code, a backend outage can only ever mean "accounts are unavailable", never "the games do not load".
 
 The library lives at <https://play2learn.divanchyshyn.com/>, and each game sits at `/games/<slug>/` - for example <https://play2learn.divanchyshyn.com/games/sound-labyrinth/>.
 
-GitHub Pages keeps publishing the same build through `.github/workflows/deploy-pages.yml` automatically, with no approval step, so the old `https://<user>.github.io/learn-and-play/` URLs keep working. Retire that workflow in its own change once the new domain has been verified. Progress saved in `localStorage` belongs to the origin it was saved on, so the new domain starts with fresh saves.
+GitHub Pages was **retired** on 2026-10-02: the workflow is gone and the repository's Pages source is set to None, so the old `https://<user>.github.io/learn-and-play/` URLs no longer serve anything. That was deliberate rather than accidental - accounts need `/api/*`, which cannot exist on `github.io`, and two hosts would have meant two copies of the same site drifting apart. Progress saved in `localStorage` belongs to the origin it was saved on, so whatever was played under the old URLs stays there.
+
+## Accounts and progress, in short
+
+Every game works exactly as it always did **without** an account. With one, what a
+child has earned follows them to another device.
+
+- Sign in at [/account/](./account/) with a username and a password. There is
+  deliberately **no email address**, so there is **no password recovery**: a
+  forgotten password means a lost account, and the sign-up page says so.
+- What is stored is a username, an argon2id hash of the password, and the games'
+  own progress. No real names, no birthdays, no analytics.
+- What travels between devices is what was *earned* — pictures assembled, words
+  caught, animals found. A maze being walked, a fishing trip in progress and the
+  speaker setting stay on the device that was playing.
+- The database is the record and `localStorage` is a cache, so a game starts
+  instantly on a device that has played before and never waits more than a moment
+  (1.5 s) on one that has not. Syncing can add progress, never take it away.
+- A test copy of the whole site lives at
+  <https://test.play2learn.divanchyshyn.com/>: every pull request is deployed
+  there automatically, behind Cloudflare Access and with its own database.
+
+The design and the reasons behind it — including what was rejected — are in
+[docs/backend/ARCHITECTURE.md](./docs/backend/ARCHITECTURE.md).
+
+## Documentation
+
+| Document | What it is |
+| --- | --- |
+| [`README.md`](./README.md) | This file: what the site is, how to build and run it |
+| [`AGENTS.md`](./AGENTS.md) | The rules for changing the repository — naming, structure, testing, definition of done. Read before a first change |
+| [`docs/backend/ARCHITECTURE.md`](./docs/backend/ARCHITECTURE.md) | How accounts and cross-device progress work, and why they work that way |
+| [`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md) | Operating it: toolchain, Neon, Cloudflare, Access, secrets, migrations, deploy, backup, rollback, troubleshooting |
+| [`docs/agent-pipeline.md`](./docs/agent-pipeline.md) | How the coding agent pipeline is wired up and how to run it |
+| [`docs/audit/BASELINE.md`](./docs/audit/BASELINE.md) | The measured build, lint, test and coverage gate every later change is compared against |
+

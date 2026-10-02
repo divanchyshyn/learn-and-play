@@ -18,7 +18,8 @@ Issue labelled `ai-ready`  (or a `/oc` comment)
         ▼
    branch + pull request  (body closes the issue)
         │
-        ├─ .github/workflows/ci.yml              lint + test + build   (required)
+        ├─ .github/workflows/ci.yml              lint + test + build, and the Rust service   (required)
+        ├─ .github/workflows/deploy-test.yml     publishes the pull request to the test hostname
         ├─ .github/workflows/codeql.yml          security analysis     (required)
         └─ .github/workflows/opencode-review.yml read-only review comment
         │
@@ -103,12 +104,15 @@ These are repository settings, not files, so they have to be done by hand once.
    named `cloudflare-production`, with yourself under **Required reviewers**
    (optionally restricted to the `main` branch). The `deploy-cloudflare.yml`
    deploy job references that environment, so it waits for your approval before
-   it can reach the live site, while `deploy-pages.yml` keeps publishing
-   automatically. Create the environment *before* merging a change to that
-   workflow: an environment that is referenced but not yet configured is created
-   empty, so that first deploy would run unreviewed. If a required-reviewer rule
-   ever appears on the `github-pages` environment, Pages starts waiting for
-   approval too – remove the rule there to keep Pages hands-free.
+   it can reach the live site. Create the environment *before* merging a change to
+   that workflow: an environment that is referenced but not yet configured is
+   created empty, so that first deploy would run unreviewed.
+8. **Let pull requests deploy themselves.** Settings → Environments → new
+   environment named `cloudflare-test`, **without** required reviewers, holding
+   the test database's connection string and the Cloudflare Access service token.
+   `deploy-test.yml` publishes every same-repository pull request to
+   `test.play2learn.divanchyshyn.com` so a change can be tried on a tablet before
+   anyone approves it for production.
 
 ## Day to day
 
@@ -134,6 +138,7 @@ These are repository settings, not files, so they have to be done by hand once.
 | Threat | What stops it |
 | --- | --- |
 | Prompt injection from an issue or diff telling the agent to exfiltrate | `webfetch`, `websearch` and `external_directory` are denied; the bash allowlist has no `curl`, `wget`, `env` or `printenv` |
+| The agent changing the backend's environment | The allowlist has `cargo fmt/check/test/clippy/build` and `docker build`, and **nothing that deploys or reads a secret**: no `wrangler`, no `docker push`, no `docker run`, no `cargo install`, no `.env` / `.dev.vars` |
 | The agent reaching production | Branch protection on `main`; the agent only ever opens a pull request. The Cloudflare deploy job additionally waits on the `cloudflare-production` environment's required reviewers, so even a merged change needs a human approval before it goes live |
 | Adding dependencies behind your back | `npm install` is denied; only `npm ci` is allowed. The agent must stop and ask |
 | Secrets leaking into the agent's shell | `DEEPSEEK_API_KEY` is the only secret in the job, and the bash allowlist cannot read the environment |

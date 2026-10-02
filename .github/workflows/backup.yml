@@ -1,0 +1,68 @@
+name: Backup the database
+
+# Neon's free tier has a short restore window, so the account and progress data
+# gets a nightly copy in R2 as well. That copy is the one that survives a wrong
+# migration, a dropped table or a deleted project — and it is small: a few
+# hundred kilobytes for a family's worth of play.
+on:
+  schedule:
+    # 03:20 UTC, when nobody is playing.
+    - cron: '20 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    name: Dump Postgres to R2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # `postgres:17` is used as the client so the dump always matches the
+      # server's major version, whatever the runner happens to ship.
+      - name: Dump the production database
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::PRODUCTION_DATABASE_URL is not set: nothing to back up"
+            exit 1
+          fi
+
+          set -o pipefail
+          stamp=$(date -u +%Y-%m-%d)
+          docker run --rm -e DATABASE_URL postgres:17 \
+            sh -c 'pg_dump "$DATABASE_URL" --no-owner --no-privileges' \
+            | gzip -9 > "learn-and-play-$stamp.sql.gz"
+
+          ls -lh "learn-and-play-$stamp.sql.gz"
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+
+      - name: Upload it to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          BUCKET: ${{ vars.BACKUP_BUCKET || 'learn-and-play-backups' }}
+        run: |
+          if [ -z "${R2_ACCOUNT_ID}" ] || [ -z "${AWS_ACCESS_KEY_ID}" ]; then
+            echo "::error::the R2 credentials are not configured"
+            exit 1
+          fi
+
+          aws s3 cp "learn-and-play-$STAMP.sql.gz" "s3://$BUCKET/prod/$STAMP.sql.gz" \
+            --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+
+      # A bucket lifecycle rule expires the dumps after about a month; this only
+      # says what was written, so the run log is enough to find it again.
+      - name: Report what was stored
+        env:
+          BUCKET: ${{ vars.BACKUP_BUCKET || 'learn-and-play-backups' }}
+        run: echo "stored s3://$BUCKET/prod/$STAMP.sql.gz"

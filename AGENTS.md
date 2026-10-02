@@ -23,7 +23,7 @@ applies to these changes too, unless the person asks for something else.
 
 ## Project goal
 
-Build a small, friendly collection of browser games for children. Games should be easy to understand, work without accounts or a backend, and support learning through play. The current games practise Norwegian words, but future games may cover reading, counting, maths, or similar skills.
+Build a small, friendly collection of browser games for children. Games should be easy to understand and support learning through play; every game must work without an account, and an account (optional, for carrying progress between devices) may never be needed to play. The current games practise Norwegian words, but future games may cover reading, counting, maths, or similar skills.
 
 ## Naming
 
@@ -60,8 +60,11 @@ Build a small, friendly collection of browser games for children. Games should b
 - React with Vite, using JavaScript and CSS.
 - This is a multi-page application, not a single-page router.
 - Cloudflare Workers serves the generated `dist/` directory as static assets, deployed by `.github/workflows/deploy-cloudflare.yml` behind the `cloudflare-production` environment's required reviewers (Worker configuration in `wrangler.jsonc`).
-- Keep the app fully static: no server-side rendering, no API dependencies, no runtime secrets. Adding an `/api/*` route, a datastore binding, or anything the browser needs at runtime is an amendment to this rule, agreed deliberately, never an implementation detail.
-- Use relative asset paths or Vite imports so the site works at `https://play2learn.divanchyshyn.com/` and, while the GitHub Pages workflow remains, at `https://<user>.github.io/<repository>/`.
+- **The games stay static; accounts and cross-device progress are a deliberate, human-agreed exception to that rule** (the design and its costs are recorded in `docs/backend/ARCHITECTURE.md`). A game page is served by Cloudflare's asset router and never invokes any code, so a backend failure can never break a game. The exception lives behind `/api/*`: a Rust service (`api/`, axum + sqlx) in a Cloudflare Container, reached through a small Worker front door (`edge/`) that owns the container's Durable Object, with Postgres (Neon) as the datastore. What it costs: the site now has a database, a container image in every deploy, runtime secrets per environment, and sync code that can lose progress if it is wrong.
+- **Fail-open is a rule, not a preference.** No account and no network must never be visible inside a game: not signed in means no requests at all, and a dead or slow API means the game plays from its local cache. `localStorage` is a cache; the database is the record.
+- An account holds a uuid, a username, an argon2id password hash and the games' own progress blobs - **no personal data**. Never add an email address, a real name, a birthday or analytics to it.
+- Do not add a third-party runtime dependency (a datastore, an auth service, an email sender) without a human decision. The agreed set is Cloudflare Containers, Neon Postgres and Cloudflare R2 for backups; there is deliberately no email provider, and therefore no password recovery.
+- Use relative asset paths or Vite imports so the site works at `https://play2learn.divanchyshyn.com/`. GitHub Pages is retired: the site has exactly one host.
 
 ## Structure
 
@@ -77,13 +80,29 @@ src/games/<game-slug>/style.css         Game-specific styles
 src/games/<game-slug>/puzzle-assets/    Committed game artwork imported by the component (Sound Labyrinth's puzzle pictures)
 src/games/<game-slug>/photo-assets/     Committed photographic artwork imported through that game's photos.js (Word Fishing's whole scene)
 src/styles/base.css                     Shared reset, base styles and the shared `.chip` / `.visually-hidden` rules every game reuses
+src/shared/api.js                       The one wrapper around fetch('/api/*'): failures are values, never exceptions
+src/shared/account.js                   useAccount(): who is signed in, and the Norwegian copy for every error code
+src/shared/syncable.js                  Which saved values sync and how two devices' copies are merged (a union, always)
+src/shared/sync.js                      The sync engine: ownership, revisions, debounced pushes, and the hydration decision
+src/shared/SyncGate.jsx                 Holds a game back (at most 1.5 s) only when this device has no cached progress
+api/sync-keys.json                      The allowlist of synced keys: enforced by the service, read by the frontend's registry
+account/index.html                      The account page entry point (sign in, create an account, change the password, delete it)
+src/account/                            The account page component and styles, and the only page that talks about accounts
 src/test/setup.js                       Vitest setup (jest-dom matchers)
 vite.config.js                          Multi-page build entry points and test config (timeout, coverage)
 eslint.config.js                        ESLint flat config (core, react, react-hooks rules)
-.github/workflows/ci.yml                Runs lint, tests and the build on pushes and pull requests
+.github/workflows/ci.yml                Runs lint, tests and the build for the frontend, and format, lint, tests and the image build for the Rust service, on pushes and pull requests
 .github/workflows/deploy-cloudflare.yml Cloudflare Workers deploy: verify, then a deploy job behind the cloudflare-production environment's required reviewers
-.github/workflows/deploy-pages.yml      GitHub Pages build and deployment, kept until the custom domain is verified
+.github/workflows/deploy-test.yml       Publishes every same-repository pull request to test.play2learn.divanchyshyn.com (one shared slot, behind Cloudflare Access)
+.github/workflows/backup.yml            Nightly pg_dump of the production database to R2
 wrangler.jsonc                          Cloudflare Workers config: serves dist/ as static assets
+wrangler.test.jsonc                     The test Worker (learn-and-play-test): same front door, own database, own hostname, deployed from pull requests
+edge/                                   The Worker front door: serves the assets, and sends /api/* into the container through its Durable Object
+edge/src/router.js                      The routing half, kept free of Cloudflare-only imports so it can be unit-tested
+docker-compose.yml                      Local Postgres for developing and testing the API
+api/                                    The Rust service that runs as a Cloudflare Container: axum routes, sqlx store, migrations, Dockerfile
+api/src/domain/                         Pure backend logic (passwords, sessions, usernames, rate limits) with its own unit tests: no database, no HTTP
+api/tests/                              Integration tests that drive the real router against a throwaway database
 .github/workflows/codeql.yml            CodeQL security analysis on pull requests and weekly
 .github/workflows/opencode.yml          Runs the coding agent when an issue is labelled ai-ready
 .github/workflows/opencode-review.yml   Reviews pull requests and posts findings as a comment
@@ -92,9 +111,9 @@ wrangler.jsonc                          Cloudflare Workers config: serves dist/ 
 opencode.json                           Coding agent config: model, permissions, provider
 .opencode/agents/review.md              Read-only reviewer agent used by the review workflow
 docs/agent-pipeline.md                  How the agent pipeline is wired up and how to run it
-docs/audit/BASELINE.md                  Build, lint, test and coverage gate as measured before the last audit
-docs/audit/PLAN.md                      The audit's findings and its ordered work packages
-docs/audit/SUMMARY.md                   What the audit fixed, skipped, and left for a human
+docs/backend/ARCHITECTURE.md            How accounts and cross-device progress work today, and why: the shape of the site, the data, the API, the sync rules, and what was rejected
+docs/backend/RUNBOOK.md                 Step-by-step runbook for that backend: toolchain, Neon and Cloudflare setup, Cloudflare Access, migrations, secrets, deploy, rollback, troubleshooting
+docs/audit/BASELINE.md                  The measured build, lint, test and coverage gate every later change is compared against
 ```
 
 ## Adding a game
@@ -109,7 +128,7 @@ For a new game with the slug `word-match`:
 6. Update `README.md` with the new game link and short description.
 7. Run `npm.cmd run build` and `npm.cmd run test` on Windows. Confirm the build includes `dist/games/word-match/index.html` and all tests pass.
 
-The trailing slash in a game URL is intentional: it lets the static host load that game's `index.html` directly (Cloudflare Workers redirects `/games/<slug>` to `/games/<slug>/` and serves `index.html` there, exactly as GitHub Pages does).
+The trailing slash in a game URL is intentional: it lets the static host load that game's `index.html` directly (Cloudflare Workers redirects `/games/<slug>` to `/games/<slug>/` and serves `index.html` there).
 
 Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`pickOne`, the audio engine (`tone`, and `createMuteStore` for a game's own remembered mute key), `speakNorwegian`, `ConfettiLayer`, `GameHeader`, and `SoundToggle` with `useSoundToggle` for the speaker button every game shows. The shared `.chip` pill and `.visually-hidden` helper live in `src/styles/base.css`; a game adds to them, never copies them. Sound *definitions* stay per game in its local `sounds.js`, built on the shared engine.
 
@@ -315,6 +334,12 @@ the float. They live in `src/games/word-fishing/photo-assets/`, imported by
 - A test that sets the shared mute state restores it in `afterEach`, and a test about a game's default reads it the way a page load does (`vi.resetModules()` and a fresh import). Otherwise the setting leaks into whichever test runs next.
 - Respect each game's design constraints inside its tests – for example, Sound Labyrinth keeps no failure states: letters stay freely placeable and reorderable, and a wrong spelling may only shake red and be read back, never punished.
 
+### The Rust service
+
+- Pure logic lives in `api/src/domain/` and is unit-tested there (`#[cfg(test)] mod tests`, `cargo test`, no database, no network). Anything a test has to set up a server or a table to check belongs one layer out.
+- Routes and SQL live beside it (`api/src/routes/`, `api/src/store/`), and integration tests in `api/tests/` drive the **real router** through `tower::ServiceExt::oneshot` against a throwaway database created by `#[sqlx::test]` — the local Postgres from `docker-compose.yml`, and a `postgres:17` service container in CI.
+- `api/src/domain/` is where a test for new behaviour goes first. A handler that contains a rule is a handler whose rule cannot be tested cheaply.
+
 ## Coverage
 
 Coverage is a gate for the audit's test consolidation, not a CI threshold, and it is generated on demand:
@@ -325,9 +350,11 @@ npm run test:coverage
 
 `vite.config.js` scopes the report to `src/**/*.{js,jsx}` (excluding test files and the page entry points, which are one `createRoot` call each), so a module nobody imports appears at 0 % instead of being absent. Coverage must never fall below the figures recorded in `docs/audit/BASELINE.md` — overall and per file for any file a change touches.
 
+On a loaded machine, add `-- --testTimeout=60000` to the coverage run: instrumentation roughly doubles the runtime of the heaviest Sound Labyrinth test, which already sits near the suite-wide 20 s ceiling. That is a measurement detail, not a change to the suite CI runs.
+
 ## CI
 
-`.github/workflows/ci.yml` runs lint and the whole test suite on every push and pull request. `.github/workflows/deploy-cloudflare.yml` runs the same checks on `main` and then waits, behind the `cloudflare-production` environment's required reviewers, for a human to approve the deploy. `.github/workflows/deploy-pages.yml` publishes the same build automatically. Failing checks can therefore never reach either host, and nothing reaches the live site without approval. Keep all three green before handing off changes.
+`.github/workflows/ci.yml` runs two jobs on every push and pull request: `Run game tests` (lint, the whole suite, the build) and `Check the Rust service` (format, lint, tests, and the container image build). `.github/workflows/deploy-test.yml` publishes every same-repository pull request to the test hostname. `.github/workflows/deploy-cloudflare.yml` runs the same checks on `main` and then waits, behind the `cloudflare-production` environment's required reviewers, for a human to approve the deploy. Failing checks can therefore never reach either host, and nothing reaches the live site without approval. Keep every job green before handing off changes.
 
 ## Linting
 
@@ -358,6 +385,7 @@ npm run test:coverage
 A change, whether written by a person or by the coding agent, is finished only when:
 
 - `npm run lint`, `npm run test` and `npm run build` all pass (use `npm.cmd` in PowerShell on this machine).
+- For anything touching `api/`: `cargo fmt --manifest-path api/Cargo.toml --all --check`, `cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings` and `cargo test --manifest-path api/Cargo.toml` all pass, and the image still builds (`docker build -t learn-and-play-api:ci api`).
 - New pure logic is exported from the component or module and covered by a unit test; new UI has at least one rendered happy path.
 - New or replaced artwork follows the contract under Game artwork (same dimensions, format, colour mode and rough byte size as the pictures it joins), is imported by the component, is covered by the rotation test, and is present in `dist/assets/`.
 - `README.md` is updated when user-visible behaviour, the game list, or a published route changes.
@@ -372,7 +400,7 @@ A change, whether written by a person or by the coding agent, is finished only w
 - The coding agent runs headless in GitHub Actions. It reads this file as its instructions and `opencode.json` for its model and permissions.
 - Label an issue `ai-ready`, or comment `/oc` on it, to start the agent. It works on a branch and opens a pull request. It never pushes to `main` and never merges.
 - A second, read-only agent named `review` comments on pull requests with QA and security findings. It cannot edit files.
-- The `build` agent's shell access is deliberately narrow: `npm ci`, `npm run lint`, `npm run test*`, `npm run build` and read-only git. `npm install <pkg>`, network tools (`curl`, `wget`), `webfetch` and paths outside the repository are denied. If a task needs one of these, stop and explain instead of working around it.
+- The `build` agent's shell access is deliberately narrow: `npm ci`, `npm run lint`, `npm run test*`, `npm run build`, `cargo fmt|check|test|clippy|build`, `docker build` and read-only git. `npm install <pkg>`, anything that deploys (`wrangler`, `docker push`), `cargo install`, network tools (`curl`, `wget`), `webfetch`, and paths outside the repository are denied. If a task needs one of these, stop and explain instead of working around it.
 - Keep every pull request scoped to a single issue. Branch protection on `main` requires the CI checks and a human review before anything merges.
 
 ## Useful commands
@@ -388,4 +416,14 @@ npm.cmd run test:coverage
 npm.cmd run test:watch
 ```
 
-Use `npm.cmd` in PowerShell on this machine because its execution policy may block `npm.ps1`.
+The Rust service and its database:
+
+```powershell
+docker compose up -d db                                                 # local Postgres
+cargo test --manifest-path api/Cargo.toml                               # unit + integration tests
+cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+cargo fmt --manifest-path api/Cargo.toml --all
+docker build -t learn-and-play-api:ci api                               # the image that ships
+```
+
+Use `npm.cmd` in PowerShell on this machine because its execution policy may block `npm.ps1`. Note that Windows **Smart App Control** blocks freshly built, unsigned binaries: on this machine `cargo test` and `cargo fmt` fail with "An Application Control policy has blocked this file" unless that feature is turned off, so the Rust gates are normally run inside the `rust:1-bookworm` image or on Linux (see `docs/backend/RUNBOOK.md`, R0).

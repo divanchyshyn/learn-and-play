@@ -1,0 +1,6 @@
+# The toolchain this crate is built with, on this machine and in CI. Pinning it
+# in the repository is what keeps `cargo fmt --check` and `cargo clippy
+# -D warnings` from failing on a formatting change nobody made.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
