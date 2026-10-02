@@ -745,9 +745,10 @@ docker run --rm postgres:17 pg_dump "<DATABASE_URL>" | gzip > dump.sql.gz
 aws s3 cp dump.sql.gz s3://learn-and-play-backups/<env>/<date>.sql.gz
 ```
 
-It needs GitHub secrets for the R2 S3 credentials
-(`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`), the bucket from
-H7, and a lifecycle rule that expires objects after ~30 days.
+It needs GitHub secrets for the production connection string
+(`PRODUCTION_DATABASE_URL`) and the R2 S3 credentials (`R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`), the bucket from H7, and a lifecycle rule
+that expires objects after ~30 days.
 
 ### R10.2 — Restore into a scratch database
 

@@ -94,6 +94,7 @@ eslint.config.js                        ESLint flat config (core, react, react-h
 .github/workflows/ci.yml                Runs lint, tests and the build for the frontend, and format, lint, tests and the image build for the Rust service, on pushes and pull requests
 .github/workflows/deploy-cloudflare.yml Cloudflare Workers deploy: verify, then a deploy job behind the cloudflare-production environment's required reviewers
 .github/workflows/deploy-test.yml       Publishes every same-repository pull request to test.play2learn.divanchyshyn.com (one shared slot, behind Cloudflare Access)
+.github/workflows/backup.yml            Nightly pg_dump of the production database to R2
 .github/workflows/deploy-pages.yml      GitHub Pages build and deployment, kept until the custom domain is verified
 wrangler.jsonc                          Cloudflare Workers config: serves dist/ as static assets
 wrangler.test.jsonc                     The test Worker (learn-and-play-test): same front door, own database, own hostname, deployed from pull requests
