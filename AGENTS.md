@@ -87,6 +87,9 @@ eslint.config.js                        ESLint flat config (core, react, react-h
 .github/workflows/deploy-cloudflare.yml Cloudflare Workers deploy: verify, then a deploy job behind the cloudflare-production environment's required reviewers
 .github/workflows/deploy-pages.yml      GitHub Pages build and deployment, kept until the custom domain is verified
 wrangler.jsonc                          Cloudflare Workers config: serves dist/ as static assets
+wrangler.test.jsonc                     The test Worker (learn-and-play-test): same front door, own database, own hostname, deployed from pull requests
+edge/                                   The Worker front door: serves the assets, and sends /api/* into the container through its Durable Object
+edge/src/router.js                      The routing half, kept free of Cloudflare-only imports so it can be unit-tested
 docker-compose.yml                      Local Postgres for developing and testing the API
 api/                                    The Rust service that runs as a Cloudflare Container: axum routes, sqlx store, migrations, Dockerfile
 api/src/domain/                         Pure backend logic (passwords, sessions, usernames, rate limits) with its own unit tests: no database, no HTTP

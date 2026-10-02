@@ -1,0 +1,57 @@
+// The test Worker: every pull request in this repository is deployed here, so a
+// change can be tried on a tablet before it is approved for production.
+//
+// It is a separate Worker with its own name, its own database and its own
+// secrets rather than a Wrangler environment, because container configuration
+// inside `env.*` is not documented and a second file is unambiguous. It shares
+// nothing with production except the code in this repository.
+//
+// The hostname is declared here, so the first deploy creates the DNS record and
+// the certificate. If it ever has to be attached by hand instead, do it once in
+// the dashboard (Workers -> learn-and-play-test -> Settings -> Domains &
+// Routes) and delete the `routes` block below.
+{
+  "name": "learn-and-play-test",
+  "main": "edge/src/index.js",
+  "compatibility_date": "2026-09-20",
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Only the API reaches the Worker script: game pages stay free, fast and
+    // impossible to break from here.
+    "run_worker_first": ["/api/*"]
+  },
+
+  // One instance is enough, and `lite` is a sixteenth of a vCPU. The argon2 hash
+  // on sign-in is the only CPU-bound work in the service; C8 measures it on the
+  // real instance before this value is trusted (PLAN P7).
+  "containers": [
+    {
+      "class_name": "ApiContainer",
+      "image": "./api/Dockerfile",
+      "instance_type": "lite",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "API_CONTAINER", "class_name": "ApiContainer" }]
+  },
+  "exports": {
+    "ApiContainer": { "type": "durable-object", "storage": "sqlite" }
+  },
+
+  "routes": [{ "pattern": "test.play2learn.divanchyshyn.com", "custom_domain": true }],
+
+  "vars": {
+    "PUBLIC_ORIGIN": "https://test.play2learn.divanchyshyn.com",
+    // Belt and braces: the hostname is behind Cloudflare Access, and the API
+    // still asks search engines to stay away.
+    "NOINDEX": "1"
+  },
+
+  // Secrets are set once with `wrangler secret put <NAME> --config
+  // wrangler.test.jsonc` and are never written to this file: DATABASE_URL,
+  // PEPPER.
+  "observability": { "enabled": true }
+}
