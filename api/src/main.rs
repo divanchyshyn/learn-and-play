@@ -1,22 +1,35 @@
 use anyhow::{Context, Result};
-use api::{Config, build_app};
+use api::{AppState, Command, Config, build_app_with_state, config::parse_command, db};
 use tokio::net::TcpListener;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut config = Config::from_env()?;
-    config.command = api::config::parse_command(&std::env::args().skip(1).collect::<Vec<_>>())?;
+    config.command = parse_command(&std::env::args().skip(1).collect::<Vec<_>>())?;
     init_tracing();
 
     match config.command {
-        api::Command::Serve => serve(config).await,
+        Command::Serve => serve(config).await,
+        Command::Migrate => migrate(config).await,
     }
 }
 
 async fn serve(config: Config) -> Result<()> {
     let port = config.port;
-    let database_configured = config.database_url.is_some();
+
+    // A pool that connects lazily: the process must start even when the database
+    // is asleep or not reachable at all, because the games never depend on this
+    // service and `/api/health` should still answer.
+    let pool = match config.database_url.as_deref() {
+        Some(url) => Some(db::lazy_pool(url)?),
+        None => None,
+    };
+    let state = match pool {
+        Some(pool) => AppState::with_pool(config, pool),
+        None => AppState::new(config),
+    };
+    let database_configured = state.pool.is_some();
 
     // 0.0.0.0, not 127.0.0.1: the front door and the container runtime reach
     // this process over the container's network, not over the loopback of a
@@ -27,10 +40,30 @@ async fn serve(config: Config) -> Result<()> {
 
     tracing::info!(port, database_configured, "listening");
 
-    axum::serve(listener, build_app(config))
+    axum::serve(listener, build_app_with_state(state))
         .with_graceful_shutdown(shutdown_signal())
         .await
         .context("the HTTP server stopped with an error")
+}
+
+/// Apply the migrations and exit. Run by the deploy workflows **before** the
+/// deploy, so a bad migration fails the job instead of shipping code that
+/// expects a schema which is not there.
+async fn migrate(config: Config) -> Result<()> {
+    let url = config
+        .database_url
+        .as_deref()
+        .context("DATABASE_URL is required for `migrate`")?;
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(url)
+        .await
+        .context("could not reach the database to migrate it")?;
+
+    db::migrate(&pool).await?;
+    tracing::info!("migrations applied");
+    Ok(())
 }
 
 /// Cloudflare sends SIGTERM when a container instance is put to sleep and waits

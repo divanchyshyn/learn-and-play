@@ -71,6 +71,20 @@ jobs:
       - name: Rust tests
         run: cargo test --manifest-path api/Cargo.toml
 
+      # Applied before the deploy, so a broken migration fails this job instead of
+      # shipping code that expects a schema which is not there. While the test
+      # database is not configured yet the step warns and continues: the service
+      # runs perfectly well with no database at all.
+      - name: Apply the database migrations
+        env:
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::warning::TEST_DATABASE_URL is not set: deploying without applying migrations"
+            exit 0
+          fi
+          cargo run --manifest-path api/Cargo.toml --locked -- migrate
+
       # `wrangler deploy` reads wrangler.test.jsonc, builds the container image
       # from api/Dockerfile, pushes it, and creates the Worker on the first run.
       # The hostname, the database and the secrets belong to this Worker alone.

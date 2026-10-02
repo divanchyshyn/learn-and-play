@@ -3,12 +3,17 @@ use tower_http::trace::TraceLayer;
 
 use crate::{config::Config, routes, state::AppState};
 
-/// The whole HTTP surface of the service.
+/// The whole HTTP surface of the service, built from configuration alone.
 ///
 /// It is one function on purpose: tests build the real router, so a route that
 /// is wired wrong cannot pass a test that hand-assembled its own.
 pub fn build_app(config: Config) -> Router {
-    let state = AppState::new(config);
+    build_app_with_state(AppState::new(config))
+}
+
+/// The same router, with everything the service needs already in place. Used by
+/// the tests that bring a database with them.
+pub fn build_app_with_state(state: AppState) -> Router {
     let noindex = state.config.noindex;
 
     Router::new()

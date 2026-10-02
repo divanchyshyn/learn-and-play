@@ -36,6 +36,24 @@ jobs:
   rust:
     name: Check the Rust service
     runs-on: ubuntu-latest
+    # `#[sqlx::test]` creates a throwaway database per test, so the suite needs a
+    # real Postgres: the same image the local docker-compose.yml runs.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: learn_and_play
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/learn_and_play
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

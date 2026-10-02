@@ -1,11 +1,12 @@
 use anyhow::{Context, Result, bail};
 
-/// What the process should do. `serve` is the default, and the container's
-/// entry point; `migrate` is a one-shot command used by the deploy workflows
-/// (added when the database arrives).
+/// What the process should do. `serve` is the default and the container's entry
+/// point; `migrate` is a one-shot command used by the deploy workflows, so a
+/// migration is applied deliberately rather than as a surprise at boot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     Serve,
+    Migrate,
 }
 
 /// Everything the service needs from its environment. Values are read once at
@@ -84,7 +85,8 @@ fn truthy(value: &str) -> bool {
 pub fn parse_command(args: &[String]) -> Result<Command> {
     match args.first().map(String::as_str) {
         None | Some("serve") => Ok(Command::Serve),
-        Some(other) => bail!("unknown command `{other}`; expected `serve`"),
+        Some("migrate") => Ok(Command::Migrate),
+        Some(other) => bail!("unknown command `{other}`; expected `serve` or `migrate`"),
     }
 }
 
@@ -162,7 +164,12 @@ mod tests {
             parse_command(&["serve".to_owned()]).unwrap(),
             Command::Serve
         );
+        assert_eq!(
+            parse_command(&["migrate".to_owned()]).unwrap(),
+            Command::Migrate
+        );
         let error = parse_command(&["migarte".to_owned()]).unwrap_err();
         assert!(error.to_string().contains("migarte"), "{error}");
+        assert!(error.to_string().contains("migrate"), "{error}");
     }
 }
