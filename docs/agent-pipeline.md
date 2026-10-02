@@ -104,12 +104,15 @@ These are repository settings, not files, so they have to be done by hand once.
    named `cloudflare-production`, with yourself under **Required reviewers**
    (optionally restricted to the `main` branch). The `deploy-cloudflare.yml`
    deploy job references that environment, so it waits for your approval before
-   it can reach the live site, while `deploy-pages.yml` keeps publishing
-   automatically. Create the environment *before* merging a change to that
-   workflow: an environment that is referenced but not yet configured is created
-   empty, so that first deploy would run unreviewed. If a required-reviewer rule
-   ever appears on the `github-pages` environment, Pages starts waiting for
-   approval too – remove the rule there to keep Pages hands-free.
+   it can reach the live site. Create the environment *before* merging a change to
+   that workflow: an environment that is referenced but not yet configured is
+   created empty, so that first deploy would run unreviewed.
+8. **Let pull requests deploy themselves.** Settings → Environments → new
+   environment named `cloudflare-test`, **without** required reviewers, holding
+   the test database's connection string and the Cloudflare Access service token.
+   `deploy-test.yml` publishes every same-repository pull request to
+   `test.play2learn.divanchyshyn.com` so a change can be tried on a tablet before
+   anyone approves it for production.
 
 ## Day to day
 

@@ -95,7 +95,6 @@ eslint.config.js                        ESLint flat config (core, react, react-h
 .github/workflows/deploy-cloudflare.yml Cloudflare Workers deploy: verify, then a deploy job behind the cloudflare-production environment's required reviewers
 .github/workflows/deploy-test.yml       Publishes every same-repository pull request to test.play2learn.divanchyshyn.com (one shared slot, behind Cloudflare Access)
 .github/workflows/backup.yml            Nightly pg_dump of the production database to R2
-.github/workflows/deploy-pages.yml      GitHub Pages build and deployment, kept until the custom domain is verified
 wrangler.jsonc                          Cloudflare Workers config: serves dist/ as static assets
 wrangler.test.jsonc                     The test Worker (learn-and-play-test): same front door, own database, own hostname, deployed from pull requests
 edge/                                   The Worker front door: serves the assets, and sends /api/* into the container through its Durable Object
@@ -129,7 +128,7 @@ For a new game with the slug `word-match`:
 6. Update `README.md` with the new game link and short description.
 7. Run `npm.cmd run build` and `npm.cmd run test` on Windows. Confirm the build includes `dist/games/word-match/index.html` and all tests pass.
 
-The trailing slash in a game URL is intentional: it lets the static host load that game's `index.html` directly (Cloudflare Workers redirects `/games/<slug>` to `/games/<slug>/` and serves `index.html` there, exactly as GitHub Pages does).
+The trailing slash in a game URL is intentional: it lets the static host load that game's `index.html` directly (Cloudflare Workers redirects `/games/<slug>` to `/games/<slug>/` and serves `index.html` there).
 
 Reuse `src/shared/` instead of copying utilities into a game folder: `shuffle`/`pickOne`, the audio engine (`tone`, and `createMuteStore` for a game's own remembered mute key), `speakNorwegian`, `ConfettiLayer`, `GameHeader`, and `SoundToggle` with `useSoundToggle` for the speaker button every game shows. The shared `.chip` pill and `.visually-hidden` helper live in `src/styles/base.css`; a game adds to them, never copies them. Sound *definitions* stay per game in its local `sounds.js`, built on the shared engine.
 
@@ -353,7 +352,7 @@ npm run test:coverage
 
 ## CI
 
-`.github/workflows/ci.yml` runs two jobs on every push and pull request: `Run game tests` (lint, the whole suite, the build) and `Check the Rust service` (format, lint, tests, and the container image build). `.github/workflows/deploy-cloudflare.yml` runs the same checks on `main` and then waits, behind the `cloudflare-production` environment's required reviewers, for a human to approve the deploy. `.github/workflows/deploy-pages.yml` publishes the same build automatically. Failing checks can therefore never reach either host, and nothing reaches the live site without approval. Keep every job green before handing off changes.
+`.github/workflows/ci.yml` runs two jobs on every push and pull request: `Run game tests` (lint, the whole suite, the build) and `Check the Rust service` (format, lint, tests, and the container image build). `.github/workflows/deploy-test.yml` publishes every same-repository pull request to the test hostname. `.github/workflows/deploy-cloudflare.yml` runs the same checks on `main` and then waits, behind the `cloudflare-production` environment's required reviewers, for a human to approve the deploy. Failing checks can therefore never reach either host, and nothing reaches the live site without approval. Keep every job green before handing off changes.
 
 ## Linting
 

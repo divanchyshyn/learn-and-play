@@ -81,7 +81,7 @@ The site is one Worker with two halves: `/` and `/games/<slug>/` are static asse
 
 The library lives at <https://play2learn.divanchyshyn.com/>, and each game sits at `/games/<slug>/` - for example <https://play2learn.divanchyshyn.com/games/sound-labyrinth/>.
 
-GitHub Pages keeps publishing the same build through `.github/workflows/deploy-pages.yml` automatically, with no approval step, so the old `https://<user>.github.io/learn-and-play/` URLs keep working. Retire that workflow in its own change once the new domain has been verified. Progress saved in `localStorage` belongs to the origin it was saved on, so the new domain starts with fresh saves.
+GitHub Pages was **retired** on 2026-10-02: the workflow is gone and the repository's Pages source is set to None, so the old `https://<user>.github.io/learn-and-play/` URLs no longer serve anything. That was deliberate rather than accidental - accounts need `/api/*`, which cannot exist on `github.io`, and two hosts would have meant two copies of the same site drifting apart. Progress saved in `localStorage` belongs to the origin it was saved on, so whatever was played under the old URLs stays there.
 
 ## Planned: accounts and cross-device progress (not built yet)
 
