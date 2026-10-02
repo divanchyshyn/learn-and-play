@@ -79,6 +79,48 @@ winget install --id Rustlang.Rustup -e
 rustup component add rustfmt clippy
 ```
 
+### R0.1b — Windows Smart App Control blocks `cargo test` on this machine
+
+Measured while building C3. Windows **Smart App Control** is on
+(`HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy`,
+`VerifiedAndReputablePolicyState = 1`), and it refuses to run binaries that are
+not signed and reputable — which is exactly what `cargo` produces: build-script
+executables and the test harness. The failure looks like this and is **not** a
+project problem:
+
+```
+error: failed to run custom build command for `serde_core`
+  could not execute process `...\build-script-build` (never executed)
+  An Application Control policy has blocked this file. (os error 4551)
+```
+
+`cargo-fmt` is blocked the same way, so `cargo fmt` fails too.
+
+Three ways forward, in order of preference:
+
+1. **Run the Rust gates in a container** (what this repository does on Windows,
+   and what C3 used):
+
+   ```powershell
+   docker run --rm -v "D:\Repositories\learn-and-play:/work" -w /work/api `
+     -e CARGO_TARGET_DIR=/cargo-target `
+     -v lap-cargo-target:/cargo-target `
+     -v lap-cargo-registry:/usr/local/cargo/registry `
+     rust:1-bookworm sh -c "cargo fmt --all && cargo test && cargo clippy --all-targets -- -D warnings"
+   ```
+
+   The named volumes keep the dependency cache, so the second run is fast. This
+   is closer to CI (Linux) than a Windows build is, and it is unaffected by the
+   policy because the binaries are Linux ones running inside the Docker VM.
+2. **Turn Smart App Control off** (Windows Security → App & browser control →
+   Smart App Control settings → Off). It is a real security feature and turning
+   it off cannot be undone without reinstalling Windows, so decide deliberately.
+3. **Use WSL2** and do the Rust work there — Linux binaries are unaffected.
+
+CI on `ubuntu-latest` is never affected. Keep this in mind when a local `cargo`
+command fails for no apparent reason: check which of the three above applies
+before debugging the code.
+
 ### R0.2 — Docker Desktop
 
 Needed for three things: `docker build` (the container image), the local

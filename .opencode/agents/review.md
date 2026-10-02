@@ -15,6 +15,9 @@ permission:
     "git show*": allow
     "npm run lint": allow
     "npm run test*": allow
+    "cargo fmt*": allow
+    "cargo clippy*": allow
+    "cargo test*": allow
 ---
 
 You review pull requests for the Learn and Play games library. You never modify

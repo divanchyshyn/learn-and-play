@@ -83,10 +83,14 @@ src/styles/base.css                     Shared reset, base styles and the shared
 src/test/setup.js                       Vitest setup (jest-dom matchers)
 vite.config.js                          Multi-page build entry points and test config (timeout, coverage)
 eslint.config.js                        ESLint flat config (core, react, react-hooks rules)
-.github/workflows/ci.yml                Runs lint, tests and the build on pushes and pull requests
+.github/workflows/ci.yml                Runs lint, tests and the build for the frontend, and format, lint, tests and the image build for the Rust service, on pushes and pull requests
 .github/workflows/deploy-cloudflare.yml Cloudflare Workers deploy: verify, then a deploy job behind the cloudflare-production environment's required reviewers
 .github/workflows/deploy-pages.yml      GitHub Pages build and deployment, kept until the custom domain is verified
 wrangler.jsonc                          Cloudflare Workers config: serves dist/ as static assets
+docker-compose.yml                      Local Postgres for developing and testing the API
+api/                                    The Rust service that runs as a Cloudflare Container: axum routes, sqlx store, migrations, Dockerfile
+api/src/domain/                         Pure backend logic (passwords, sessions, usernames, rate limits) with its own unit tests: no database, no HTTP
+api/tests/                              Integration tests that drive the real router against a throwaway database
 .github/workflows/codeql.yml            CodeQL security analysis on pull requests and weekly
 .github/workflows/opencode.yml          Runs the coding agent when an issue is labelled ai-ready
 .github/workflows/opencode-review.yml   Reviews pull requests and posts findings as a comment
@@ -318,6 +322,12 @@ the float. They live in `src/games/word-fishing/photo-assets/`, imported by
 - A test that sets the shared mute state restores it in `afterEach`, and a test about a game's default reads it the way a page load does (`vi.resetModules()` and a fresh import). Otherwise the setting leaks into whichever test runs next.
 - Respect each game's design constraints inside its tests – for example, Sound Labyrinth keeps no failure states: letters stay freely placeable and reorderable, and a wrong spelling may only shake red and be read back, never punished.
 
+### The Rust service
+
+- Pure logic lives in `api/src/domain/` and is unit-tested there (`#[cfg(test)] mod tests`, `cargo test`, no database, no network). Anything a test has to set up a server or a table to check belongs one layer out.
+- Routes and SQL live beside it (`api/src/routes/`, `api/src/store/`), and integration tests in `api/tests/` drive the **real router** through `tower::ServiceExt::oneshot` against a throwaway database created by `#[sqlx::test]` — the local Postgres from `docker-compose.yml`, and a `postgres:17` service container in CI.
+- `api/src/domain/` is where a test for new behaviour goes first. A handler that contains a rule is a handler whose rule cannot be tested cheaply.
+
 ## Coverage
 
 Coverage is a gate for the audit's test consolidation, not a CI threshold, and it is generated on demand:
@@ -330,7 +340,7 @@ npm run test:coverage
 
 ## CI
 
-`.github/workflows/ci.yml` runs lint and the whole test suite on every push and pull request. `.github/workflows/deploy-cloudflare.yml` runs the same checks on `main` and then waits, behind the `cloudflare-production` environment's required reviewers, for a human to approve the deploy. `.github/workflows/deploy-pages.yml` publishes the same build automatically. Failing checks can therefore never reach either host, and nothing reaches the live site without approval. Keep all three green before handing off changes.
+`.github/workflows/ci.yml` runs two jobs on every push and pull request: `Run game tests` (lint, the whole suite, the build) and `Check the Rust service` (format, lint, tests, and the container image build). `.github/workflows/deploy-cloudflare.yml` runs the same checks on `main` and then waits, behind the `cloudflare-production` environment's required reviewers, for a human to approve the deploy. `.github/workflows/deploy-pages.yml` publishes the same build automatically. Failing checks can therefore never reach either host, and nothing reaches the live site without approval. Keep every job green before handing off changes.
 
 ## Linting
 
@@ -361,6 +371,7 @@ npm run test:coverage
 A change, whether written by a person or by the coding agent, is finished only when:
 
 - `npm run lint`, `npm run test` and `npm run build` all pass (use `npm.cmd` in PowerShell on this machine).
+- For anything touching `api/`: `cargo fmt --manifest-path api/Cargo.toml --all --check`, `cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings` and `cargo test --manifest-path api/Cargo.toml` all pass, and the image still builds (`docker build -t learn-and-play-api:ci api`).
 - New pure logic is exported from the component or module and covered by a unit test; new UI has at least one rendered happy path.
 - New or replaced artwork follows the contract under Game artwork (same dimensions, format, colour mode and rough byte size as the pictures it joins), is imported by the component, is covered by the rotation test, and is present in `dist/assets/`.
 - `README.md` is updated when user-visible behaviour, the game list, or a published route changes.
@@ -375,7 +386,7 @@ A change, whether written by a person or by the coding agent, is finished only w
 - The coding agent runs headless in GitHub Actions. It reads this file as its instructions and `opencode.json` for its model and permissions.
 - Label an issue `ai-ready`, or comment `/oc` on it, to start the agent. It works on a branch and opens a pull request. It never pushes to `main` and never merges.
 - A second, read-only agent named `review` comments on pull requests with QA and security findings. It cannot edit files.
-- The `build` agent's shell access is deliberately narrow: `npm ci`, `npm run lint`, `npm run test*`, `npm run build` and read-only git. `npm install <pkg>`, network tools (`curl`, `wget`), `webfetch` and paths outside the repository are denied. If a task needs one of these, stop and explain instead of working around it.
+- The `build` agent's shell access is deliberately narrow: `npm ci`, `npm run lint`, `npm run test*`, `npm run build`, `cargo fmt|check|test|clippy|build`, `docker build` and read-only git. `npm install <pkg>`, anything that deploys (`wrangler`, `docker push`), `cargo install`, network tools (`curl`, `wget`), `webfetch`, and paths outside the repository are denied. If a task needs one of these, stop and explain instead of working around it.
 - Keep every pull request scoped to a single issue. Branch protection on `main` requires the CI checks and a human review before anything merges.
 
 ## Useful commands
@@ -391,4 +402,14 @@ npm.cmd run test:coverage
 npm.cmd run test:watch
 ```
 
-Use `npm.cmd` in PowerShell on this machine because its execution policy may block `npm.ps1`.
+The Rust service and its database:
+
+```powershell
+docker compose up -d db                                                 # local Postgres
+cargo test --manifest-path api/Cargo.toml                               # unit + integration tests
+cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+cargo fmt --manifest-path api/Cargo.toml --all
+docker build -t learn-and-play-api:ci api                               # the image that ships
+```
+
+Use `npm.cmd` in PowerShell on this machine because its execution policy may block `npm.ps1`. Note that Windows **Smart App Control** blocks freshly built, unsigned binaries: on this machine `cargo test` and `cargo fmt` fail with "An Application Control policy has blocked this file" unless that feature is turned off, so the Rust gates are normally run inside the `rust:1-bookworm` image or on Linux (see `docs/backend/RUNBOOK.md`, R0).

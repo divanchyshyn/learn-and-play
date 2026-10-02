@@ -30,3 +30,31 @@ jobs:
       - name: Build
         run: npm run build
 
+  # The Rust service is checked the way the project checks the frontend: format,
+  # lint, tests. The image build is here too, because the Dockerfile is the one
+  # file `cargo test` cannot check and it is what actually ships.
+  rust:
+    name: Check the Rust service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+      - name: Rust format
+        run: cargo fmt --manifest-path api/Cargo.toml --all --check
+      - name: Rust lint
+        run: cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+      - name: Rust tests
+        run: cargo test --manifest-path api/Cargo.toml
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the container image
+        uses: docker/build-push-action@v7
+        with:
+          context: api
+          push: false
+          cache-from: type=gha,scope=api-image
+          cache-to: type=gha,mode=max,scope=api-image

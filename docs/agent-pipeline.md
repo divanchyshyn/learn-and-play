@@ -18,7 +18,7 @@ Issue labelled `ai-ready`  (or a `/oc` comment)
         ▼
    branch + pull request  (body closes the issue)
         │
-        ├─ .github/workflows/ci.yml              lint + test + build   (required)
+        ├─ .github/workflows/ci.yml              lint + test + build, and the Rust service   (required)
         ├─ .github/workflows/codeql.yml          security analysis     (required)
         └─ .github/workflows/opencode-review.yml read-only review comment
         │
@@ -134,6 +134,7 @@ These are repository settings, not files, so they have to be done by hand once.
 | Threat | What stops it |
 | --- | --- |
 | Prompt injection from an issue or diff telling the agent to exfiltrate | `webfetch`, `websearch` and `external_directory` are denied; the bash allowlist has no `curl`, `wget`, `env` or `printenv` |
+| The agent changing the backend's environment | The allowlist has `cargo fmt/check/test/clippy/build` and `docker build`, and **nothing that deploys or reads a secret**: no `wrangler`, no `docker push`, no `docker run`, no `cargo install`, no `.env` / `.dev.vars` |
 | The agent reaching production | Branch protection on `main`; the agent only ever opens a pull request. The Cloudflare deploy job additionally waits on the `cloudflare-production` environment's required reviewers, so even a merged change needs a human approval before it goes live |
 | Adding dependencies behind your back | `npm install` is denied; only `npm ci` is allowed. The agent must stop and ask |
 | Secrets leaking into the agent's shell | `DEEPSEEK_API_KEY` is the only secret in the job, and the bash allowlist cannot read the environment |
