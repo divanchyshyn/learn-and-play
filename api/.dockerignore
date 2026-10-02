@@ -1,0 +1,6 @@
+# Everything that must not travel into the image build context.
+target/
+.env
+.dev.vars
+Dockerfile
+.dockerignore
