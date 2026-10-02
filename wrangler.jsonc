@@ -14,7 +14,7 @@
 // play. The only CPU-bound work the service does is the argon2 hash on sign-in
 // (21 ms on a full core, so a few hundred milliseconds here), and if the real
 // measurement on this instance ever exceeds ~1.5 s, the fix is one word:
-// `"instance_type": "basic"` (PLAN P7).
+// `"instance_type": "basic"` (docs/backend/ARCHITECTURE.md, What it costs).
 //
 // The custom domain (play2learn.divanchyshyn.com) is deliberately absent: it is
 // attached once in the Cloudflare dashboard, which keeps account and domain

@@ -2,7 +2,8 @@
 //! The Learn and Play API: accounts and cross-device progress.
 //!
 //! The service runs as a normal Linux binary inside a Cloudflare Container, and
-//! a Worker front door forwards `/api/*` to it (see `docs/backend/PLAN.md`).
+//! a Worker front door forwards `/api/*` to it (see
+//! `docs/backend/ARCHITECTURE.md`).
 //! Nothing in here is allowed to become a dependency of a game: the games are
 //! static assets and must work with this service stopped.
 //!

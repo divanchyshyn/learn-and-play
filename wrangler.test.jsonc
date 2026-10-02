@@ -23,9 +23,11 @@
     "run_worker_first": ["/api/*"]
   },
 
-  // One instance is enough, and `lite` is a sixteenth of a vCPU. The argon2 hash
-  // on sign-in is the only CPU-bound work in the service; C8 measures it on the
-  // real instance before this value is trusted (PLAN P7).
+  // One instance is enough, and `lite` is a sixteenth of a vCPU. Sign-in is the
+  // only CPU-bound work in the service: argon2id measured at 21 ms on a full
+  // core, so a few hundred milliseconds here. If a real measurement on this
+  // instance ever exceeds ~1.5 s, `"instance_type": "basic"` is the whole fix
+  // (docs/backend/ARCHITECTURE.md, What it costs).
   "containers": [
     {
       "class_name": "ApiContainer",

@@ -77,48 +77,43 @@ The build writes every published page into `dist/`:
 
 `.github/workflows/deploy-cloudflare.yml` runs the Rust checks (format, lint, tests), lint, the whole test suite and the build on every push to `main`; the verified build is then handed to Cloudflare - but only after a human approves it. The deploy job sits behind the `cloudflare-production` environment's required reviewer, so you approve each production deploy in the workflow run. That job applies the database migrations, builds and pushes the container image, and publishes the Worker in one version, so a Worker rollback rolls back the image with it. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
 
-The site is one Worker with two halves: `/` and `/games/<slug>/` are static assets served by Cloudflare's asset router, and `/api/*` runs the Rust service in a container (see [`docs/backend/PLAN.md`](./docs/backend/PLAN.md)). Because a game page never invokes any code, a backend outage can only ever mean "accounts are unavailable", never "the games do not load".
+The site is one Worker with two halves: `/`, `/account/` and `/games/<slug>/` are static assets served by Cloudflare's asset router, and `/api/*` runs the Rust service in a container. Because a game page never invokes any code, a backend outage can only ever mean "accounts are unavailable", never "the games do not load".
 
 The library lives at <https://play2learn.divanchyshyn.com/>, and each game sits at `/games/<slug>/` - for example <https://play2learn.divanchyshyn.com/games/sound-labyrinth/>.
 
 GitHub Pages was **retired** on 2026-10-02: the workflow is gone and the repository's Pages source is set to None, so the old `https://<user>.github.io/learn-and-play/` URLs no longer serve anything. That was deliberate rather than accidental - accounts need `/api/*`, which cannot exist on `github.io`, and two hosts would have meant two copies of the same site drifting apart. Progress saved in `localStorage` belongs to the origin it was saved on, so whatever was played under the old URLs stays there.
 
-## Accounts and cross-device progress
+## Accounts and progress, in short
 
-A child can create an account and carry their progress between devices; every
-game still works exactly as it always did without one. The design, the
-alternatives that were rejected and the costs of the choice are recorded in
-[`docs/backend/PLAN.md`](./docs/backend/PLAN.md); the hands-on guide (toolchain,
-Neon and Cloudflare setup, Cloudflare Access, migrations, secrets, deploy,
-rollback, troubleshooting) is in [`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md).
+Every game works exactly as it always did **without** an account. With one, what a
+child has earned follows them to another device.
 
-- **Signing in** happens at [/account/](./account/): a username and a password,
-  nothing else. There is deliberately **no email address**, and therefore no
-  password recovery — the sign-up page says so, and a forgotten password means a
-  lost account. What is stored is a username, an argon2id hash of the password,
-  and the games' own progress; no real names, no birthdays, no analytics.
-- **What follows a child between devices** is what they have *earned*: the
-  pictures assembled in Lyd-labyrinten, the words caught and trips finished in
-  Ordfiske, the animals found in Kortkrig. A picture being assembled right now, a
-  fishing trip in progress, and the speaker setting all stay on the device that
-  was playing.
-- **The database is the record; `localStorage` is a cache.** On a device that has
-  played before, a game starts instantly from that cache and is reconciled with
-  the database behind it. On a device with nothing saved, a game waits for the
-  database for a moment (at most 1.5 seconds) and then plays anyway. Every merge
-  is a union of things a child has earned, so syncing can add progress but never
-  take it away.
-- **A backend outage is invisible in a game.** Game pages are static assets
-  served by Cloudflare's asset router and never invoke any code; only `/api/*`
-  reaches the service. With the backend down, the games play exactly as before
-  and only accounts are unavailable.
-- **A test copy of the whole site** lives at
-  <https://test.play2learn.divanchyshyn.com/>. Every pull request in this
-  repository is deployed there automatically (behind Cloudflare Access, with its
-  own database) so a change can be tried on a tablet before it is approved for
-  production. It is a single shared slot: the most recent pull request to deploy
-  owns it.
-- Accounts roll forward with the rest of the site: anything that changes what a
-  child sees or hears is in the README, and anything that changes how accounts or
-  progress behave is in `AGENTS.md` under *Stack and deployment*.
+- Sign in at [/account/](./account/) with a username and a password. There is
+  deliberately **no email address**, so there is **no password recovery**: a
+  forgotten password means a lost account, and the sign-up page says so.
+- What is stored is a username, an argon2id hash of the password, and the games'
+  own progress. No real names, no birthdays, no analytics.
+- What travels between devices is what was *earned* — pictures assembled, words
+  caught, animals found. A maze being walked, a fishing trip in progress and the
+  speaker setting stay on the device that was playing.
+- The database is the record and `localStorage` is a cache, so a game starts
+  instantly on a device that has played before and never waits more than a moment
+  (1.5 s) on one that has not. Syncing can add progress, never take it away.
+- A test copy of the whole site lives at
+  <https://test.play2learn.divanchyshyn.com/>: every pull request is deployed
+  there automatically, behind Cloudflare Access and with its own database.
+
+The design and the reasons behind it — including what was rejected — are in
+[docs/backend/ARCHITECTURE.md](./docs/backend/ARCHITECTURE.md).
+
+## Documentation
+
+| Document | What it is |
+| --- | --- |
+| [`README.md`](./README.md) | This file: what the site is, how to build and run it |
+| [`AGENTS.md`](./AGENTS.md) | The rules for changing the repository — naming, structure, testing, definition of done. Read before a first change |
+| [`docs/backend/ARCHITECTURE.md`](./docs/backend/ARCHITECTURE.md) | How accounts and cross-device progress work, and why they work that way |
+| [`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md) | Operating it: toolchain, Neon, Cloudflare, Access, secrets, migrations, deploy, backup, rollback, troubleshooting |
+| [`docs/agent-pipeline.md`](./docs/agent-pipeline.md) | How the coding agent pipeline is wired up and how to run it |
+| [`docs/audit/BASELINE.md`](./docs/audit/BASELINE.md) | The measured build, lint, test and coverage gate every later change is compared against |
 

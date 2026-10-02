@@ -101,7 +101,8 @@ impl Passwords {
     ///
     /// The time this takes is logged, because it is the one CPU-bound operation
     /// in the service and the small container instance it runs on is exactly
-    /// where it could become slow (see PLAN P7).
+    /// where it could become slow. Sign-in is the only place it is called in
+    /// anger, and a child pays it once per device.
     pub fn hash(&self, password: &str) -> Result<String> {
         let started = Instant::now();
 

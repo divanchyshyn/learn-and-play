@@ -29,7 +29,7 @@ pub fn router() -> Router<AppState> {
 /// The current password is required even though the caller is already signed in:
 /// on a shared tablet, a session alone should not be enough to lock a sibling
 /// out of their own account, and it is the only credential operation this
-/// service has (there is no reset — PLAN D8).
+/// service has — there is no reset, because the account has no email address.
 ///
 /// Every *other* session is dropped. Whoever changed the password keeps playing;
 /// anybody else's browser has to sign in again.

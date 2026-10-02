@@ -11,8 +11,9 @@ pub const COOKIE_NAME: &str = "__Host-lap_sid";
 /// 256 bits of operating-system randomness, base64url so it is safe in a cookie.
 pub const TOKEN_BYTES: usize = 32;
 
-/// A year, because there is no password reset (PLAN D8): a child should sign in
-/// once on a device and then simply play.
+/// A year, because there is no password reset — the account holds no email
+/// address, so it has no way back in and must not ask a child to sign in again:
+/// a child should sign in once on a device and then simply play.
 pub const SESSION_DAYS: i64 = 365;
 
 /// Mint a session token. The token itself is never stored: only its hash is.

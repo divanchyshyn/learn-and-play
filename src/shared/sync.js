@@ -5,7 +5,7 @@ import { SYNC_KEYS, isSyncKey, mergeRecord } from './syncable.js';
 
 // The sync engine.
 //
-// The rules it exists to keep (PLAN P11):
+// The rules it exists to keep (docs/backend/ARCHITECTURE.md, Progress and sync):
 //
 //  * **the database is the record, localStorage is a cache** — a game reads the
 //    cache at mount, and this module reconciles it with the server behind or

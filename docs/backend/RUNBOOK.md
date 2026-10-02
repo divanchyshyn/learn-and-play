@@ -1,8 +1,9 @@
 # Backend runbook — username accounts and database progress (Rust container + Postgres)
 
-> **Status: nothing has been built yet.** This runbook is the execution guide for
-> [`PLAN.md`](./PLAN.md). Read `PLAN.md` P2 (decisions), P7 (accounts and
-> argon2id) and P11 (progress rules) once, then work from here.
+> **Status: built.** This runbook is the operations guide for the accounts and
+> progress backend. Read [`ARCHITECTURE.md`](./ARCHITECTURE.md) once — its
+> *Decisions, and what was rejected*, *Accounts* and *Progress and sync* sections
+> are the design this runbook operates — then work from here.
 >
 > Everything is written for **Windows PowerShell**. Use `npm.cmd` (not `npm`) in
 > this repo — the execution policy can block `npm.ps1`. Use `curl.exe` (with the
@@ -37,7 +38,7 @@ on from a failed check: every step is designed to fail loudly and early.
 
 ### Milestone → steps
 
-| Milestone (PLAN P16) | Steps |
+| Milestone | Steps |
 | --- | --- |
 | **M0** — container deployed to the test hostname, games untouched | R0, R2 (partial), R4, R5, R8 (test workflow), R9 (M0 block) |
 | **M1** — Postgres, schema, migrations | R1, R6, R9 (M1 block) |
@@ -48,8 +49,9 @@ on from a failed check: every step is designed to fail loudly and early.
 ### The one rule that must never be broken
 
 **A game must never break because the backend is down.** If any step makes a
-game show an error, a spinner or a delay, stop: PLAN P11's fail-open requirement
-has been broken. R9 has the check for it.
+game show an error, a spinner or a delay, stop: the fail-open rule in
+`ARCHITECTURE.md` (*Progress and sync* → *Failure is invisible*) has been broken.
+R9 has the check for it.
 
 ---
 
@@ -57,7 +59,7 @@ has been broken. R9 has the check for it.
 
 ### R0.1 — Rust (already installed on this machine)
 
-Verified while writing the plan:
+Verified on this machine when the service was built:
 
 ```powershell
 rustc --version      # 1.99.0
@@ -131,8 +133,8 @@ this machine.
 docker version --format '{{.Server.Version}}'   # fails while the daemon is stopped
 ```
 
-Start Docker Desktop and re-run until it prints a version. **H1 in PLAN P18 is
-exactly this.**
+Start Docker Desktop and re-run until it prints a version. The front door cannot
+be exercised without it.
 
 ### R0.3 — Wrangler
 
@@ -176,9 +178,10 @@ All four succeed.
 
 ### R1.1 — Create the project
 
-Sign in at <https://neon.com>, create a project (the free plan is enough;
-`PLAN` P6 has the limits). Use the region closest to you — the container will
-talk to it over the public internet, so a nearby region keeps queries quick.
+Sign in at <https://neon.com>, create a project (the free plan is enough — see
+`ARCHITECTURE.md`, *Platform limits that shape the design*, for what it can and
+cannot do). Use the region closest to you — the container will talk to it over
+the public internet, so a nearby region keeps queries quick.
 
 ### R1.2 — Two databases
 
@@ -358,7 +361,7 @@ so you can check the result.
 - `api/src/main.rs` — arguments `serve` (default) and `migrate`.
 - `api/Dockerfile` — `cargo-chef` planner → builder → distroless nonroot
   runtime, `linux/amd64`, listening on `0.0.0.0:8080`.
-- `api/migrations/` — the SQL from PLAN P10.
+- `api/migrations/` — the schema, one numbered file per change.
 
 ### R4.2 — `edge/` (the Worker front door)
 
@@ -471,7 +474,8 @@ Browsers accept `Secure` cookies on `localhost`, which is why the same
 
 ### R6.1 — Where they live
 
-`api/migrations/0001_init.sql` (PLAN P10). The filename pattern sqlx expects is
+`api/migrations/0001_init.sql` is the schema that exists today
+(`ARCHITECTURE.md` → *Data model*). The filename pattern sqlx expects is
 `<version>_<name>.sql`, applied in ascending order and recorded in
 `_sqlx_migrations`.
 
@@ -649,8 +653,7 @@ else.
 
 ## R9 — Verification checklist
 
-Run the block for the milestone you just finished. These are the acceptance
-criteria from PLAN P15.
+Run the block for the milestone you just finished.
 
 ### R9.0 — The universal checks (every time)
 
@@ -828,10 +831,10 @@ want to review before it comes back.
 
 ### R11.6 — A lost password
 
-There is no recovery, by design (PLAN D8). If the account matters, the only path
-is a human with database access setting a new hash by hand — a deliberate,
-documented last resort, and the strongest argument for adding a recovery code
-later (PLAN P17, "deliberately out of scope").
+There is no recovery, by design: the account holds no email address, so there is
+no verified way back in. If the account matters, the only path is a human with
+database access setting a new hash by hand — a deliberate, documented last
+resort, and the strongest argument for adding a recovery code later.
 
 ---
 
@@ -855,7 +858,7 @@ later (PLAN P17, "deliberately out of scope").
 | CI: the image build times out | a cold cargo build in the image | confirm the layer cache step and `cargo-chef` stages are intact |
 | Deploy: `wrangler` cannot find Docker | the runner lacks the daemon | `ubuntu-latest` has it; a self-hosted runner needs it installed |
 | Deploy: authorization error on the image push | the token lacks the container permission | R2.2 |
-| Coverage dropped | new `src/shared/*` or `src/account/*` modules are untested | PLAN P13; the baseline is in `docs/audit/BASELINE.md` |
+| Coverage dropped | new `src/shared/*` or `src/account/*` modules are untested | run `npm run test:coverage` and compare with `docs/audit/BASELINE.md` |
 | Access keeps asking for a code | the session expired, or a second policy wrote a shorter duration | Zero Trust → the application → session duration (R3.2) |
 
 ---
@@ -938,7 +941,8 @@ three documents agree with the file.
 
 ## Where to start, in one paragraph
 
-Read `PLAN.md` **P2**, **P7**, **P10** and **P11**, then do **R0 → R1 → R2**
+Read `ARCHITECTURE.md` first — *The shape of the site*, *Accounts* and *Progress
+and sync* are the whole design in three sections — then do **R0 → R1 → R2**
 (Neon and Cloudflare are the only steps nobody can do from the repository), and
 start at **C3**. Stop after **C6** and check R9.1: a Rust container answering
 `/api/health` on `test.play2learn.divanchyshyn.com`, behind Access, with every

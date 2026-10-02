@@ -2,7 +2,7 @@
 #
 # The credentials are throwaway on purpose: this file exists so a fresh checkout
 # can run the API and its tests with one command, and no deployed environment
-# ever reads it. The deployed database is Neon (see docs/backend/PLAN.md).
+# ever reads it. The deployed database is Neon (docs/backend/ARCHITECTURE.md).
 #
 #   docker compose up -d db        # start it
 #   docker compose down            # stop it, keep the data

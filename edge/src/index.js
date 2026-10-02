@@ -1,7 +1,7 @@
 import { ApiContainer } from './container.js';
 import { workerFetch } from './router.js';
 
-// The Worker front door (see docs/backend/PLAN.md, P8):
+// The Worker front door (see docs/backend/ARCHITECTURE.md, The request path):
 //
 //   /  and  /games/**   served by Cloudflare's asset router (no code runs)
 //   /api/**             proxied into the Rust container through ApiContainer
