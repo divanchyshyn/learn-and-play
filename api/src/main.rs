@@ -16,20 +16,14 @@ async fn main() -> Result<()> {
 }
 
 async fn serve(config: Config) -> Result<()> {
-    let port = config.port;
-
-    // A pool that connects lazily: the process must start even when the database
-    // is asleep or not reachable at all, because the games never depend on this
-    // service and `/api/health` should still answer.
-    let pool = match config.database_url.as_deref() {
-        Some(url) => Some(db::lazy_pool(url)?),
-        None => None,
-    };
-    let state = match pool {
-        Some(pool) => AppState::with_pool(config, pool),
-        None => AppState::new(config),
-    };
+    // A pool that connects lazily, and a pepper that is only needed to hash
+    // passwords: the process must start even when the database is asleep or not
+    // reachable at all, because the games never depend on this service and
+    // `/api/health` should still answer.
+    let state = AppState::from_config(config)?;
+    let port = state.config.port;
     let database_configured = state.pool.is_some();
+    let accounts_configured = state.passwords.is_some();
 
     // 0.0.0.0, not 127.0.0.1: the front door and the container runtime reach
     // this process over the container's network, not over the loopback of a
@@ -38,7 +32,7 @@ async fn serve(config: Config) -> Result<()> {
         .await
         .with_context(|| format!("could not bind port {port}"))?;
 
-    tracing::info!(port, database_configured, "listening");
+    tracing::info!(port, database_configured, accounts_configured, "listening");
 
     axum::serve(listener, build_app_with_state(state))
         .with_graceful_shutdown(shutdown_signal())

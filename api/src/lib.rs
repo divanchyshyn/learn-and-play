@@ -6,16 +6,21 @@
 //! Nothing in here is allowed to become a dependency of a game: the games are
 //! static assets and must work with this service stopped.
 //!
-//! The router lives in [`app::build_app`] so tests drive the real HTTP surface
-//! instead of a hand-built one, and the pure rules live in `domain` modules
-//! that need no database and no server.
+//! The layout follows one rule: **rules live in `domain`, storage lives in
+//! `store`, and `routes` only wires the two together.** A rule that a test
+//! cannot reach without a database belongs in a handler that is too fat.
 
 pub mod app;
+pub mod auth;
 pub mod config;
 pub mod db;
+pub mod domain;
+pub mod error;
 pub mod routes;
 pub mod state;
+pub mod store;
 
 pub use app::{build_app, build_app_with_state};
 pub use config::{Command, Config};
+pub use error::ApiError;
 pub use state::AppState;

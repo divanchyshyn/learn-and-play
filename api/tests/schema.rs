@@ -19,6 +19,7 @@ fn config() -> Config {
         port: 0,
         database_url: None,
         public_origin: None,
+        pepper: None,
         noindex: false,
         command: Command::Serve,
     }
@@ -154,7 +155,8 @@ async fn a_progress_record_starts_at_revision_one(pool: PgPool) {
 
 #[sqlx::test]
 async fn health_reports_the_database_as_up_once_a_pool_is_configured(pool: PgPool) {
-    let app = build_app_with_state(AppState::with_pool(config(), pool));
+    let state = AppState::for_tests(config(), pool).expect("usable test state");
+    let app = build_app_with_state(state);
 
     let response = app
         .oneshot(

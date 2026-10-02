@@ -12,6 +12,7 @@ fn config(noindex: bool) -> Config {
         port: 0,
         database_url: None,
         public_origin: None,
+        pepper: None,
         noindex,
         command: Command::Serve,
     }

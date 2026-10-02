@@ -17,6 +17,10 @@ pub struct Config {
     pub port: u16,
     pub database_url: Option<String>,
     pub public_origin: Option<String>,
+    /// The argon2 pepper: what makes a stolen password hash useless on its own.
+    /// Account endpoints report `not_configured` without it rather than storing
+    /// hashes anyone holding the database could attack.
+    pub pepper: Option<String>,
     /// The test environment sets this so search engines leave it alone.
     pub noindex: bool,
     pub command: Command,
@@ -40,6 +44,7 @@ impl Config {
         let mut port = DEFAULT_PORT;
         let mut database_url = None;
         let mut public_origin = None;
+        let mut pepper = None;
         let mut noindex = false;
 
         for (key, value) in pairs {
@@ -56,6 +61,7 @@ impl Config {
                 }
                 "DATABASE_URL" => database_url = Some(value),
                 "PUBLIC_ORIGIN" => public_origin = Some(value.trim_end_matches('/').to_owned()),
+                "PEPPER" => pepper = Some(value),
                 "NOINDEX" => noindex = truthy(&value),
                 _ => {}
             }
@@ -65,6 +71,7 @@ impl Config {
             port,
             database_url,
             public_origin,
+            pepper,
             noindex,
             command: Command::Serve,
         })
@@ -110,6 +117,7 @@ mod tests {
             ("PORT", "9000"),
             ("DATABASE_URL", "postgres://user:pw@host/db?sslmode=require"),
             ("PUBLIC_ORIGIN", "https://test.play2learn.divanchyshyn.com/"),
+            ("PEPPER", "a-secret-only-the-deployment-has"),
             ("NOINDEX", "1"),
             ("SOMETHING_ELSE", "ignored"),
         ])
@@ -124,6 +132,10 @@ mod tests {
         assert_eq!(
             config.public_origin.as_deref(),
             Some("https://test.play2learn.divanchyshyn.com")
+        );
+        assert_eq!(
+            config.pepper.as_deref(),
+            Some("a-secret-only-the-deployment-has")
         );
         assert!(config.noindex);
     }
