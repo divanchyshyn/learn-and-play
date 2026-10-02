@@ -19,6 +19,7 @@ Issue labelled `ai-ready`  (or a `/oc` comment)
    branch + pull request  (body closes the issue)
         │
         ├─ .github/workflows/ci.yml              lint + test + build, and the Rust service   (required)
+        ├─ .github/workflows/deploy-test.yml     publishes the pull request to the test hostname
         ├─ .github/workflows/codeql.yml          security analysis     (required)
         └─ .github/workflows/opencode-review.yml read-only review comment
         │

@@ -1,0 +1,125 @@
+name: Deploy test
+
+# Every pull request in this repository is published to
+# https://test.play2learn.divanchyshyn.com/ so a change can be tried on a real
+# device before it is approved for production. Production keeps its own trigger
+# and its own required reviewer; this workflow deploys nothing else.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# One shared test slot: the most recent pull request to deploy owns the hostname.
+# This must NOT reuse the production `cloudflare` group - that group cancels in
+# progress, which would kill a production deploy that is waiting for approval.
+concurrency:
+  group: deploy-test
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Publish to the test hostname
+    # Secrets are never passed to a pull request from a fork, so those runs are
+    # skipped rather than failed. Dependabot branches are skipped too: a version
+    # bump should not take the single shared test slot.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.event.pull_request.head.ref, 'dependabot/'))
+    runs-on: ubuntu-latest
+    environment:
+      name: cloudflare-test
+      url: https://test.play2learn.divanchyshyn.com/
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Run tests
+        run: npm run test
+      - name: Build
+        run: npm run build
+
+      # Cloudflare's `_headers` file covers the static assets; the API sets its
+      # own header from the NOINDEX var in wrangler.test.jsonc.
+      - name: Keep the test hostname out of search engines
+        run: |
+          cat > dist/_headers <<'HEADERS'
+          /*
+            X-Robots-Tag: noindex
+          HEADERS
+          cat dist/_headers
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+      - name: Rust format
+        run: cargo fmt --manifest-path api/Cargo.toml --all --check
+      - name: Rust lint
+        run: cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+      - name: Rust tests
+        run: cargo test --manifest-path api/Cargo.toml
+
+      # `wrangler deploy` reads wrangler.test.jsonc, builds the container image
+      # from api/Dockerfile, pushes it, and creates the Worker on the first run.
+      # The hostname, the database and the secrets belong to this Worker alone.
+      - name: Deploy the test Worker
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.test.jsonc
+
+      # With Cloudflare Access in front of the hostname, a plain request gets a
+      # redirect to the login unless it carries the CI service token. Both are
+      # treated as a working deployment; only an unexpected status fails.
+      - name: Smoke check the test hostname
+        id: smoke
+        continue-on-error: true
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          status=$(curl -s -o /tmp/health.json -w '%{http_code}' --max-time 30 \
+            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+            https://test.play2learn.divanchyshyn.com/api/health || true)
+          body=$(cat /tmp/health.json 2>/dev/null || true)
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "HTTP ${status} ${body}"
+          case "${status}" in
+            200) echo "smoke check: the API answered" ;;
+            302|403) echo "smoke check: gated by Cloudflare Access" ;;
+            *) echo "::warning::unexpected status ${status} from the test hostname"; exit 1 ;;
+          esac
+
+      - name: Comment on the pull request
+        if: github.event_name == 'pull_request' && always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          cat > /tmp/comment.md <<BODY
+          ### Test environment
+
+          **https://test.play2learn.divanchyshyn.com/** — commit \`${{ github.sha }}\`
+
+          Smoke check: HTTP ${{ steps.smoke.outputs.status || 'not run' }}
+
+          The hostname sits behind Cloudflare Access, so it asks for a one-time
+          code by email before anything loads. It is a single shared slot: the
+          most recent pull request to deploy owns it, and this comment says which
+          commit is live.
+          BODY
+          gh pr comment "$PR" --edit-last --create-if-none --body-file /tmp/comment.md
