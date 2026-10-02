@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import '../styles/base.css';
 import './style.css';
+import { StartSync } from '../shared/SyncGate.jsx';
 
 // One entry per published game. Unfinished games stay commented out (and
 // marked "(hidden)" in README.md) but keep building, so their direct URLs
@@ -36,30 +37,37 @@ function TileArt({ art }) {
 
 function Home() {
   return (
-    <main className="library-shell">
-      <header className="library-header">
-        <p className="library-kicker">Lek og lær</p>
-        <h1>Spillbibliotek</h1>
-        <p>Velg et spill og sett i gang.</p>
-        <p className="library-account">
-          <a href="./account/">Konto</a> – logg inn for å ta med framgangen din til
-          andre enheter.
-        </p>
-      </header>
-      <section className="game-library" aria-label="Tilgjengelige spill">
-        {GAMES.map((game) => (
-          <a className="game-tile" href={game.href} key={game.href}>
-            <TileArt art={game.art} />
-            <div className="tile-body">
-              <span>{game.badge}</span>
-              <h2>{game.title}</h2>
-              <p>{game.description}</p>
-              <strong>Åpne spillet <span aria-hidden="true">→</span></strong>
-            </div>
-          </a>
-        ))}
-      </section>
-    </main>
+    <>
+      {/* Warm the cache before a game is opened, so the gate a game uses almost
+          never has anything to wait for. */}
+      <StartSync />
+      <main className="library-shell">
+        <header className="library-header">
+          <p className="library-kicker">Lek og lær</p>
+          <h1>Spillbibliotek</h1>
+          <p>Velg et spill og sett i gang.</p>
+          <p className="library-account">
+            <a href="./account/">Konto</a> – logg inn for å ta med framgangen din
+            til andre enheter.
+          </p>
+        </header>
+        <section className="game-library" aria-label="Tilgjengelige spill">
+          {GAMES.map((game) => (
+            <a className="game-tile" href={game.href} key={game.href}>
+              <TileArt art={game.art} />
+              <div className="tile-body">
+                <span>{game.badge}</span>
+                <h2>{game.title}</h2>
+                <p>{game.description}</p>
+                <strong>
+                  Åpne spillet <span aria-hidden="true">→</span>
+                </strong>
+              </div>
+            </a>
+          ))}
+        </section>
+      </main>
+    </>
   );
 }
 

@@ -82,6 +82,10 @@ src/games/<game-slug>/photo-assets/     Committed photographic artwork imported 
 src/styles/base.css                     Shared reset, base styles and the shared `.chip` / `.visually-hidden` rules every game reuses
 src/shared/api.js                       The one wrapper around fetch('/api/*'): failures are values, never exceptions
 src/shared/account.js                   useAccount(): who is signed in, and the Norwegian copy for every error code
+src/shared/syncable.js                  Which saved values sync and how two devices' copies are merged (a union, always)
+src/shared/sync.js                      The sync engine: ownership, revisions, debounced pushes, and the hydration decision
+src/shared/SyncGate.jsx                 Holds a game back (at most 1.5 s) only when this device has no cached progress
+sync-keys.json                          The synced keys, read by both this frontend and the Rust allowlist
 account/index.html                      The account page entry point (sign in, create an account, change the password, delete it)
 src/account/                            The account page component and styles, and the only page that talks about accounts
 src/test/setup.js                       Vitest setup (jest-dom matchers)

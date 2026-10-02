@@ -7,6 +7,33 @@ export function defaultStore() {
   return typeof window === 'undefined' ? null : window.localStorage;
 }
 
+// Listeners that want to know when a saved value changes. The sync engine is the
+// only subscriber today: it needs to hear about a game's own writes without every
+// game having to tell it.
+const observers = new Set();
+
+/**
+ * Watch saved values. Returns a function that stops watching.
+ *
+ * `value` is the raw stored string, or null when the key was removed. Listeners
+ * are called **after** the store was written, and a listener that throws is
+ * ignored: a bug in one must never be able to break a game's save.
+ */
+export function onStorageWrite(listener) {
+  observers.add(listener);
+  return () => observers.delete(listener);
+}
+
+function notify(key, value) {
+  for (const listener of observers) {
+    try {
+      listener(key, value);
+    } catch {
+      // A listener is a guest here, never a dependency.
+    }
+  }
+}
+
 // The raw stored string for a key, or null when nothing is saved there. Any
 // read failure (blocked storage) reads as "nothing saved".
 export function readStorage(key, store = defaultStore()) {
@@ -25,7 +52,9 @@ export function writeStorage(key, serialized, store = defaultStore()) {
     store?.setItem(key, serialized);
   } catch {
     // Storage may be unavailable; playing still works fine without it.
+    return;
   }
+  notify(key, serialized);
 }
 
 export function removeStorage(key, store = defaultStore()) {
@@ -33,7 +62,9 @@ export function removeStorage(key, store = defaultStore()) {
     store?.removeItem(key);
   } catch {
     // Same best-effort rule as the other two.
+    return;
   }
+  notify(key, null);
 }
 
 // Move a value that used to be saved under an older key to its current home.
