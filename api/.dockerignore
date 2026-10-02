@@ -1,4 +1,4 @@
-# Everything that must not travel into the image build context.
+﻿# Everything that must not travel into the image build context.
 target/
 .env
 .dev.vars

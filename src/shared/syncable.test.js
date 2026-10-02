@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import syncKeys from '../../sync-keys.json';
+import syncKeys from '../../api/sync-keys.json';
 import { SYNC_KEYS, isSyncKey, mergeRecord, unionInOrder } from './syncable.js';
 import { albumCodec } from '../games/card-battle/album.js';
 import { galleryCodec } from '../games/sound-labyrinth/progress.js';

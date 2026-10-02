@@ -75,7 +75,9 @@ The build writes every published page into `dist/`:
 - `/games/word-fishing/` - Word fishing ("Ordfiske")
 - `/games/number-line-hop/` - Number-line hop ("Tierhopp")
 
-`.github/workflows/deploy-cloudflare.yml` runs lint, the whole test suite and the build on every push to `main`; the verified build is then handed to Cloudflare Workers static assets - but only after a human approves it. The deploy job sits behind the `cloudflare-production` environment's required reviewer, so you approve each production deploy in the workflow run. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
+`.github/workflows/deploy-cloudflare.yml` runs the Rust checks (format, lint, tests), lint, the whole test suite and the build on every push to `main`; the verified build is then handed to Cloudflare - but only after a human approves it. The deploy job sits behind the `cloudflare-production` environment's required reviewer, so you approve each production deploy in the workflow run. That job applies the database migrations, builds and pushes the container image, and publishes the Worker in one version, so a Worker rollback rolls back the image with it. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
+
+The site is one Worker with two halves: `/` and `/games/<slug>/` are static assets served by Cloudflare's asset router, and `/api/*` runs the Rust service in a container (see [`docs/backend/PLAN.md`](./docs/backend/PLAN.md)). Because a game page never invokes any code, a backend outage can only ever mean "accounts are unavailable", never "the games do not load".
 
 The library lives at <https://play2learn.divanchyshyn.com/>, and each game sits at `/games/<slug>/` - for example <https://play2learn.divanchyshyn.com/games/sound-labyrinth/>.
 

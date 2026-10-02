@@ -1,4 +1,4 @@
-import syncKeys from '../../sync-keys.json';
+import syncKeys from '../../api/sync-keys.json';
 import { albumCodec } from '../games/card-battle/album.js';
 import { createAlbum } from '../games/card-battle/album.js';
 import { createGallery, galleryCodec, recordSeenImage } from '../games/sound-labyrinth/progress.js';

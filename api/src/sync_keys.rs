@@ -1,18 +1,18 @@
-//! The storage keys that may be synced, read from `sync-keys.json` at the
-//! repository root.
+//! The storage keys that may be synced, read from `api/sync-keys.json`.
 //!
 //! That file is the single source of truth: the browser's sync registry
 //! (`src/shared/syncable.js`) reads the same list, so a key can never be
-//! synced from one side while being refused by the other. The file is compiled
-//! into the binary with `include_str!`, which also means a missing or malformed
-//! list is a build failure rather than a surprise at runtime.
+//! synced from one side while being refused by the other. It lives beside the
+//! service — the side that *enforces* the allowlist — and is compiled into the
+//! binary with `include_str!`, which also means a missing or malformed list is a
+//! build failure rather than a surprise at runtime.
 
 use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-/// `sync-keys.json` lives two directories above `api/src`.
-const SYNC_KEYS_JSON: &str = include_str!("../../sync-keys.json");
+/// `sync-keys.json` sits next to `Cargo.toml`, one directory above `src/`.
+const SYNC_KEYS_JSON: &str = include_str!("../sync-keys.json");
 
 /// The largest payload any single record may carry. Every real payload is well
 /// under a kilobyte; this is a doorstop, not a design constraint.

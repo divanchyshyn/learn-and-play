@@ -507,7 +507,7 @@ edge/                                 NEW — the Worker front door
 wrangler.jsonc                        production config (unchanged until C13)
 wrangler.test.jsonc                   the test Worker: own name, database, route
 docker-compose.yml                    Postgres 17 for local dev and tests
-sync-keys.json                        the single source of truth for synced keys
+api/sync-keys.json                    the single source of truth for synced keys
 src/shared/api.js                     fetch wrapper (never throws on failure)
 src/shared/account.js                 useAccount()
 src/shared/syncable.js                the merge registry
@@ -679,7 +679,7 @@ Rules the service enforces:
 
 - A session cookie is required on everything except `/api/health`,
   `POST /api/account` and `POST /api/session`.
-- `record_key` must be in the allowlist, which is read from `sync-keys.json`
+- `record_key` must be in the allowlist, which is read from `api/sync-keys.json`
   with `include_str!` so the JavaScript registry and the Rust allowlist can
   never drift apart.
 - `payload` has a hard 64 KB cap (every real payload is under 1 KB).

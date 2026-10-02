@@ -5,8 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# The deploy needs no repository write access: it builds `dist/` and hands it to
-# Cloudflare with an API token held in repository secrets.
+# The deploy needs no repository write access: it builds `dist/`, builds and
+# pushes the container image, and hands both to Cloudflare with an API token held
+# in repository secrets.
 permissions:
   contents: read
 
@@ -15,13 +16,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Lint, tests and build always run, so a human never has to approve a broken
-  # change. The build is uploaded as an artifact so the deploy publishes exactly
-  # the bytes that were verified, not a second, separate build.
+  # Lint, tests and builds always run, so a human never has to approve a broken
+  # change. The built `dist/` is uploaded as an artifact so the deploy publishes
+  # exactly the bytes that were verified, not a second, separate build.
   verify:
     runs-on: ubuntu-latest
+    # The Rust tests create a throwaway database per test (`#[sqlx::test]`).
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: learn_and_play
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/learn_and_play
     steps:
       - uses: actions/checkout@v7
+
+      # Rust first, so the cheapest-to-run failure is also the first one.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+      - name: Rust format
+        run: cargo fmt --manifest-path api/Cargo.toml --all --check
+      - name: Rust lint
+        run: cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+      - name: Rust tests
+        run: cargo test --manifest-path api/Cargo.toml
+
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -42,9 +75,8 @@ jobs:
   # The deploy is the only step that can touch the live site, so it waits for a
   # human: the `cloudflare-production` environment carries a required reviewer
   # rule, and the job stays pending until someone approves it in the workflow
-  # run. Configure that environment (Settings -> Environments) before merging a
-  # change to this file: a referenced environment that does not exist yet is
-  # created without protection rules, and that first deploy would run unreviewed.
+  # run. That gate is unchanged from the days when this Worker served nothing but
+  # static files — a database and a container do not make it less necessary.
   deploy:
     needs: verify
     runs-on: ubuntu-latest
@@ -62,8 +94,29 @@ jobs:
         with:
           name: dist
           path: dist
-      # wrangler-action installs its own Wrangler, so this adds no dependency to
-      # package.json. The Worker name comes from wrangler.jsonc.
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+
+      # Applied before the deploy, and after approval: a migration that fails
+      # stops this job instead of shipping code that expects a schema which is not
+      # there. Migrations are additive by rule (see the runbook), so a rollback of
+      # the Worker still finds a database it understands.
+      - name: Apply the database migrations
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::PRODUCTION_DATABASE_URL is not set: refusing to deploy without a schema"
+            exit 1
+          fi
+          cargo run --manifest-path api/Cargo.toml --locked -- migrate
+
+      # `wrangler deploy` builds the container image from api/Dockerfile and
+      # pushes it, then publishes the Worker and the assets in one version — so
+      # the rollback of either is the rollback of both.
       - name: Deploy to Cloudflare
         uses: cloudflare/wrangler-action@v4
         with:

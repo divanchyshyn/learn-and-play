@@ -1,25 +1,57 @@
-// Cloudflare Workers configuration. The games are pure static assets, so there
-// is no Worker script here: Cloudflare serves `dist/` itself. The default
-// `html_handling` ("auto-trailing-slash") keeps the published URLs working the
-// way they always have – `/games/<slug>` redirects to `/games/<slug>/`, which
-// serves that folder's `index.html`.
+// Cloudflare Workers configuration for the live site.
 //
-// The first deploy from `.github/workflows/deploy-cloudflare.yml` creates the
-// Worker under this name, so it must match the Worker in the Cloudflare
-// dashboard. `compatibility_date` marks the Workers runtime version and can be
-// bumped deliberately; it does not affect the static assets.
+// Two halves, one Worker:
+//
+//  * `/` and `/games/<slug>/` are static assets served by Cloudflare's asset
+//    router. `run_worker_first` is scoped to `/api/*`, so a game page never
+//    invokes a line of code — not this Worker, and not the container.
+//  * `/api/*` runs the Rust service in a Cloudflare Container, reached through
+//    the `ApiContainer` Durable Object (a container can only be reached through
+//    its Durable Object). `edge/src/index.js` is that front door.
+//
+// The container instance is `lite` — a sixteenth of a vCPU, 256 MiB, 2 GB of
+// disk — which the included Workers Paid allowance covers for a hobby's worth of
+// play. The only CPU-bound work the service does is the argon2 hash on sign-in
+// (21 ms on a full core, so a few hundred milliseconds here), and if the real
+// measurement on this instance ever exceeds ~1.5 s, the fix is one word:
+// `"instance_type": "basic"` (PLAN P7).
 //
 // The custom domain (play2learn.divanchyshyn.com) is deliberately absent: it is
 // attached once in the Cloudflare dashboard, which keeps account and domain
-// details out of the repository.
+// details out of the repository. Keeping the Worker's name `learn-and-play` is
+// what keeps that domain and the `cloudflare-production` approval gate intact.
 //
-// Growing later: an `/api/*` route means adding a `main` entry point plus a
-// binding (D1 for a database, KV for config) and `run_worker_first: ["/api/*"]`.
-// Assets keep being served exactly as they are; nothing here has to be undone.
+// Secrets are set once per Worker with `wrangler secret put` and never appear
+// here: DATABASE_URL, PEPPER.
 {
   "name": "learn-and-play",
+  "main": "edge/src/index.js",
   "compatibility_date": "2026-09-20",
+
   "assets": {
-    "directory": "./dist"
-  }
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+
+  "containers": [
+    {
+      "class_name": "ApiContainer",
+      "image": "./api/Dockerfile",
+      "instance_type": "lite",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "API_CONTAINER", "class_name": "ApiContainer" }]
+  },
+  "exports": {
+    "ApiContainer": { "type": "durable-object", "storage": "sqlite" }
+  },
+
+  "vars": {
+    "PUBLIC_ORIGIN": "https://play2learn.divanchyshyn.com"
+  },
+
+  "observability": { "enabled": true }
 }

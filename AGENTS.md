@@ -85,7 +85,7 @@ src/shared/account.js                   useAccount(): who is signed in, and the 
 src/shared/syncable.js                  Which saved values sync and how two devices' copies are merged (a union, always)
 src/shared/sync.js                      The sync engine: ownership, revisions, debounced pushes, and the hydration decision
 src/shared/SyncGate.jsx                 Holds a game back (at most 1.5 s) only when this device has no cached progress
-sync-keys.json                          The synced keys, read by both this frontend and the Rust allowlist
+api/sync-keys.json                      The allowlist of synced keys: enforced by the service, read by the frontend's registry
 account/index.html                      The account page entry point (sign in, create an account, change the password, delete it)
 src/account/                            The account page component and styles, and the only page that talks about accounts
 src/test/setup.js                       Vitest setup (jest-dom matchers)
