@@ -82,18 +82,24 @@ GitHub Pages keeps publishing the same build through `.github/workflows/deploy-p
 
 ## Planned: accounts and cross-device progress (not built yet)
 
-A backend that lets a child sign in and carry their progress between devices is
-planned but **not implemented** - the site is still fully static and nothing below
-exists in the code yet. The design, the alternatives that were rejected, and the
-costs of the choice are recorded in [`docs/backend/PLAN.md`](./docs/backend/PLAN.md);
-the step-by-step instructions for building it (toolchain install, Cloudflare
-dashboard setup, database migrations, deploy, rollback, troubleshooting) are in
+Accounts that let a child sign in and carry their progress between devices are
+planned but **not implemented** - the site is still fully static, the games still
+save only to `localStorage`, and nothing below exists in the code yet. The
+design, the alternatives that were rejected and the costs of the choice are
+recorded in [`docs/backend/PLAN.md`](./docs/backend/PLAN.md); the step-by-step
+instructions for building and running it (toolchain, Neon and Cloudflare setup,
+Cloudflare Access, migrations, secrets, deploy, rollback, troubleshooting) are in
 [`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md).
 
-In short: a Rust Worker (compiled to WebAssembly) on the Cloudflare Workers free
-plan, serving `/api/*` on this same Worker so the game pages keep being served as
-static assets and never touch the backend; a D1 (SQLite) database; and an account
-whose credential is a "player code" rather than a password - a choice forced by
-the Workers free plan's 10 ms CPU limit per request, which is well below the cost
-of a properly-expensive password hash. The schema is built so a passkey or
-email + password can be added later without a rewrite.
+In short: a small **Worker front door** on this same domain serves the games as
+static assets exactly as today and forwards `/api/*` to a **Rust service**
+(`axum` + `sqlx`) running in a **Cloudflare Container**; **Postgres on Neon**
+stores accounts and progress; an account is a **username and a password**
+(argon2id, no personal data at all). The database becomes the record and
+`localStorage` a cache, so progress follows a child to another device while every
+game keeps working, unchanged, when the backend is down. There is deliberately
+**no email**, and therefore no password recovery: a forgotten password loses the
+account, and the sign-up screen says so. A second Worker on
+`test.play2learn.divanchyshyn.com`, behind Cloudflare Access, deploys every pull
+request so a change can be tried on a tablet before it goes live.
+

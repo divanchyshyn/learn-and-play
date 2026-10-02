@@ -60,8 +60,11 @@ Build a small, friendly collection of browser games for children. Games should b
 - React with Vite, using JavaScript and CSS.
 - This is a multi-page application, not a single-page router.
 - Cloudflare Workers serves the generated `dist/` directory as static assets, deployed by `.github/workflows/deploy-cloudflare.yml` behind the `cloudflare-production` environment's required reviewers (Worker configuration in `wrangler.jsonc`).
-- Keep the app fully static: no server-side rendering, no API dependencies, no runtime secrets. Adding an `/api/*` route, a datastore binding, or anything the browser needs at runtime is an amendment to this rule, agreed deliberately, never an implementation detail.
-- Use relative asset paths or Vite imports so the site works at `https://play2learn.divanchyshyn.com/` and, while the GitHub Pages workflow remains, at `https://<user>.github.io/<repository>/`.
+- **The games stay static; accounts and cross-device progress are a deliberate, human-agreed exception to that rule** (recorded in `docs/backend/PLAN.md`). A game page is served by Cloudflare's asset router and never invokes any code, so a backend failure can never break a game. The exception lives behind `/api/*`: a Rust service (`api/`, axum + sqlx) in a Cloudflare Container, reached through a small Worker front door (`edge/`) that owns the container's Durable Object, with Postgres (Neon) as the datastore. What it costs: the site now has a database, a container image in every deploy, runtime secrets per environment, and sync code that can lose progress if it is wrong.
+- **Fail-open is a rule, not a preference.** No account and no network must never be visible inside a game: not signed in means no requests at all, and a dead or slow API means the game plays from its local cache. `localStorage` is a cache; the database is the record.
+- An account holds a uuid, a username, an argon2id password hash and the games' own progress blobs - **no personal data**. Never add an email address, a real name, a birthday or analytics to it.
+- Do not add a third-party runtime dependency (a datastore, an auth service, an email sender) without a human decision. The agreed set is Cloudflare Containers, Neon Postgres and Cloudflare R2 for backups; there is deliberately no email provider, and therefore no password recovery.
+- Use relative asset paths or Vite imports so the site works at `https://play2learn.divanchyshyn.com/`. GitHub Pages is retired: the site has exactly one host.
 
 ## Structure
 
@@ -92,8 +95,8 @@ wrangler.jsonc                          Cloudflare Workers config: serves dist/ 
 opencode.json                           Coding agent config: model, permissions, provider
 .opencode/agents/review.md              Read-only reviewer agent used by the review workflow
 docs/agent-pipeline.md                  How the agent pipeline is wired up and how to run it
-docs/backend/PLAN.md                    The planned Rust + Cloudflare backend for accounts and cross-device progress: decisions, design, work packages (NOT BUILT - the app is still static)
-docs/backend/RUNBOOK.md                 Step-by-step runbook for that backend: toolchain install, Cloudflare config, migrations, deploy, rollback, troubleshooting
+docs/backend/PLAN.md                    The planned backend for accounts and cross-device progress: decisions, design, work packages C1-C15 (NOT BUILT - the app is still static)
+docs/backend/RUNBOOK.md                 Step-by-step runbook for that backend: toolchain, Neon and Cloudflare setup, Cloudflare Access, migrations, secrets, deploy, rollback, troubleshooting
 docs/audit/BASELINE.md                  Build, lint, test and coverage gate as measured before the last audit
 docs/audit/PLAN.md                      The audit's findings and its ordered work packages
 docs/audit/SUMMARY.md                   What the audit fixed, skipped, and left for a human

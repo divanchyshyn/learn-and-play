@@ -1,555 +1,499 @@
-# Backend runbook — accounts and cross-device progress (Rust + Cloudflare)
+# Backend runbook — username accounts and database progress (Rust container + Postgres)
 
 > **Status: nothing has been built yet.** This runbook is the execution guide for
-> [`PLAN.md`](./PLAN.md). Read `PLAN.md` P2 (decisions) and P7 (the CPU limit)
-> once, then work from here.
+> [`PLAN.md`](./PLAN.md). Read `PLAN.md` P2 (decisions), P7 (accounts and
+> argon2id) and P11 (progress rules) once, then work from here.
 >
 > Everything is written for **Windows PowerShell**. Use `npm.cmd` (not `npm`) in
 > this repo — the execution policy can block `npm.ps1`. Use `curl.exe` (with the
-> extension) so you get the real curl instead of PowerShell's `Invoke-WebRequest`
-> alias.
+> extension) so you get the real curl instead of PowerShell's
+> `Invoke-WebRequest` alias. `npx wrangler` is available because `wrangler` is a
+> pinned devDependency (C5).
 
 ## How to use this runbook
 
-Steps are numbered **R0 … R14** and each one ends with a **✅ Check** that tells
-you it worked. Do not move on from a failed check — every step is designed to fail
-loudly and early.
+Steps are numbered **R0 … R14**, and each ends with a **✅ Check**. Do not move
+on from a failed check: every step is designed to fail loudly and early.
 
 ### Jump table
 
 | Step | What it does | Serves | Time |
 | --- | --- | --- | --- |
-| **R0** | Install Rust, wasm target, worker-build, wrangler | WP1 | 30-60 min |
-| **R1** | Cloudflare dashboard: D1, token scopes, secrets, environments | WP1, WP2 | 20 min |
-| **R2** | Read the canonical `workers-rs` config from a throwaway template | WP1 | 15 min |
-| **R3** | Wire the repo: `worker/`, `wrangler.jsonc`, `.gitignore` | WP1 | 30 min |
-| **R4** | Local dev loop (`wrangler dev`, local D1, hitting the API) | WP1 – WP5 | 20 min |
-| **R5** | Migrations, local and remote (+ Time Travel) | WP2 | 15 min |
-| **R6** | The pepper secret (`.dev.vars`, `wrangler secret put`) | WP3 | 10 min |
-| **R7** | CI and deploy workflow edits | WP7 | 45 min |
-| **R8** | The verification checklist for every milestone | all | 20 min |
-| **R9** | Rollback and recovery | all | — |
-| **R10** | The CPU-budget experiment (measure before deciding anything permanent) | WP1, P7 | 30 min |
-| **R11** | Troubleshooting table | all | — |
-| **R12** | Command cheat sheet | all | — |
-| **R13** | Permissions: the coding agent's bash allowlist | WP7 | 10 min |
-| **R14** | Documentation edits, including the ready-to-paste `AGENTS.md` amendment | WP0, WP8 | 45 min |
+| **R0** | Toolchain: Rust, Docker, wrangler, database client | C3 | 20-40 min |
+| **R1** | Neon: project, two databases, connection strings | C6, C7 | 15 min |
+| **R2** | Cloudflare: plan, API token, the test hostname | C5, C6 | 20 min |
+| **R3** | Cloudflare Access for the test environment (+ service token) | C6 | 15 min |
+| **R4** | Repo wiring: what C3 – C5 create, and the local env file | C3 – C5 | 30 min |
+| **R5** | Local development: Postgres in Docker, `cargo run`, `wrangler dev` | C3 – C9 | 20 min |
+| **R6** | Migrations, local and remote | C7 | 15 min |
+| **R7** | Secrets per environment (test and production) | C8, C13 | 10 min |
+| **R8** | CI and deploy workflows | C4, C6, C13 | 45 min |
+| **R9** | Verification checklist for every milestone | all | 20 min |
+| **R10** | Backup and restore (nightly `pg_dump` to R2) | C12 | 20 min |
+| **R11** | Rollback and recovery | all | — |
+| **R12** | Troubleshooting table | all | — |
+| **R13** | Command cheat sheet | all | — |
+| **R14** | Permissions: the coding agent's bash allowlist | C4 | 10 min |
 
 ### Milestone → steps
 
 | Milestone (PLAN P16) | Steps |
 | --- | --- |
-| **M0** — `/api/health` deployed, games untouched | R0, R1 (partial), R2, R3, R4, R8 (M0 block) |
-| **M1** — D1 + accounts round trip | R1 (D1), R5, R6, R8 (M1 block) |
-| **M2** — one key synced end to end | R4, R8 (M2 block) |
-| **M3** — all keys + Pages decision | R8 (M3 block), R14 |
-| **M4** — tests, CI, hardening, privacy | R7, R8 (M4 block), R13, R14 |
+| **M0** — container deployed to the test hostname, games untouched | R0, R2 (partial), R4, R5, R8 (test workflow), R9 (M0 block) |
+| **M1** — Postgres, schema, migrations | R1, R6, R9 (M1 block) |
+| **M2** — accounts round trip | R2 (Access), R3, R7, R9 (M2 block) |
+| **M3** — progress sync end to end | R5, R9 (M3 block) |
+| **M4** — backups, cutover, Pages retirement | R10, R11, R9 (M4 block) |
 
 ### The one rule that must never be broken
 
-**A game must never break because the backend is down.** If any step makes a game
-show an error, a spinner or a delay, stop: you have broken PLAN P11's fail-open
-requirement. R8 has the check for it.
+**A game must never break because the backend is down.** If any step makes a
+game show an error, a spinner or a delay, stop: PLAN P11's fail-open requirement
+has been broken. R9 has the check for it.
 
 ---
 
-## R0 — Prerequisites: install the Rust toolchain
+## R0 — Prerequisites
 
-Nothing here is in the repo yet. Do all of it once, on the development machine.
+### R0.1 — Rust (already installed on this machine)
 
-### R0.1 — The Microsoft C++ linker
-
-The default Windows Rust toolchain (`stable-x86_64-pc-windows-msvc`) needs the
-MSVC linker for **host-target builds — which is what `cargo test` uses**. Without
-it, `cargo test` fails even though the wasm build would work.
+Verified while writing the plan:
 
 ```powershell
-winget install --id Microsoft.VisualStudio.2022.BuildTools -e
+rustc --version      # 1.99.0
+cargo --version      # 1.99.0
+rustup toolchain list
 ```
 
-In the installer, tick **"Desktop development with C++"**. (Alternatively, skip
-this and let `rustup-init` offer to install the prerequisites in R0.2.)
+`stable-x86_64-pc-windows-msvc` is the default and Visual Studio 2022 Build
+Tools are present, which is what `cargo test` needs in order to link. **No
+`wasm32-unknown-unknown` target is needed**: this backend is a normal Linux
+binary, not WebAssembly.
 
-> If you would rather not install Visual Studio Build Tools at all, the
-> alternative is the GNU toolchain (`rustup toolchain install stable-gnu` plus a
-> mingw-w64 install). It works, but it is a rabbit hole. The MSVC path is the
-> documented one.
-
-### R0.2 — rustup and Rust
+If the toolchain ever has to be installed from scratch:
 
 ```powershell
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e   # "Desktop development with C++"
 winget install --id Rustlang.Rustup -e
+# then reopen the terminal
+rustup component add rustfmt clippy
 ```
 
-Then **close and reopen the terminal** so `PATH` picks up `%USERPROFILE%\.cargo\bin`.
+### R0.2 — Docker Desktop
+
+Needed for three things: `docker build` (the container image), the local
+Postgres in `docker-compose.yml`, and `wrangler dev` running the container on
+this machine.
 
 ```powershell
-rustc --version
-cargo --version
-rustup --version
+docker version --format '{{.Server.Version}}'   # fails while the daemon is stopped
 ```
 
-### R0.3 — The Workers wasm target
+Start Docker Desktop and re-run until it prints a version. **H1 in PLAN P18 is
+exactly this.**
+
+### R0.3 — Wrangler
+
+Wrangler is **not** installed globally and does not need to be: C5 adds it as a
+pinned devDependency, so `npm ci` provides it and CI and this machine use the
+same version.
 
 ```powershell
-rustup target add wasm32-unknown-unknown
-rustup target list --installed
+npm.cmd install
+npx wrangler --version
+npx wrangler whoami        # opens a browser the first time
 ```
 
-### R0.4 — `worker-build`
+`whoami` must print your account name and account id (the id also appears in the
+Cloudflare dashboard URL).
 
-This is the tool that turns the Rust crate into something Wrangler can deploy. It
-takes a few minutes to compile the first time.
+### R0.4 — A Postgres client (optional but useful)
 
 ```powershell
-cargo install worker-build --locked
-worker-build --version
+# for looking at a database by hand; psql is not required by any workflow
+winget install --id PostgreSQL.PostgreSQL.17 -e
 ```
 
-> `worker-build` downloads a `wasm-opt` binary on first use, which is the most
-> common thing to fail behind a corporate proxy or on Windows. If it fails, the
-> build still works with `wasm-opt` disabled — you just get a larger bundle. CI on
-> `ubuntu-latest` is the authority on whether the real build works.
-
-### R0.5 — Wrangler (on demand)
-
-Wrangler does **not** need to become a project dependency. It is used in CI via
-`wrangler-action`; locally, `npx` downloads it on demand.
-
-```powershell
-npx --yes wrangler@latest --version
-npx --yes wrangler@latest login
-npx --yes wrangler@latest whoami
-```
-
-`login` opens a browser and stores an OAuth token locally. `whoami` must print
-your account (and the account id, which also appears in the Cloudflare dashboard
-URL).
-
-> **Open decision (PLAN Q2):** if the repeated `npx --yes wrangler@latest` becomes
-> tiresome, add `wrangler` to `devDependencies` and call it as `npx wrangler`.
-> That changes `package.json`, so it is a deliberate choice, not a default.
-
-### R0.6 — `cargo-generate` (optional)
-
-Only needed if you prefer scaffolding over cloning (see R2 for the clone-based
-route, which is the recommended one).
-
-```powershell
-cargo install cargo-generate --locked
-```
+Alternatively use the Neon console's SQL editor, or
+`docker run --rm -it postgres:17 psql "<connection string>"`.
 
 ### ✅ Check
 
 ```powershell
-rustc --version; cargo --version; worker-build --version
-rustup target list --installed | Select-String wasm32
-npx --yes wrangler@latest whoami
+rustc --version; cargo --version
+docker version --format '{{.Server.Version}}'
+npm.cmd install
+npx wrangler --version
 ```
 
-All four succeed, and `wasm32-unknown-unknown` is in the installed list.
+All four succeed.
 
-## R1 — Cloudflare: account, database, token, secrets
+---
 
-Do this in the dashboard, plus two CLI commands.
+## R1 — Neon: the database
 
-### R1.1 — Confirm the plan
+### R1.1 — Create the project
 
-Dashboard → **Workers & Pages** → **Plans**. Confirm you are on the **Free** plan.
-(Free includes D1 with 10 databases, 5 GB, 5M rows read/day, 100k rows
-written/day — see PLAN P6.)
+Sign in at <https://neon.com>, create a project (the free plan is enough;
+`PLAN` P6 has the limits). Use the region closest to you — the container will
+talk to it over the public internet, so a nearby region keeps queries quick.
 
-### R1.2 — Create the D1 database
+### R1.2 — Two databases
+
+The test environment must never touch production data. In one project, create:
+
+| Database | Used by |
+| --- | --- |
+| `learn_and_play` | the production Worker |
+| `learn_and_play_test` | `learn-and-play-test` and the PR workflow |
+
+(Neon branches are the other way to do this; two databases in one project is
+simpler and keeps one connection string shape.)
+
+### R1.3 — Connection strings
+
+Copy each database's connection string and append `sslmode=require` if it is not
+already there:
+
+```
+postgresql://<user>:<password>@<host>.neon.tech/learn_and_play?sslmode=require
+postgresql://<user>:<password>@<host>.neon.tech/learn_and_play_test?sslmode=require
+```
+
+Keep them out of the repository. They go into Cloudflare secrets (R7) and, for
+CI, into a GitHub environment secret (R8).
+
+### R1.4 — Know the two quirks before you debug them
+
+- **Scale to zero after 5 minutes.** The first query after an idle night waits a
+  few hundred milliseconds. A sign-in after a quiet night therefore costs
+  container start (1-3 s) + database wake + the argon2 hash. The C8 measurement
+  covers exactly this path.
+- **Session state does not survive a suspend.** Never rely on prepared-statement
+  caches, temporary tables or `LISTEN/NOTIFY`. sqlx reconnects cleanly, which is
+  why the pool is configured the way it is in C7.
+
+### ✅ Check
 
 ```powershell
-npx --yes wrangler@latest d1 create learn-and-play
+docker run --rm -it postgres:17 psql "<learn_and_play_test connection string>" -c "select version();"
 ```
 
-The command prints a JSON snippet containing `database_id`. **Copy that id** — it
-goes into `wrangler.jsonc` in R3.
+It connects and prints a version string.
 
-Or: Dashboard → **Workers & Pages** → **D1** → **Create database** → name it
-`learn-and-play`.
+---
 
-```powershell
-npx --yes wrangler@latest d1 list
-```
+## R2 — Cloudflare: plan, token, test hostname
 
-### R1.3 — Widen the API token used by CI
+### R2.1 — Confirm the plan
 
-Dashboard → **My Profile** → **API Tokens** → open the token stored in the
-repository secret `CLOUDFLARE_API_TOKEN`.
+Dashboard → **Workers & Pages** → **Plans**. Confirm **Workers Paid**: the
+container product requires it, and D1's 10 ms ceiling is the reason the previous
+plan was shaped the way it was.
 
-It currently only deploys static assets. Add:
+### R2.2 — Widen the API token used by CI
+
+Dashboard → **My Profile** → **API Tokens** → open the token stored in
+`CLOUDFLARE_API_TOKEN`.
 
 | Scope | Permission | Why |
 | --- | --- | --- |
-| Account | **Workers Scripts: Edit** | deploy the Worker script (probably already present) |
-| Account | **Workers D1: Edit** | apply migrations, run queries in CI |
+| Account | **Workers Scripts: Edit** | deploy the Worker script |
+| Account | **Workers Containers: Edit** (or the closest available name) | build and push the container image |
 | Account | **Account Settings: Read** | resolve the account id |
 
-> Cloudflare renames these permissions from time to time. Pick the closest
-> available equivalents, and prefer the narrowest token that still deploys.
-> Alternative to consider: a separate token used only by the deploy job.
+Cloudflare renames these from time to time — pick the closest equivalents and
+prefer the narrowest token that still deploys. Consider a second, separate token
+for the test workflow.
 
-### R1.4 — Confirm the repository secrets and environment
+### R2.3 — Confirm the repository secrets and environments
 
-- Repository → **Settings** → **Secrets and variables** → **Actions**: confirm
-  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` exist.
-- Repository → **Settings** → **Environments**: confirm `cloudflare-production`
-  exists **with required reviewers**. The deploy job references it, and a
-  referenced-but-missing environment is created *without* protection rules — which
-  would silently remove the human approval gate. **Check this before deploying.**
+Repository → **Settings** → **Secrets and variables** → **Actions**: confirm
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` exist.
 
-### R1.5 — Optional: note the workers.dev hostname
+Repository → **Settings** → **Environments**:
 
-Dashboard → **Workers & Pages** → your account's `*.workers.dev` subdomain. Preview
-deployments (PLAN P14, R10) hand out URLs there, which is the safest place to run
-the CPU experiment.
+- `cloudflare-production` must exist **with required reviewers**. A referenced
+  environment that does not exist is created *without* protection rules, which
+  would silently remove the human approval gate.
+- Create `cloudflare-test` **without** reviewers: the test deploy is meant to be
+  automatic. Put the test-only secrets here (`TEST_DATABASE_URL` for the
+  migration step, the Access service token for the smoke check).
+
+### R2.4 — The test hostname
+
+`test.play2learn.divanchyshyn.com` becomes a **custom domain of a new Worker**
+named `learn-and-play-test`. C5 declares it in `wrangler.test.jsonc`:
+
+```jsonc
+"routes": [{ "pattern": "test.play2learn.divanchyshyn.com", "custom_domain": true }]
+```
+
+The first `wrangler deploy --config wrangler.test.jsonc` creates the DNS record
+and the certificate. Two things to check first:
+
+- The hostname must **not** already have a CNAME record — a hostname with one
+  cannot be turned into a custom domain. Delete the record if it exists.
+- The zone must be in this account (it is: `play2learn.divanchyshyn.com` already
+  lives here).
+
+If the deploy cannot create it, attach the domain once in the dashboard
+(Workers → `learn-and-play-test` → Settings → Domains & Routes) and leave the
+`routes` block out.
 
 ### ✅ Check
 
-- `npx --yes wrangler@latest d1 list` shows `learn-and-play` with a `database_id`.
-- `cloudflare-production` shows **required reviewers** in the dashboard.
-- The token has a D1 permission.
+- `npx wrangler whoami` prints the account.
+- `cloudflare-production` shows **required reviewers**; `cloudflare-test` exists
+  without any.
+- `test.play2learn.divanchyshyn.com` has no CNAME record in the DNS tab.
 
 ---
 
-## R2 — Read the canonical `workers-rs` config (do this before writing any config)
+## R3 — Cloudflare Access for the test environment
 
-`wrangler.jsonc` keys, the `main` path and the build command have moved between
-`workers-rs` versions. **Never copy a config snippet from a document — including
-this one.** Fetch the current template and read it.
+The test Worker holds a real database and a sign-up form. Access keeps it to
+people you invite, without any code.
 
-### R2.1 — Clone the template repository (recommended)
+### R3.1 — Enable Zero Trust
 
-Outside the project directory, in a throwaway folder:
+Dashboard → **Zero Trust** → choose the **Free** plan → set a team domain (for
+example `divanchyshyn`). No identity provider is needed: the built-in
+**one-time PIN** sends a code to an email address.
 
-```powershell
-git clone --depth 1 https://github.com/cloudflare/workers-rs "$env:TEMP\workers-rs-probe"
-Get-ChildItem "$env:TEMP\workers-rs-probe\templates"
-```
+### R3.2 — The application
 
-### R2.2 — Read these five things
+Zero Trust → **Access** → **Applications** → **Add an application** →
+**Self-hosted**:
 
-```powershell
-# 1. The Wrangler config: `main`, the build command, compatibility_date
-Get-Content "$env:TEMP\workers-rs-probe\templates\hello-world\wrangler.toml"
-
-# 2. The release profile settings that keep the wasm binary small
-Get-Content "$env:TEMP\workers-rs-probe\templates\hello-world\Cargo.toml"
-
-# 3. The current handler signature (`#[event(fetch)]` and its arguments)
-Get-Content "$env:TEMP\workers-rs-probe\templates\hello-world\src\lib.rs"
-
-# 4. Whether the toolchain is pinned, and how
-Get-Content "$env:TEMP\workers-rs-probe\rust-toolchain.toml"
-
-# 5. Whether a template uses a workspace or a single crate
-Get-ChildItem "$env:TEMP\workers-rs-probe\templates" -Recurse -Filter Cargo.toml |
-  Select-Object -ExpandProperty FullName
-```
-
-Also skim the `examples/` folder — it is the best documentation of what
-`workers-rs` can actually do today (D1, KV, Durable Objects, secrets).
-
-### R2.3 — Write down the four answers
-
-| Question | Answer for this project |
+| Field | Value |
 | --- | --- |
-| What does `main` point at? | ⬅ **the generated shim, most likely, not the `.rs` file** |
-| What is the build command? | ⬅ probably `worker-build --release`, maybe with a `cargo install` |
-| Which `[profile.release]` keys? | `lto = true`, `strip = true`, `codegen-units = 1` |
-| Is the toolchain pinned? | ⬅ copy the pattern into `worker/rust-toolchain.toml` |
+| Name | `Learn and play (test)` |
+| Session duration | 1 month (so a tablet logs in once, not every visit) |
+| Application domain | `test.play2learn.divanchyshyn.com` |
 
-> **Alternative (interactive):** `cargo generate cloudflare/workers-rs` scaffolds a
-> project, but it prompts and writes a whole project. Reading the templates from a
-> shallow clone (R2.1) is deterministic, non-interactive and leaves nothing behind
-> — which also matches this repo's habit of doing generation outside the repository.
+Then add a policy: **Allow**, action for the **Emails** selector, containing
+your own address (and anyone else you want to let in).
 
-### R2.4 — Clean up
+### R3.3 — A service token for CI
 
-```powershell
-Remove-Item -Recurse -Force "$env:TEMP\workers-rs-probe"
-```
+Zero Trust → **Access** → **Service Auth** → **Create service token**, named
+`learn-and-play-ci`. Store the client id and secret as GitHub environment secrets
+in `cloudflare-test` (`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`) and add a
+second policy to the application: **Service Auth**, action **Allow**, with that
+token.
 
-### ✅ Check
+Without this, the deploy workflow cannot smoke-check its own deployment: it would
+receive Access's login redirect instead of `/api/health`.
 
-You can state, without looking it up again, what `main` must contain for this
-project's Wrangler config. If you cannot, re-read R2.2.
+### R3.4 — Remember what Access does and does not do
 
-## R3 — Repo wiring (the M0 commit)
-
-### R3.1 — Create the workspace
-
-Create `worker/Cargo.toml` as a workspace with two members:
-
-```toml
-[workspace]
-members = ["crates/core", "crates/app"]
-resolver = "2"
-
-[profile.release]
-lto = true
-strip = true
-codegen-units = 1
-```
-
-Then `worker/crates/core/Cargo.toml` (**no `worker` dependency** — this is what
-makes `cargo test` fast and reliable) and `worker/crates/app/Cargo.toml` (depends
-on `worker`, `serde`, `serde_json`, and on `core` through a path dependency). Use
-the exact dependency lines you read in R2.
-
-`worker/rust-toolchain.toml`, following the template's pattern:
-
-```toml
-[toolchain]
-channel = "stable"
-targets = ["wasm32-unknown-unknown"]
-components = ["rustfmt", "clippy"]
-```
-
-`rustup` installs the pinned target automatically when you build inside `worker/`,
-which is what keeps CI and your machine in agreement.
-
-### R3.2 — Write `worker/crates/app/src/lib.rs`
-
-Just the health route for M0 — no database, no cookies:
-
-```rust
-use worker::*;
-
-#[event(fetch)]
-async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
-    let path = req.path();
-    if path == "/api/health" {
-        let mut res = Response::from_json(&serde_json::json!({ "ok": true }))?;
-        res.headers_mut().set("content-type", "application/json")?;
-        return Ok(res);
-    }
-    Response::error("Not found", 404)
-}
-```
-
-> The exact `Response` API differs between versions — check `examples/` from R2. If
-> the template's API differs, follow the template, not this snippet.
-
-### R3.3 — `wrangler.jsonc`
-
-Keep the existing comments' spirit, replace the "growing later" note with what is
-actually being added, and use **your** `database_id` from R1.2 and the **`main`
-value you verified in R2.3**:
-
-```jsonc
-{
-  "name": "learn-and-play",
-  "main": "<from R2.3 — likely the generated shim>",
-  "compatibility_date": "2026-09-20",
-  "build": {
-    "command": "worker-build --release",
-    "cwd": "worker"
-  },
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
-  },
-  "d1_databases": [
-    { "binding": "DB", "database_name": "learn-and-play", "database_id": "<from R1.2>" }
-  ]
-}
-```
-
-Two safety notes:
-
-- `run_worker_first` as an **array** means game pages still never invoke the
-  Worker. Do not set it to `true` — that would run Rust on every asset request and
-  make the free request budget a real concern.
-- `html_handling` stays at its default on purpose: it is what keeps
-  `/games/<slug>` → `/games/<slug>/` working exactly as it does today.
-
-### R3.4 — `.gitignore`
-
-```
-node_modules/
-dist/
-.wrangler/
-coverage/
-worker/target/
-worker/build/
-.dev.vars
-```
-
-`.dev.vars` holds the local pepper and **must never be committed** — same rule as
-`.env`.
-
-### R3.5 — `package.json` scripts (optional, but recommended)
-
-```jsonc
-"api:dev":   "wrangler dev",
-"rust:test": "cargo test --manifest-path worker/Cargo.toml",
-"rust:lint": "cargo clippy --manifest-path worker/Cargo.toml --all-targets -- -D warnings"
-```
-
-> **`npm run build` stays exactly as it is.** Vite builds `dist/`; the Rust build is
-> invoked by Wrangler (`wrangler dev` / `wrangler deploy`) through `build.command`.
-> Do not chain `worker-build` into `npm run build` — it would slow every local build
-> and CI step for no benefit.
+Access protects the hostname, **including the static assets**, so the game pages
+on the test hostname are private too — which is what you want while testing, and
+the reason the `_headers` noindex file is only belt and braces. Access does not
+replace application auth: accounts on the test environment are ordinary accounts
+in the test database.
 
 ### ✅ Check
 
-```powershell
-npm.cmd run build
-cargo test --manifest-path worker/Cargo.toml
-cargo build --manifest-path worker/crates/app/Cargo.toml --target wasm32-unknown-unknown --release
-```
-
-All three succeed. Then continue to R4 to actually run it.
+Open `https://test.play2learn.divanchyshyn.com/` in a private window: Cloudflare
+asks for an email code before anything loads. After entering it, the page loads
+(or returns 404 until C6 has deployed once — that is expected at this point).
 
 ---
 
-## R4 — Local development
+## R4 — Repo wiring (what C3 – C5 create)
 
-### R4.1 — The loop you will use most
+Nothing here is a one-off command; it is a description of what the commits add,
+so you can check the result.
+
+### R4.1 — `api/` (the Rust service)
+
+- `api/Cargo.toml` — package `learn-and-play-api`, a library plus a binary, with
+  `axum`, `tokio`, `sqlx`, `argon2`, `serde`, `tracing`, `tower-http`.
+- `api/rust-toolchain.toml` — pins the channel and the `rustfmt`/`clippy`
+  components so CI and this machine agree.
+- `api/src/main.rs` — arguments `serve` (default) and `migrate`.
+- `api/Dockerfile` — `cargo-chef` planner → builder → distroless nonroot
+  runtime, `linux/amd64`, listening on `0.0.0.0:8080`.
+- `api/migrations/` — the SQL from PLAN P10.
+
+### R4.2 — `edge/` (the Worker front door)
+
+- `edge/src/index.js` — `/api/*` goes to the Durable Object; everything else
+  falls through to `env.ASSETS` (which, with `run_worker_first`, is never even
+  reached for a static path).
+- `edge/src/container.js` — the `ApiContainer` class: `defaultPort = 8080`,
+  `sleepAfter = "10m"`, the container's environment variables, and a ping
+  endpoint of `/api/health`.
+- The front door also **replaces** any client-supplied `X-Client-IP` with
+  `CF-Connecting-IP` before forwarding, so the Rust rate limiter cannot be
+  spoofed.
+
+### R4.3 — Local environment files
+
+| File | Holds | Gitignored |
+| --- | --- | --- |
+| `.dev.vars` (repository root) | the Worker's environment for `wrangler dev`: `DATABASE_URL`, `PEPPER`, `PUBLIC_ORIGIN` | yes |
+| `api/.env` | the same values for running the API directly with `cargo run` | yes |
+
+`.dev.vars` is read by `wrangler dev`; the container receives those values as
+environment variables. A sample with dummy values is fine to commit
+(`.dev.vars.example`), the real file never is.
+
+### ✅ Check
 
 ```powershell
-cd worker
-cargo test -p core      # the fast loop: pure logic, no wasm, no network
-cargo clippy --all-targets -- -D warnings
-cargo fmt
+npm.cmd run lint; npm.cmd run test; npm.cmd run build
+cargo fmt --manifest-path api/Cargo.toml --all --check
+cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path api/Cargo.toml
+npx wrangler deploy --config wrangler.test.jsonc --dry-run
 ```
 
-### R4.2 — Running the whole thing locally
+All succeed, and `git status` does not list `.dev.vars` or `api/.env`.
 
-`wrangler dev` serves BOTH `dist/` and `/api/*` on one port, with a local D1
-(Miniflare). Build the assets first:
+---
+
+## R5 — Local development
+
+### R5.1 — The database
 
 ```powershell
-npm.cmd run build
-npx --yes wrangler@latest dev
+docker compose up -d db
+docker compose logs db --tail 20
 ```
 
-Open <http://localhost:8787> — the library and the games are served from `dist/`,
-and `/api/health` hits your Rust code.
+`docker-compose.yml` runs `postgres:17` on `localhost:5432` with a throwaway
+password, which is the same database the integration tests use.
 
-> **Important:** local dev does **not** enforce the production 10 ms CPU limit the
-> same way. Something that runs fine here can fail as `Worker exceeded CPU time`
-> in production. That is exactly what R10 exists to check.
-
-### R4.3 — Hitting the API with PowerShell
+### R5.2 — The API alone (the fast loop)
 
 ```powershell
-# Health
-Invoke-RestMethod http://localhost:8787/api/health
+cd api
+$env:DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/learn_and_play?sslmode=disable"
+$env:PEPPER = "dev-pepper-not-used-anywhere-real"
+$env:PUBLIC_ORIGIN = "http://localhost:8080"
+cargo run
+```
 
-# Create an account and capture the session cookie
+Then, from another terminal:
+
+```powershell
+curl.exe -s http://localhost:8080/api/health
+# {"ok":true,"db":"up"}
+```
+
+### R5.3 — The whole thing through the front door
+
+`wrangler dev` runs the Worker, the Durable Object and the container locally:
+
+```powershell
+npm.cmd run build          # dist/ must exist: the front door serves it
+npx wrangler dev --config wrangler.test.jsonc
+```
+
+Open <http://localhost:8787> — the library and the games come from `dist/`, and
+`/api/health` comes from the container. Local `.dev.vars` supplies the
+environment (R4.3). Docker must be running for this path.
+
+> **Local dev does not reproduce the production cost profile.** Here the
+> container gets the whole machine; in production it gets a `lite` share. That is
+> exactly what the C8 hash-time measurement is for.
+
+### R5.4 — Signing in locally
+
+```powershell
+# create an account and capture the session cookie
 Invoke-RestMethod -Method Post -Uri http://localhost:8787/api/account `
-  -ContentType 'application/json' -Body '{}' -SessionVariable session
+  -ContentType 'application/json' `
+  -Body '{"username":"testkid","password":"et-langt-passord"}' `
+  -SessionVariable session
 
-# Use the cookie for the next request
 Invoke-RestMethod http://localhost:8787/api/me -WebSession $session
-
-# Look at the cookie
 $session.Cookies.GetCookies('http://localhost:8787') | Format-Table Name, HttpOnly, Expires
 ```
 
-`-SessionVariable` / `-WebSession` is how you keep the `HttpOnly` cookie across
-requests without a browser. Browsers accept `Secure` cookies on `localhost`, so a
-`Secure`-flagged cookie works in local dev too.
-
-### R4.4 — Optional: the Vite hot-reload loop with a proxy
-
-`npm.cmd run dev` gives instant frontend reload but knows nothing about `/api`.
-If you want both, add a proxy to `vite.config.js`:
-
-```js
-server: {
-  proxy: {
-    '/api': 'http://localhost:8787',   // run `wrangler dev` alongside
-  },
-},
-```
-
-Two terminals then: `npx wrangler dev` (API + a built `dist/`) and `npm.cmd run dev`
-(frontend HMR, proxying `/api`).
-
-> **Discipline note:** this is the only time you touch `vite.config.js`. Nothing
-> else in this plan adds a build-time dependency to the frontend.
-
-### R4.5 — Testing against the real (remote) D1, without deploying
-
-```powershell
-npx --yes wrangler@latest dev --remote
-```
-
-This binds to the real D1 and the real secrets, so it is a good way to validate a
-migration before deploying. It also writes to production data — treat it as
-production.
+Browsers accept `Secure` cookies on `localhost`, which is why the same
+`__Host-lap_sid` cookie works here and in production.
 
 ### ✅ Check
 
-- `Invoke-RestMethod http://localhost:8787/api/health` returns `ok = True`.
+- `/api/health` returns `{"ok":true,"db":"up"}` through both paths.
 - `http://localhost:8787/games/sound-labyrinth/` serves the game.
+- The cookie table shows `__Host-lap_sid` with `HttpOnly = True`.
 
-## R5 — Migrations
+---
 
-### R5.1 — Create the file
+## R6 — Migrations
 
-`worker/migrations/0001_init.sql` — the SQL is in PLAN P10. The filename pattern
-Wrangler expects is `<number>_<name>.sql`, applied in ascending order.
+### R6.1 — Where they live
 
-### R5.2 — Apply locally first
+`api/migrations/0001_init.sql` (PLAN P10). The filename pattern sqlx expects is
+`<version>_<name>.sql`, applied in ascending order and recorded in
+`_sqlx_migrations`.
 
-```powershell
-npx --yes wrangler@latest d1 migrations apply learn-and-play --local
-npx --yes wrangler@latest d1 migrations list learn-and-play --local
-```
-
-### R5.3 — Apply remotely
+### R6.2 — Apply locally
 
 ```powershell
-npx --yes wrangler@latest d1 migrations apply learn-and-play --remote
-npx --yes wrangler@latest d1 migrations list learn-and-play --remote
+cd api
+cargo run -- migrate        # DATABASE_URL must point at the local database
 ```
 
-### R5.4 — Inspect
+### R6.3 — Apply remotely
+
+CI does this before every deploy (R8), but you can also do it by hand:
 
 ```powershell
-npx --yes wrangler@latest d1 execute learn-and-play --remote `
-  --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
-
-npx --yes wrangler@latest d1 execute learn-and-play --remote `
-  --command "SELECT COUNT(*) AS users FROM users;"
+$env:DATABASE_URL = "<learn_and_play_test connection string>"
+cargo run -- migrate
 ```
 
-### R5.5 — Recovery: Time Travel
+> The migration step in CI needs `TEST_DATABASE_URL` (GitHub environment secret)
+> and runs **before** the deploy, so a broken migration fails the job instead of
+> shipping code that expects a schema that is not there.
 
-Free plan keeps **7 days** of point-in-time recovery (PLAN P6).
+### R6.4 — Inspect
 
 ```powershell
-npx --yes wrangler@latest d1 time-travel info learn-and-play
-npx --yes wrangler@latest d1 time-travel restore learn-and-play --timestamp=<ISO-8601>
+docker run --rm -it postgres:17 psql "<connection string>" -c "\dt"
+docker run --rm -it postgres:17 psql "<connection string>" -c "select count(*) from users;"
 ```
 
-Keep a backup before any risky migration:
+### R6.5 — Rules
 
-```powershell
-npx --yes wrangler@latest d1 export learn-and-play --remote --output=backup.sql
-```
-
-> `backup.sql` contains account data. **Never commit it** — and treat it like the
-> credential store it is (it holds `secret_hash` values).
+- Never edit an applied migration: its checksum is recorded. Fix forward with a
+  new file.
+- Keep migrations additive where you can (add a column with a default, backfill,
+  then tighten), so a rollback of the application image still finds a schema it
+  understands.
+- `DELETE FROM users` really does remove everything a user owns; that is by
+  design (`ON DELETE CASCADE`) and is what the delete-account test asserts.
 
 ### ✅ Check
 
-- Applying twice changes nothing (the second run reports no pending migrations).
-- The table list matches PLAN P10.
+- Running `cargo run -- migrate` twice changes nothing the second time.
+- `\dt` lists `users`, `sessions`, `progress`, `auth_attempts` and
+  `_sqlx_migrations`.
 
-## R6 — The pepper secret
+---
 
-The pepper is what stops a leaked database from verifying guesses offline.
+## R7 — Secrets, per environment
 
-### R6.1 — Generate one (32 random bytes, base64)
+Secrets are set **once per Worker** with `wrangler secret put`; they never enter
+the repository and never appear in `wrangler*.jsonc`.
+
+| Name | Value | Used by |
+| --- | --- | --- |
+| `DATABASE_URL` | the Neon connection string | the Rust service (sqlx) |
+| `PEPPER` | 32 random bytes, base64; **different** per environment | argon2 pepper |
+| `PUBLIC_ORIGIN` | `https://test.play2learn.divanchyshyn.com` or `https://play2learn.divanchyshyn.com` | `Origin` checks and cookie decisions |
+| `NOINDEX` | `1` on the test Worker only | adds `X-Robots-Tag: noindex` to API responses |
+
+Non-secret values (`PUBLIC_ORIGIN`, `NOINDEX`) can live in the config file's
+`vars` block instead; keeping the two apart makes the dashboard readable.
+
+### R7.1 — Generate a pepper
 
 ```powershell
 $bytes = New-Object byte[] 32
@@ -557,535 +501,404 @@ $bytes = New-Object byte[] 32
 [Convert]::ToBase64String($bytes)
 ```
 
-### R6.2 — Local only: `.dev.vars`
-
-Create `.dev.vars` in the repository root (it is already gitignored per R3.4):
-
-```
-PEPPER="<the value from R6.1>"
-```
-
-### R6.3 — Deployed
+### R7.2 — Set them
 
 ```powershell
-npx --yes wrangler@latest secret put PEPPER --name learn-and-play
-npx --yes wrangler@latest secret list --name learn-and-play
+# the test Worker
+npx wrangler secret put DATABASE_URL --config wrangler.test.jsonc
+npx wrangler secret put PEPPER       --config wrangler.test.jsonc
+npx wrangler secret list --config wrangler.test.jsonc
+
+# the production Worker (C13, after the cutover config exists)
+npx wrangler secret put DATABASE_URL --name learn-and-play
+npx wrangler secret put PEPPER       --name learn-and-play
+npx wrangler secret list --name learn-and-play
 ```
 
-`wrangler secret put` prompts for the value and stores it encrypted. It is never
-written to the repository and never appears in `wrangler.jsonc`.
+`wrangler secret put` prompts for the value and stores it encrypted.
 
-> **Rotating the pepper later invalidates every existing player code** (the hash
-> changes). If that ever becomes necessary, it needs a migration that re-hashes on
-> next sign-in — write it down as a real task, not a one-liner.
+> **Rotating `PEPPER` invalidates every stored password hash** — the pepper is
+> part of the derivation. If it ever has to change, it is a real migration:
+> users would have to set new passwords, which this design cannot do (no email).
+> Treat it as permanent, and keep a copy in your password manager.
 
 ### ✅ Check
 
-- `npx --yes wrangler@latest secret list --name learn-and-play` shows `PEPPER`.
-- `git status` does **not** list `.dev.vars`.
+- Both `secret list` calls show `DATABASE_URL` and `PEPPER`.
+- `git status` does not list `.dev.vars` or `api/.env`.
+- The test and production peppers are different values.
 
 ---
 
-## R7 — CI and deploy workflow edits
+## R8 — CI and the deploy workflows
 
-### R7.1 — `ci.yml` and the `verify` job of `deploy-cloudflare.yml`
+### R8.1 — `ci.yml` (every push and PR)
 
-Insert **before** the existing npm steps, so a Rust failure fails fast. Keep the
-action versions already used in the file.
+The Rust job runs **before** the npm steps, so a Rust failure fails fast:
 
 ```yaml
 - uses: dtolnay/rust-toolchain@stable
   with:
-    targets: wasm32-unknown-unknown
     components: rustfmt, clippy
 - uses: Swatinem/rust-cache@v2
   with:
-    workspaces: worker
-- name: Rust format
-  run: cargo fmt --manifest-path worker/Cargo.toml --all --check
-- name: Rust lint
-  run: cargo clippy --manifest-path worker/Cargo.toml --all-targets -- -D warnings
-- name: Rust tests
-  run: cargo test --manifest-path worker/Cargo.toml
-- name: Worker builds for wasm
-  run: cargo build --manifest-path worker/crates/app/Cargo.toml --target wasm32-unknown-unknown --release
+    workspaces: api
+- run: cargo fmt --manifest-path api/Cargo.toml --all --check
+- run: cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+- run: cargo test --manifest-path api/Cargo.toml     # services: postgres:17
+- run: docker build -t learn-and-play-api:ci api
 ```
 
-Why the last step: `cargo test` proves the *host* build only; the wasm target is
-what actually ships, and it is the one that can surprise you.
+The `docker build` step is not decoration: the image is what ships, and it is the
+one thing `cargo test` cannot check.
 
-### R7.2 — `deploy-cloudflare.yml`
+### R8.2 — `deploy-test.yml` (pull requests → the test environment)
 
-1. **`verify` job:** add the R7.1 block (so nothing is verified twice *differently*).
-2. **`deploy` job:** the same Rust toolchain + cache steps are required there,
-   because `wrangler deploy` now runs `build.command` (`worker-build --release`).
-   Without Rust in the deploy job, the deploy fails.
-3. **Migration step, before the deploy:**
+- Triggers on `pull_request` (`opened`, `synchronize`, `reopened`) and
+  `workflow_dispatch`.
+- **Guards:** only same-repository heads (`github.event.pull_request.head.repo
+  .full_name == github.repository`) — fork PRs never receive secrets — and
+  `dependabot/**` branches are skipped so a dependency bump does not take the
+  shared slot.
+- **Concurrency:** `group: deploy-test`. **Never** reuse the production
+  `cloudflare` group: its `cancel-in-progress: true` would cancel a production
+  deploy that is waiting for approval.
+- **Environment:** `cloudflare-test` (no reviewers), which supplies
+  `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` for the smoke check.
+- **Steps:** build `dist/` → write `dist/_headers` with
+  `X-Robots-Tag: noindex` → `cargo run -- migrate` against `TEST_DATABASE_URL` →
+  `npx wrangler deploy --config wrangler.test.jsonc` → smoke-check
+  `/api/health` with the Access service-token headers → a sticky comment with
+  the URL, the commit SHA and the smoke result.
 
-```yaml
-- name: Apply D1 migrations
-  run: npx wrangler d1 migrations apply learn-and-play --remote
-```
+One shared slot: whichever PR deployed most recently owns the hostname, and the
+comment says which commit is live.
 
-   The `deploy` job currently runs `npm ci`-free (it only downloads the `dist`
-   artifact), so you may need to add `npm ci` for `npx wrangler`, or use
-   `cloudflare/wrangler-action@v4` a second time with an explicit `command`. Check
-   what the file looks like when you get there and prefer the smallest change.
-4. **Token scope** — see R1.3. A missing D1 permission shows up as an
-   authorization error on the migration step.
-5. **Approval gate** — do **not** change the `cloudflare-production` environment
-   reference. The human approval stays.
-6. A failed migration fails the deploy job, so the site can never run code against
-   the wrong schema.
+### R8.3 — `deploy-cloudflare.yml` (production, C13)
 
-### R7.3 — `dependabot.yml` (optional)
+1. The `verify` job gains the same Rust steps as CI (so nothing is verified two
+   different ways).
+2. The `deploy` job needs the Rust toolchain **and Docker**, because
+   `wrangler deploy` now builds and pushes the container image.
+3. Add the migration step **before** the deploy:
+   `npx wrangler d1 …` is gone — it is `cargo run -- migrate` with the production
+   `DATABASE_URL`, or an equivalent step using the same connection string.
+4. The `cloudflare-production` required-reviewer gate is **unchanged**. A failed
+   migration fails the deploy job, so the site can never serve code against the
+   wrong schema.
+5. Update the required status checks in branch protection to include the Rust
+   job (H8).
 
-Add a `cargo` entry for `/worker` so crates get update PRs alongside npm and
-Actions:
+### R8.4 — Dependabot
 
-```yaml
-- package-ecosystem: cargo
-  directory: /worker
-  schedule:
-    interval: weekly
-```
-
-### R7.4 — Worker size sanity check
-
-After the first deploy, look at the Worker's size in the dashboard (and the
-startup time). Limits: 64 MiB and 1 second startup — you will be far inside, but
-check once so you notice if a crate balloons it later.
+`dependabot.yml` watches npm, GitHub Actions, **cargo** (`/api`) and **docker**
+(`/api`), so crate and base-image updates arrive as pull requests like everything
+else.
 
 ### ✅ Check
 
-- A push to a branch runs lint, tests, build **and** the Rust steps, all green.
-- `deploy-cloudflare.yml` runs on `main` and **waits** for approval.
-- After approval, `curl.exe -sI https://play2learn.divanchyshyn.com/api/health`
-  shows the Worker responding.
+- A push to a branch runs lint, tests, build, the Rust steps and `docker build`,
+  all green.
+- Pushing to a pull request in this repository deploys and comments a URL.
+- A push to `main` waits for approval, and after approval the site serves the
+  new build.
 
-## R8 — Verification checklist
+---
+
+## R9 — Verification checklist
 
 Run the block for the milestone you just finished. These are the acceptance
 criteria from PLAN P15.
 
-### R8.0 — The universal checks (run every time)
+### R9.0 — The universal checks (every time)
 
 ```powershell
 npm.cmd run lint
 npm.cmd run test
 npm.cmd run build
-cargo fmt --manifest-path worker/Cargo.toml --all --check
-cargo clippy --manifest-path worker/Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path worker/Cargo.toml
+cargo fmt   --manifest-path api/Cargo.toml --all --check
+cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+cargo test  --manifest-path api/Cargo.toml
+docker build -t learn-and-play-api:ci api
 ```
 
-### R8.1 — M0: the games are untouched
+### R9.1 — M0: the container runs and the games are untouched
 
-Record the game routes **before** deploying, and compare **after**:
+Record the production routes **before** the cutover (they must not change until
+C13, and must be identical after it):
 
 ```powershell
 $routes = @('/', '/games/sound-labyrinth/', '/games/snakes-and-ladders/',
             '/games/shop/', '/games/word-fishing/', '/games/card-battle/',
             '/games/number-line-hop/')
-# before
 foreach ($r in $routes) { "$r`t" + (curl.exe -s -o NUL -w "%{http_code}" "https://play2learn.divanchyshyn.com$r") }
-# ... deploy ...
-# after: identical output
 ```
 
-Also confirm the production build still contains every published route:
+On the test hostname (through Access; add the service-token headers for a script):
 
 ```powershell
-Get-ChildItem dist/games -Directory | Select-Object -ExpandProperty Name
-Get-ChildItem dist/games -Recurse -Filter index.html | Select-Object -ExpandProperty FullName
+curl.exe -s -H "CF-Access-Client-Id: <id>" -H "CF-Access-Client-Secret: <secret>" `
+  https://test.play2learn.divanchyshyn.com/api/health
 ```
 
-**Pass:** all routes return the same status codes as before, and every game still
-has a `dist/games/<slug>/index.html`.
+**Pass:** the games load on both hostnames, `/api/health` returns JSON on the
+test hostname, and the production route table is unchanged.
 
-### R8.2 — M1: accounts
+### R9.2 — M1: the database
 
-- `POST /api/account` (via `Invoke-RestMethod`, R4.3) returns a code once.
-- Signing in again with the same code works; with a wrong code it fails with the
-  **same** shape of response.
-- `GET /api/me` is `signedIn: false` without the cookie and `true` with it.
-- `DELETE /api/session` then `GET /api/me` reports signed out.
-- `SELECT COUNT(*) FROM users` grew by exactly one per account created.
+- `cargo run -- migrate` against the test database applies `0001_init.sql` and
+  is a no-op on the second run.
+- `select count(*) from users` works and returns 0.
 
-### R8.3 — M2: sync, and the fail-open guarantee
+### R9.3 — M2: accounts
 
-- Play Sound Labyrinth on one browser profile, finish a picture, then sign in:
-  the gallery is uploaded (check `SELECT payload FROM progress`).
-- Sign in on a second browser profile: the gallery arrives, and the next run
-  collects a picture you had not seen (proof the `round` rebuild works).
-- **The fail-open test (the one that must never regress):** with the Worker
-  offline (or with DevTools set to offline), open each game and play.
-  **Every game must play exactly as before, and no error, spinner or delay may
-  appear anywhere.** If it does, stop and fix it before continuing.
+- `POST /api/account` returns a cookie; `/api/me` shows the username.
+- A wrong password and an unknown username produce the **same** body, status and
+  rough timing.
+- After N failures from one IP, the next attempt is a `429`.
+- `POST /api/password` keeps the current session and invalidates the others.
+- `DELETE /api/account` leaves zero rows in `users`, `sessions` and `progress`
+  for that id.
+- **Hash timing (this one decides the instance size):** the C8 log line for a
+  sign-in shows the argon2 duration. Under ~1.5 s on the `lite` instance is fine;
+  over that, change `instance_type` to `"basic"` in `wrangler.test.jsonc` (and in
+  the production config) and redeploy.
 
-### R8.4 — M3: all keys + the Pages decision
+### R9.4 — M3: progress, and the fail-open guarantee
 
-- `wordFishing:journal` and `cardBattle:album` sync and merge (catch a word on one
-  device, confirm it is in the book on the other).
-- If Pages was retired: the old `github.io` URL is gone by choice and the README
-  records it. If it was kept: the API works cross-origin, which means CORS headers
-  and cross-site cookies were verified deliberately.
+- Catch a word in Word Fishing on one browser profile, sign in, then sign in on a
+  **fresh** profile: the fishing book and the gallery are there.
+- Clear `localStorage` on a signed-in device, reload a game: it waits briefly and
+  then shows the saved progress (the gate doing its job).
+- Finish a picture in Sound Labyrinth offline, then come online: the picture
+  arrives in the other profile without losing what either side had.
+- **The fail-open test (the one that must never regress):** with the API stopped
+  (or DevTools set to offline), open every game and play.
+  **Every game must play exactly as before, with no error, spinner or delay
+  anywhere.** If it does not, stop and fix it before continuing.
 
-### R8.5 — M4: hardening
+### R9.5 — M4: production, backups and Pages
 
-- `DELETE /api/account` leaves zero rows in `users`, `credentials`, `sessions`,
-  `progress` for that id.
-- A huge payload is rejected; an unknown `record_key` is rejected; a stale push is
-  rejected.
-- `npm.cmd run test:coverage` does not fall below the baseline (see PLAN R9 / Q7
-  about the currently missing `docs/audit/BASELINE.md`).
+- All seven production routes return the same status codes as the recorded
+  table.
+- The production deploy needed an approval (check the workflow run).
+- A manual backup run produces a dump that restores into a scratch database
+  (R10).
+- With Pages set to None, the old `https://<user>.github.io/learn-and-play/` URL
+  no longer serves the site.
+- `npm.cmd run test:coverage` does not fall below `docs/audit/BASELINE.md`.
 
 ---
 
-## R9 — Rollback and recovery
+## R10 — Backup and restore
 
-### R9.1 — Decide what actually broke
+Neon's free tier has a short restore window, so C12 adds a nightly dump.
+
+### R10.1 — What runs
+
+`.github/workflows/backup.yml` (scheduled nightly and dispatchable by hand):
+
+```
+docker run --rm postgres:17 pg_dump "<DATABASE_URL>" | gzip > dump.sql.gz
+aws s3 cp dump.sql.gz s3://learn-and-play-backups/<env>/<date>.sql.gz
+```
+
+It needs GitHub secrets for the R2 S3 credentials
+(`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`), the bucket from
+H7, and a lifecycle rule that expires objects after ~30 days.
+
+### R10.2 — Restore into a scratch database
+
+```powershell
+docker compose up -d db
+docker exec -i <db container> psql -U postgres -c "create database restore_check;"
+docker run --rm -i postgres:17 psql "postgresql://postgres:postgres@host.docker.internal:5432/restore_check?sslmode=disable" `
+  < (aws s3 cp s3://learn-and-play-backups/prod/2026-10-05.sql.gz - | gzip -d)
+```
+
+(On Windows PowerShell, unpack first: `aws s3 cp … dump.sql.gz`, then
+`gzip -d dump.sql.gz`, then pipe the `.sql` into `psql`.)
+
+### R10.3 — Restoring for real
+
+1. Take a fresh Neon restore point if you can.
+2. Restore into a **new** database rather than overwriting production.
+3. Point `DATABASE_URL` at it, redeploy, and verify a sign-in before deleting
+   the old database.
+
+### ✅ Check
+
+A dump from the last 24 hours exists in R2, and the restore into the scratch
+database contains the expected row counts (`users`, `progress`).
+
+---
+
+## R11 — Rollback and recovery
+
+### R11.1 — Decide what actually broke
 
 | Symptom | Almost certainly |
 | --- | --- |
-| Games do not load at all | the **assets** side (`assets.directory`, or the worker build failed) — this is the serious one |
-| Games load, `/api/*` returns 500s | the Worker code or a bad migration |
-| Logins fail, everything else is fine | the two auth routes (CPU, secret, or D1) |
-| Nothing happens after the first deploy | the approval gate is still waiting — check the workflow run |
+| Games do not load at all | the **assets** side (`assets.directory`, or a failed Worker deploy) — the serious one |
+| Games load, `/api/*` returns 500s | the Rust service or a bad migration |
+| `/api/*` times out on the first request of the day | the container is cold-starting (1-3 s) or the database is waking — not a fault |
+| Sign-ins fail, everything else is fine | argon2 timing, a rotated `PEPPER`, or the database |
+| Nothing happens after a push to `main` | the approval gate is still waiting — check the workflow run |
+| The test hostname 404s | the test Worker has not been deployed since the last migration |
 
-Because `run_worker_first` scopes Rust to `/api/*`, "the site is down" should be
-almost impossible. If the whole site is down, you changed something in the
-`assets` block, and reverting that one key fixes it.
-
-### R9.2 — Roll the Worker back
+### R11.2 — Roll the Worker back
 
 ```powershell
-npx --yes wrangler@latest versions list --name learn-and-play
-npx --yes wrangler@latest rollback --name learn-and-play
+npx wrangler versions list --name learn-and-play
+npx wrangler rollback      --name learn-and-play
 ```
 
-A rollback restores the previous version **including its assets**, so it is the
-fastest way back to a known-good state.
+A rollback restores the previous version **including its assets**, which makes it
+the fastest way back to a known-good state. Note that it does **not** roll the
+container image back on its own: redeploy from the last good commit if the image
+itself is the problem.
 
-### R9.3 — Or revert in git
+### R11.3 — Or revert in git
 
 ```powershell
-git revert <commit>          # or git reset --hard <known-good> on your branch
+git revert <commit>      # or git reset --hard <known-good> on your branch
 git push
 ```
 
-Then approve the deploy as usual. Prefer this when the cause is a code change you
+then approve the deploy as usual. Prefer this when the cause is a code change you
 want to review before it comes back.
 
-### R9.4 — Remove the backend entirely
+### R11.4 — Remove the backend entirely
 
-1. `git revert` the `wrangler.jsonc` change and delete `worker/`.
-2. Deploy. The site returns to exactly today's static-only Worker.
-3. Optionally export the data first:
-   `npx --yes wrangler@latest d1 export learn-and-play --remote --output=backup.sql`
-4. Delete the D1 database in the dashboard once you are sure.
+1. Revert C13 (the `wrangler.jsonc` change) and delete `api/` and `edge/`.
+2. Deploy. The site returns to exactly today's static-only Worker, because game
+   pages never depended on the API.
+3. Export the database first if it holds anything worth keeping (R10).
+4. Delete the Neon database and the `learn-and-play-test` Worker once you are
+   sure.
 
-**The games never depended on the backend, so this is a clean removal.**
+### R11.5 — A bad migration
 
-### R9.5 — Bad migration
+1. Restore from the most recent dump, or use Neon's own restore.
+2. Fix forward with a **new** migration file. Never edit one that has been
+   applied: its checksum is recorded in `_sqlx_migrations`.
 
-1. `npx --yes wrangler@latest d1 time-travel info learn-and-play`
-2. `npx --yes wrangler@latest d1 time-travel restore learn-and-play --timestamp=<before the migration>`
-3. Fix forward with a **new** migration file. Never edit an applied migration —
-   the migrations table has already recorded it.
+### R11.6 — A lost password
 
-### R9.6 — Lost player code
+There is no recovery, by design (PLAN D8). If the account matters, the only path
+is a human with database access setting a new hash by hand — a deliberate,
+documented last resort, and the strongest argument for adding a recovery code
+later (PLAN P17, "deliberately out of scope").
 
-There is no recovery by design (no email, no PII). The account and its progress
-are still in D1; only the proof of ownership is gone. Document this plainly in the
-README (WP8) and treat it as the strongest argument for adding a passkey or an
-email identifier later (PLAN WP9).
+---
 
-## R10 — The CPU-budget experiment (before re-deciding the credential)
-
-Purpose: replace PLAN P7's estimates with **your** numbers, in **your** runtime.
-Only needed if you are tempted by email+password, or want to know your headroom.
-
-### R10.1 — Add a dev-only route
-
-```rust
-// TEMPORARY, dev-only. Remove before this reaches `main`.
-// GET /api/debug/hash?iterations=100000
-if req.path() == "/api/debug/hash" {
-    let iterations: u32 = req
-        .url()?
-        .query_pairs()
-        .find(|(k, _)| k == "iterations")
-        .and_then(|(_, v)| v.parse().ok())
-        .unwrap_or(10_000);
-
-    let start = Date::now().as_millis();          // wall clock, as a sanity check
-    // ... run the computation (e.g. a PBKDF2/HMAC loop) `iterations` times ...
-    let elapsed = Date::now().as_millis() - start;
-
-    return Response::from_json(&serde_json::json!({
-        "iterations": iterations,
-        "wall_ms": elapsed,
-    }));
-}
-```
-
-### R10.2 — Deploy it somewhere harmless
-
-Do **not** test this on the production domain. Use a preview deployment, which
-gets its own `*.workers.dev` URL:
-
-```powershell
-npx --yes wrangler@latest versions upload --name learn-and-play
-```
-
-### R10.3 — Measure CPU time, not wall time
-
-Wall time includes queueing and I/O, so it only proves "not absurd". The number
-that matters is **CPU time**, which Cloudflare reports:
-
-```powershell
-npx --yes wrangler@latest tail learn-and-play --format pretty
-```
-
-and in the dashboard: **Workers & Pages → your Worker → Metrics** (CPU time per
-request) plus **Logs**. Hit the endpoint several times with different `iterations`
-values and read the CPU time off the run.
-
-### R10.4 — Read the result
-
-| Observation | Conclusion |
-| --- | --- |
-| 10,000 iterations is already well over 10 ms of CPU | confirmed: passwords are off the table on Free |
-| ~100,000 iterations lands comfortably under 10 ms | a password KDF with a real work factor may fit — revisit Path 1 |
-| anything over the line is reported as `Error 1102` | that is the ceiling failing, and it is a hard failure |
-
-### R10.5 — Remove the route
-
-Delete it before merging. A debug endpoint that computes arbitrary hashes should
-not survive into production.
-
-## R11 — Troubleshooting
+## R12 — Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `cargo: command not found` | PATH not refreshed after rustup | close and reopen the terminal |
-| `can't find crate for 'std' ... wasm32` | missing target | `rustup target add wasm32-unknown-unknown` |
-| `worker-build: command not found` | not installed | `cargo install worker-build --locked` (R0.4) |
-| `wasm-opt` download fails | proxy / network / Windows | retry; the bundle is still valid without it, and CI on ubuntu is the authority |
-| `cargo test` fails to link | MSVC build tools missing | R0.1, then reopen the terminal |
-| `/api/health` 404 in production | `run_worker_first` or `main` wrong | re-check R2.3 and R3.3 |
-| `/api/health` 404 locally | `dist/` not built, or the path does not match | `npm.cmd run build`; confirm the path is exactly `/api/health` |
-| Games 404 after deploying | `assets.directory` broken | restore `"./dist"`; run R8.1 immediately |
-| `Worker exceeded CPU time` (1102) | the 10 ms ceiling | R10; simplify the route, or revisit the credential decision |
-| Cookie not sent by the browser | `SameSite` / `Secure` / path mismatch | `SameSite=Lax`, `Secure`, `Path=/`; browsers allow `Secure` on `localhost` |
-| Cookie not sent cross-origin | the GitHub Pages origin | retire Pages (R14), or add CORS + `SameSite=None` deliberately |
-| `no such table: users` | migration applied to the wrong database | `--local` vs `--remote` mismatch; R5 |
-| D1 authorization error in CI | the token lacks a D1 permission | R1.3 |
-| Deploy job: environment not found | the environment exists without reviewers | R1.4 — check the protection rules |
-| Deploy fails, no Rust available | `build.command` runs `worker-build` | R7.2 step 2 |
-| A game shows an error when the API is down | **a real bug** | R8.3's fail-open rule; sync must swallow every failure |
-| Rust tests pass locally, fail in CI | toolchain drift | `worker/rust-toolchain.toml`, and match the CI channel |
-| Coverage dropped after adding files | new `src/shared/*` modules are untested | PLAN P13's coverage caveat, PLAN Q7 |
+| `docker: failed to connect … dockerDesktopLinuxEngine` | Docker Desktop is not running | start it (R0.2) |
+| `error: linker 'link.exe' not found` | MSVC build tools missing | install "Desktop development with C++" (R0.1) |
+| `cargo test` cannot connect | Postgres not running | `docker compose up -d db` (R5.1) |
+| `relation "users" does not exist` | migrations not applied to *this* database | `cargo run -- migrate` with the right `DATABASE_URL` (R6) |
+| `/api/health` 404 on the deployed hostname | `run_worker_first`, `main`, or the route is wrong | re-check `wrangler.test.jsonc` / `wrangler.jsonc`, then `--dry-run` |
+| `/api/health` 404 locally | `dist/` not built, or the path does not match | `npm.cmd run build`, and check the exact path |
+| Games 404 after a deploy | `assets.directory` broken | restore `"./dist"` and run R9.1 immediately |
+| The container never becomes healthy | the process does not listen on the configured port, or crashes on missing env | check `wrangler tail`; the app must start with no `DATABASE_URL` and report `db: "unconfigured"` |
+| The first request of the day takes seconds | cold start (1-3 s) plus a database wake | expected; raise `sleepAfter` if it annoys you, and watch the cost |
+| `429` on sign-in that never clears | the rate limiter is doing its job | wait out the window, or clear `auth_attempts` for that key |
+| Cookie never arrives in the browser | `Secure`/`__Host-`/path mismatch | the cookie is `__Host-lap_sid`: `Secure`, `Path=/`, no `Domain`, HTTPS (or localhost) |
+| Cookie is set but not forwarded | the Durable Object dropped `Set-Cookie` | the C8 acceptance check covers this; if it happens, copy `Set-Cookie` explicitly in the front door |
+| CI: `cargo test` fails only in CI | toolchain or service-container drift | check `api/rust-toolchain.toml` and the `services:` block in `ci.yml` |
+| CI: the image build times out | a cold cargo build in the image | confirm the layer cache step and `cargo-chef` stages are intact |
+| Deploy: `wrangler` cannot find Docker | the runner lacks the daemon | `ubuntu-latest` has it; a self-hosted runner needs it installed |
+| Deploy: authorization error on the image push | the token lacks the container permission | R2.2 |
+| Coverage dropped | new `src/shared/*` or `src/account/*` modules are untested | PLAN P13; the baseline is in `docs/audit/BASELINE.md` |
+| Access keeps asking for a code | the session expired, or a second policy wrote a shorter duration | Zero Trust → the application → session duration (R3.2) |
 
-## R12 — Command cheat sheet
+---
 
-### Rust (run from the repository root)
-
-```powershell
-cargo test --manifest-path worker/Cargo.toml                 # all tests
-cargo test -p core                                           # just the pure logic
-cargo clippy --manifest-path worker/Cargo.toml --all-targets -- -D warnings
-cargo fmt --manifest-path worker/Cargo.toml
-cargo build --manifest-path worker/crates/app/Cargo.toml --target wasm32-unknown-unknown --release
-```
-
-### Local development
+## R13 — Command cheat sheet
 
 ```powershell
-npm.cmd run build                       # build dist/ (unchanged)
-npx --yes wrangler@latest dev           # dist/ + /api on :8787 with a local D1
-npx --yes wrangler@latest dev --remote  # same, against the REAL D1 (careful)
-```
-
-### D1
-
-```powershell
-npx --yes wrangler@latest d1 list
-npx --yes wrangler@latest d1 migrations apply learn-and-play --local
-npx --yes wrangler@latest d1 migrations apply learn-and-play --remote
-npx --yes wrangler@latest d1 migrations list  learn-and-play --remote
-npx --yes wrangler@latest d1 execute learn-and-play --remote --command "SELECT COUNT(*) FROM users;"
-npx --yes wrangler@latest d1 export  learn-and-play --remote --output=backup.sql
-npx --yes wrangler@latest d1 time-travel info learn-and-play
-```
-
-### Secrets and deploys
-
-```powershell
-npx --yes wrangler@latest secret put PEPPER --name learn-and-play
-npx --yes wrangler@latest secret list --name learn-and-play
-npx --yes wrangler@latest versions upload --name learn-and-play   # preview URL
-npx --yes wrangler@latest versions list   --name learn-and-play
-npx --yes wrangler@latest rollback        --name learn-and-play
-npx --yes wrangler@latest tail            --name learn-and-play --format pretty
-```
-
-### The project's own gates (unchanged, plus Rust)
-
-```powershell
+# the project's own gates
 npm.cmd run lint
 npm.cmd run test
 npm.cmd run test:coverage
 npm.cmd run build
+
+# Rust
+cargo fmt    --manifest-path api/Cargo.toml --all --check
+cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+cargo test   --manifest-path api/Cargo.toml
+cargo run    --manifest-path api/Cargo.toml -- migrate
+docker build -t learn-and-play-api:ci api
+
+# local stack
+docker compose up -d db
+npx wrangler dev --config wrangler.test.jsonc
+npx wrangler dev                      # production config, once C13 exists
+npx wrangler tail --name learn-and-play --format pretty
+
+# deploys and secrets
+npx wrangler deploy --config wrangler.test.jsonc
+npx wrangler deploy --dry-run
+npx wrangler secret put PEPPER --config wrangler.test.jsonc
+npx wrangler secret list --name learn-and-play
+npx wrangler versions list --name learn-and-play
+npx wrangler rollback      --name learn-and-play
+
+# database
+docker run --rm -it postgres:17 psql "<connection string>" -c "\dt"
+docker run --rm -it postgres:17 psql "<connection string>" -c "select count(*) from users;"
 ```
 
-## R13 — Permissions: letting the coding agent work on Rust
+---
+
+## R14 — Permissions: letting the coding agent work on Rust
 
 `opencode.json` currently allows the agent only `npm ci`, `npm run lint`,
-`npm run test*`, `npm run build` and read-only git. Without a change, the agent
-**cannot run `cargo test`** and therefore cannot work on the backend at all.
+`npm run test*`, `npm run build` and read-only git. Without a change the agent
+**cannot run `cargo test`** and therefore cannot work on `api/` at all.
 
-### R13.1 — The addition (PLAN Q5)
+### R14.1 — The addition (C4)
 
 In `opencode.json` → `agent.build.permission.bash`:
 
 ```jsonc
-"cargo test*": "allow",
-"cargo clippy*": "allow",
-"cargo fmt*": "allow",
+"cargo test*":  "allow",
 "cargo check*": "allow",
+"cargo clippy*": "allow",
+"cargo fmt*":   "allow",
 "cargo build*": "allow"
 ```
 
-Deliberately **not** allowed:
+Deliberately **not** allowed: anything that deploys (`wrangler deploy`,
+`wrangler secret put`), `cargo install*` (it fetches and runs third-party build
+scripts), and anything touching `.env` / `.dev.vars`. The allowlist stays
+deny-by-default: if a task needs something outside it, the agent stops and
+explains.
 
-- anything that deploys (`wrangler deploy`, `wrangler d1 migrations apply --remote`),
-- `cargo install*` (it fetches and executes third-party build scripts),
-- anything touching `.env` / `.dev.vars`.
+### R14.2 — Update the documents that describe it
 
-The allowlist stays deny-by-default. If a task needs something outside it, the
-agent stops and explains — that is by design, not a workaround.
-
-### R13.2 — Update the docs that describe it
-
-- `docs/agent-pipeline.md` — the paragraph listing the allowed shell commands.
-- `AGENTS.md` → *Agent pipeline* — the same list, if it names one.
-
-### ✅ Check
-
-`cargo test` appears in the allowlist, `wrangler` appears nowhere, and both
-documents agree with the file.
-
-## R14 — Documentation edits (WP0, WP8)
-
-These edits are what make the change *honest*. A code change that leaves the docs
-claiming "the app is fully static" is an unfinished change by this repo's own
-rules.
-
-### R14.1 — `AGENTS.md`: replace the static-only rule
-
-Current text (under *Stack and deployment*):
-
-> *"Keep the app fully static: no server-side rendering, no API dependencies, no
-> runtime secrets. Adding an `/api/*` route, a datastore binding, or anything the
-> browser needs at runtime is an amendment to this rule, agreed deliberately,
-> never an implementation detail."*
-
-Ready-to-paste replacement:
-
-```markdown
-- The games are fully static: no server-side rendering, no API dependency, no
-  runtime secret, and nothing the browser needs in order to play. A game page is
-  served by Cloudflare's asset router and never invokes the Worker script, so a
-  game cannot be broken by the backend.
-- Accounts and cross-device progress are a deliberate, human-agreed exception,
-  added after this rule was written. They live behind `/api/*` on the same Worker
-  (`run_worker_first: ["/api/*"]`), in `worker/` (Rust, compiled to WebAssembly)
-  with a D1 database, and behind one runtime secret (the HMAC pepper). What this
-  costs: the site now has a database, a second deploy step (migrations), a
-  credential to protect, and sync code that can lose progress if it is wrong.
-  What it does not cost: the games. Sync is fail-open by rule — a game must keep
-  working, unchanged, with the backend entirely down — and the games' stored
-  values win for anything still in progress.
-- `localStorage` remains the source of truth for play. The API is a mirror: only
-  durable achievements sync, the client merges with the game's own codec, and an
-  in-progress session or a mute setting never leaves the device.
-- Do not add a third-party runtime dependency (an auth service, an email sender,
-  a datastore) without a human decision. The current choice is a player code
-  (a high-entropy "spillkode"), which is free-tier safe; email + password does not
-  fit the Workers Free 10 ms CPU budget and needs a paid plan.
-```
-
-### R14.2 — `AGENTS.md`: structure, testing, definition of done, deployment
-
-- **Structure block:** add `worker/` (workspace root, `crates/core` pure logic,
-  `crates/app` the Worker, `migrations/`), `docs/backend/PLAN.md`,
-  `docs/backend/RUNBOOK.md`, and the new shared modules
-  `src/shared/api.js|syncable.js|sync.js|account.js`.
-- **Testing section:** add that pure backend logic lives in `worker/crates/core`
-  and is covered by `cargo test` on the host target, that the `app` crate stays
-  thin on purpose, and that the fail-open behaviour has a test.
-- **Definition of done:** `cargo fmt --check`, `cargo clippy -- -D warnings` and
-  `cargo test` join `npm run lint/test/build`, and a change that adds a synced key
-  must update `src/shared/syncable.js` **and** the Worker's key allowlist.
-- **Deployment section:** `wrangler deploy` now compiles Rust and applies D1
-  migrations before deploying; the `cloudflare-production` reviewer gate is
-  unchanged.
-
-### R14.3 — `README.md`
-
-- The account feature in one honest paragraph: what an account is (a player code),
-  what syncs (achievements), what does not (in-progress sessions, mute settings),
-  and that **a lost code cannot be recovered by design**, because no email or other
-  personal data is stored.
-- The new `/api/*` surface and where the backend lives.
-- The privacy paragraph (R14.5).
-- The game list and routes table stay as they are.
-
-### R14.4 — `wrangler.jsonc` comments
-
-Replace the "Growing later: an `/api/*` route means…" note with a description of
-what is actually configured: the Worker script, `run_worker_first: ["/api/*"]`, the
-D1 binding — and keep the note that the custom domain is attached in the dashboard
-and not in the repository.
-
-### R14.5 — The privacy note (WP8)
-
-Keep it short and true:
-
-- no names, no birthdays, no email addresses, no analytics;
-- an account is a uuid, a timestamp, a hashed player code, and the games' own
-  progress blobs;
-- the blobs are the same values a game already stores on the device, and they
-  contain no personal data;
-- `DELETE /api/account` erases the account, its credential, its sessions and all
-  its progress in one step.
-
-### R14.6 — The GitHub Pages decision
-
-`deploy-pages.yml` publishes a build that **cannot** reach `/api/*` (different
-origin). Choose one and write the choice down:
-
-| Choose | Then |
-| --- | --- |
-| **Retire it** (recommended, and already anticipated by the README) | delete `.github/workflows/deploy-pages.yml`, remove the `github.io` paragraph from the README, and record that the old URLs were retired deliberately |
-| **Keep it** | point the build at the API with `VITE_API_BASE=https://play2learn.divanchyshyn.com`, add CORS headers for the `github.io` origin, and set the cookie `SameSite=None; Secure` — then verify that a cross-site login actually works, because this is the fragile path |
+- `docs/agent-pipeline.md` — the guardrails table and the allowed-command list.
+- `AGENTS.md` → *Agent pipeline* — the same list.
+- `.opencode/agents/review.md` — the reviewer may run `cargo test`, `cargo
+  clippy` and `cargo fmt --check`, and its security bullet must stop describing
+  the project as "fully static, no backend".
 
 ### ✅ Check
 
-- No document in the repo still claims the app is purely static, unqualified.
-- The costs listed in PLAN P3 appear in some form in `AGENTS.md`.
-- The README explains what an account is and that the code cannot be recovered.
+`cargo test` appears in the allowlist, `wrangler` appears nowhere in it, and all
+three documents agree with the file.
 
 ---
 
 ## Where to start, in one paragraph
 
-If you are picking this up cold in a new session: read `PLAN.md` **P2**, **P7**,
-**P11** and **P15**, then start at **R0**. Do **R0 → R1 → R2 → R3 → R4** and stop.
-That gets you M0: a Rust Worker answering `/api/health` on the real domain, with
-every game page provably unchanged — a complete, valuable, zero-risk experiment
-that will also tell you whether Rust-on-Workers is pleasant for you. Only then
-continue to R5/R6 (D1 + accounts) and beyond.
-
+Read `PLAN.md` **P2**, **P7**, **P10** and **P11**, then do **R0 → R1 → R2**
+(Neon and Cloudflare are the only steps nobody can do from the repository), and
+start at **C3**. Stop after **C6** and check R9.1: a Rust container answering
+`/api/health` on `test.play2learn.divanchyshyn.com`, behind Access, with every
+game page provably unchanged. That is M0 — a complete, valuable, zero-risk
+result that also tells you whether this stack is pleasant to work in before any
+account logic exists.

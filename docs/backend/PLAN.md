@@ -1,88 +1,113 @@
-# Backend plan — accounts and cross-device progress (Rust + Cloudflare)
+# Backend plan — username accounts and database progress (Rust container + Postgres)
 
-> **Status: PLANNED, not built.** Nothing in this document has been implemented.
-> The games and the deploy pipeline are exactly as they were.
+> **Status: PLANNED, not built.** Nothing in this document exists in the code
+> yet: the site is still static, and every game still saves to `localStorage`
+> only. This document was rewritten from scratch after the project owner bought
+> **Workers Paid**; it replaces the earlier free-tier plan entirely.
 >
-> **Companion document:** [`RUNBOOK.md`](./RUNBOOK.md) — the hands-on, copy-paste
-> steps (installs, Cloudflare config, migrations, deploy, rollback, troubleshooting).
-> This file is the *why*; the runbook is the *how*. Every work package below names
-> the runbook steps that carry it out.
+> **Companion document:** [`RUNBOOK.md`](./RUNBOOK.md) — the hands-on steps
+> (installs, Neon and Cloudflare setup, Access, secrets, migrations, deploy,
+> rollback, troubleshooting). This file is the *why*; the runbook is the *how*.
 
 ## How to use these two documents
 
 | If you want to… | Read |
 | --- | --- |
-| Know what was decided and why | P1 – P2 |
-| Understand what it costs and what rule it amends | P3 |
+| Know what changed since the free-tier plan | P1 |
+| Know what was decided | **P2** |
+| Understand what this costs the project's rules | P3 |
 | Know the repo's exact starting point | P4 |
 | See the options that were rejected | P5 |
 | Understand the platform limits you are designing inside | P6 |
-| Understand the single most important constraint (CPU time) | **P7** |
-| See the target architecture and file layout | P8 |
-| See the account/credential design | P9 |
-| See the database schema and HTTP API | P10 |
+| Understand the account and hashing decisions | P7 |
+| See the architecture and file layout | P8 |
+| See the identity, session and credential design | P9 |
+| See the database schema and HTTP API | **P10** |
 | See what syncs, what never syncs, and how conflicts resolve | **P11** |
 | See what changes in the frontend | P12 |
 | See the test plan | P13 |
-| See the CI/deploy changes | P14 |
+| See CI, the test environment and the production cutover | **P14** |
 | **Start working** | P15 (work packages) → `RUNBOOK.md` |
+| See what a human must do by hand | P18 |
 | Learn the Rust you will actually write | P19 |
 
 ## Contents
 
-- **P1** Purpose and status
+- **P1** Purpose, status, and what changed
 - **P2** Locked decisions
 - **P3** The amendment this makes to the project rules
 - **P4** Verified starting state of the repository
-- **P5** Options considered, and why A won
-- **P6** Cloudflare platform facts and free-tier limits
-- **P7** Decision record: the 10 ms CPU limit, and why the credential is a player code
-- **P8** Architecture (Option A)
-- **P9** Identity and session model
+- **P5** Options considered, and why the chosen two won
+- **P6** Platform facts and limits (Workers Paid, Containers, Access, R2, Neon)
+- **P7** Decision record: password accounts, no recovery, and argon2id on `lite`
+- **P8** Architecture
+- **P9** Accounts, credentials and sessions
 - **P10** Data model and HTTP API
-- **P11** Progress sync: what syncs, what never syncs, how conflicts resolve
+- **P11** Progress: what syncs, how it merges, how it never breaks a game
 - **P12** Frontend integration
 - **P13** Testing strategy
-- **P14** CI and deployment changes
-- **P15** Work packages WP0 – WP9 (with acceptance criteria)
-- **P16** Milestones M0 – M4
+- **P14** CI, the test environment, and the production cutover
+- **P15** Work packages C1 – C15 (one commit each)
+- **P16** Milestones
 - **P17** Risks, failure modes and rollback
-- **P18** Open decisions that need a human
+- **P18** Human checkpoints
 - **P19** Rust primer for this project
 - **P20** Glossary and references
 - **P21** Revision log
 
 ---
 
-## P1 Purpose and status
+## P1 Purpose, status, and what changed
 
-**Goal.** A child (or their parent) can create an account and have their progress
-in every game follow them to another device, instead of living only in one
-browser's `localStorage`. Secondary goal, stated by the project owner: this is
-the vehicle for **learning Rust**.
+**Goal.** A child (or their parent) can create an account with a username and a
+password, and their progress follows them to another device, where the
+**database is the record** and `localStorage` becomes a cache. Secondary goal,
+stated by the project owner: this is the vehicle for **learning Rust**.
 
-**Status.** Planned. Design agreed; zero lines written. The branch
-`feature/rust-backend` exists and currently sits on the same commit as `main`
-with a clean working tree.
+**Status.** Planned. Design agreed, zero lines written.
 
-**Non-goals.** No server-side rendering. No third-party auth service. No
-real-time features. No leaderboards. No social features. No analytics. No names,
-birthdays or other personal data about children.
+**What changed from the previous revision of this document.**
+
+| Previous plan | This plan | Why |
+| --- | --- | --- |
+| Cloudflare Workers **Free**, 10 ms CPU per request | Workers **Paid** (30 s default, 5 min maximum per request) | The owner upgraded |
+| The credential had to be a high-entropy player code, because a password hash cannot fit in 10 ms | **Username + password**, hashed with argon2id | The CPU ceiling that forced the compromise is gone |
+| Rust compiled to WebAssembly inside the Worker isolate | A **normal Rust binary (axum) in a Cloudflare Container** | Owner's choice; a real Rust service, not a WASM shim |
+| Email + password with verification and reset (chosen mid-session, then dropped) | **No email at all** | Owner's adjustment: no provider, no DNS work, no personal data, and therefore no password recovery |
+| Progress mirrored *from* `localStorage`; local play always won | **Postgres is the record**; `localStorage` is a write-through cache; a game waits for the server only when this device has nothing cached | Owner's requirement: progress lives in the database |
+| GitHub Pages published the same build as a second host | **Pages is retired** | A same-origin API cannot exist on `github.io` |
+| Production only | **Plus a test environment** at `test.play2learn.divanchyshyn.com`, deployed automatically from pull requests and gated by Cloudflare Access | Owner's request |
+
+**Non-goals.** No server-side rendering. No third-party identity provider. No
+avatars, leaderboards, sharing, chat or social features. No analytics. No
+names, birthdays, email addresses or any other personal data. No password
+recovery, by design (P7).
+
+---
 
 ## P2 Locked decisions
 
 | # | Decision | Choice |
 | --- | --- | --- |
-| D1 | Where the backend runs | Cloudflare Workers, **Workers Free plan** |
-| D2 | Backend language | **Rust**, via `workers-rs` (Workers supports Rust through WebAssembly) |
-| D3 | Datastore | **D1** (SQLite). Not KV — see P6 |
-| D4 | API shape | Same-origin `/api/*` on the existing Worker, via `run_worker_first: ["/api/*"]` |
-| D5 | Credential | **Player code** (a high-entropy "spillkode"), with the schema built so email+password or a passkey can be added later **without a rewrite** ("Path 4") |
-| D6 | Session | Server-side row, `HttpOnly` cookie |
-| D7 | What syncs | Durable achievements only; in-progress sessions and mute settings stay device-local |
-| D8 | Who merges | The **client**, using the game's own existing codec; the server is a size-capped, timestamp-stamped store |
-| D9 | Worker name | Reuses `learn-and-play`, so the domain, the assets and the approval gate are untouched |
-| D10 | Failure behaviour | **Fail-open.** A network failure must never be visible in a game and must never block play |
+| D1 | Where the backend runs | A **Cloudflare Container**, `instance_type: "lite"` (1/16 vCPU, 256 MiB, 2 GB disk), `max_instances: 1`, `sleepAfter: "10m"` |
+| D2 | Backend language and stack | **Rust**: `axum` 0.8, `tokio`, `sqlx` 0.9, `argon2` 0.6, `tower-http`, `tracing` |
+| D3 | How the browser reaches it | A small **Worker front door** (`edge/`, JavaScript) that owns the container's Durable Object and serves `dist/` as static assets; only `/api/*` invokes code |
+| D4 | Datastore | **Postgres on Neon** (free tier), reached over TCP with sqlx; nightly `pg_dump` to R2 |
+| D5 | Credential | **Username + password.** Username 3-20 chars `[A-Za-z][A-Za-z0-9_-]*`, unique case-insensitively; password 8-128 bytes, any characters |
+| D6 | Password storage | **argon2id**, OWASP parameters m = 19456 KiB, t = 2, p = 1, plus a server-side pepper (`Argon2::new_with_secret`) |
+| D7 | Session | 256-bit random token in a `__Host-lap_sid` cookie (`HttpOnly; Secure; SameSite=Lax; Path=/`); only `sha256(token)` is stored; rolling expiry of 12 months; `Origin` check on every state-changing request |
+| D8 | Recovery | **None.** A forgotten password loses the account. Sessions are long-lived to make that rare, and the UI says so plainly |
+| D9 | What syncs | Durable achievements only: `soundLabyrinth:gallery`, `wordFishing:journal`, `cardBattle:album` |
+| D10 | What never syncs | In-progress sessions (`soundLabyrinth:progress`, `soundLabyrinth:game`, `wordFishing:trip`) and every `<game>:muted` setting |
+| D11 | Who merges | The **client**, with the games' own codecs and monotonic union rules; the server is a size-capped, revision-stamped record store |
+| D12 | Conflict rule | Per-record optimistic revision (`baseRevision`); a losing write returns the server row as a conflict, the client merges and retries once |
+| D13 | Failure behaviour | **Fail-open.** No account and no network must never be visible in a game: not signed in means no requests at all, and a dead or slow API means the game renders from cache |
+| D14 | Test environment | A second Worker `learn-and-play-test` (`wrangler.test.jsonc`) on `test.play2learn.divanchyshyn.com`, its own database and secrets, deployed automatically from same-repo pull requests, behind Cloudflare Access |
+| D15 | Production | Unchanged trigger and gate: push to `main`, then the `cloudflare-production` environment's required reviewers approve the deploy |
+| D16 | GitHub Pages | Retired: the workflow is deleted **and** the Pages source is set to None in repository settings |
+| D17 | Secrets | Per environment, set with `wrangler secret put`; `.dev.vars` and `.env` stay gitignored and never enter the repository |
+
+---
 
 ## P3 The amendment this makes to the project rules
 
@@ -93,47 +118,51 @@ birthdays or other personal data about children.
 > browser needs at runtime is an amendment to this rule, agreed deliberately,
 > never an implementation detail."*
 
-This plan **is** that deliberate amendment. It is not an accident and it is not
-free. What it costs, stated plainly:
+This plan **is** that deliberate amendment, agreed by the owner. It is not free.
+What it costs, stated plainly:
 
-1. **The site is no longer stateless or purely static.** A Worker script now runs
-   for `/api/*`, D1 holds data, and that data can be lost or corrupted by a bug
-   in code that did not exist before.
-2. **A runtime secret now exists** (the HMAC pepper, `wrangler secret put PEPPER`),
-   plus a `.dev.vars` file that must stay gitignored.
-3. **The deploy grows a second moving part.** `wrangler deploy` now also compiles
-   Rust, and a database migration step runs before the deploy.
-4. **A dependency on a third party's availability is introduced**, in a new
-   sense: accounts stop working if the backend is misconfigured — although every
-   game keeps working, which is what P2/D10 buys us.
+1. **The site is no longer stateless or purely static.** A container runs Rust
+   for `/api/*`, Postgres holds accounts and progress, and a bug in code that
+   did not exist before can lose a child's progress.
+2. **Runtime secrets now exist**: the database URL and the argon2 pepper, per
+   environment, plus an R2 credential for backups.
+3. **Three new third-party dependencies** enter the project: Cloudflare
+   Containers (inside the existing paid plan), a Neon Postgres database, and an
+   R2 bucket for backups. There is deliberately **no** email provider.
+4. **The deploy grows two moving parts.** `wrangler deploy` now builds and
+   pushes a container image, and a database migration runs before it.
 5. **The definition of done grows.** `npm run lint` is no longer the whole of
-   "lint" — `cargo fmt --check` and `cargo clippy` join it.
+   "lint": `cargo fmt --check`, `cargo clippy -- -D warnings` and `cargo test`
+   join it, along with a `docker build`.
+6. **A second hostname becomes publicly reachable** (`test.play2learn…`),
+   protected by Cloudflare Access rather than by obscurity.
 
-The compensating controls are in P11 (fail-open sync, client-side merge),
-P13 (tests that pin them) and P17 (rollback).
+What it does **not** cost: the games. Game pages are still served by
+Cloudflare's asset router and never invoke any code, the games' components do
+not change, and sync is fail-open by rule (P11), so a total backend failure
+degrades to "accounts do not work" and never to "the games do not load".
+
+**Privacy.** The previous plan's strongest property survives: there is still no
+personal data. An account is a UUID, a username chosen by the child, an
+argon2id hash, and the games' own progress blobs. No email address is collected
+precisely because there is no email feature to need one.
 
 ---
 
 ## P4 Verified starting state of the repository
 
-Everything here was checked on the branch `feature/rust-backend` before writing
-this document. Line numbers and file paths are real.
+Checked on the branch `feature/rust-backend` before writing this document.
 
 **Deployment**
 
 - `wrangler.jsonc` — `name: learn-and-play`, `assets.directory: ./dist`, and
-  **no `main`**: Cloudflare serves `dist/` itself, there is no Worker script.
-  Lines 16-18 already anticipate this exact change: *"an `/api/*` route means
-  adding a `main` entry point plus a binding (D1 for a database, KV for config)
-  and `run_worker_first: [\"/api/*\"]`."*
+  **no `main`**: Cloudflare serves `dist/` itself; there is no Worker script.
 - `.github/workflows/deploy-cloudflare.yml` — a `verify` job (`npm ci` → lint →
-  test → build → uploads `dist/` as an artifact) then a `deploy` job behind the
+  test → build → uploads `dist/`) then a `deploy` job behind the
   `cloudflare-production` environment's required reviewers, using
-  `cloudflare/wrangler-action@v4` with `CLOUDFLARE_API_TOKEN` /
-  `CLOUDFLARE_ACCOUNT_ID` and `command: deploy`.
-- `.github/workflows/deploy-pages.yml` — publishes the same build to GitHub Pages
-  automatically, no approval. `README.md` says to retire it once the custom
-  domain is verified.
+  `cloudflare/wrangler-action@v4`.
+- `.github/workflows/deploy-pages.yml` — publishes the same build to GitHub
+  Pages automatically, with no approval. This plan retires it (D16).
 - `.github/workflows/ci.yml` — on every push and PR: `npm ci`, lint, test, build.
   Node 22, `actions/checkout@v7`, `actions/setup-node@v7`.
 - `.gitignore` — `node_modules/`, `dist/`, `.wrangler/`, `coverage/`.
@@ -141,10 +170,11 @@ this document. Line numbers and file paths are real.
 **Persistence today**
 
 - `src/shared/persistence.js` — `readStorage` / `writeStorage` / `removeStorage`
-  / `migrateStorage`. Every operation is best-effort and swallows failures on
+  / `migrateStorage`; every operation is best-effort and swallows failures on
   purpose: *"a full or locked store is not the child's problem."*
 - `src/shared/usePersistentState.js` — `useState` + read on mount + write on
-  change, through a per-game `codec` (`parse` / `serialize`).
+  change, through a per-game `codec` (`parse` / `serialize`). The read happens
+  **at mount**, which is why P11 needs a hydration gate before a game mounts.
 - Storage keys in use:
 
   | Key | Shape | Kind |
@@ -158,772 +188,669 @@ this document. Line numbers and file paths are real.
   | `<game>:muted` | `'0'` / `'1'` | sound preference |
 
 - `src/games/sound-labyrinth/progress.js` — the three codecs, plus the comment
-  that draws exactly the line D7 relies on: *"that reset clears the piece
+  that draws exactly the line D9/D10 rely on: *"that reset clears the piece
   session, never the pictures the child has seen."*
-- `src/games/sound-labyrinth/puzzle.js` — the pure puzzle rules, already exported
-  and React-free: `nextImageIndex`, `createPuzzleSession`, `earnPiece`,
-  `placePiece`, `recallPiece`, `isBoardFull`, `isPuzzleCorrect`. P11 reuses these.
+- `src/games/sound-labyrinth/puzzle.js` — pure puzzle rules, already exported
+  and React-free: `recordSeenImage` and friends are what the gallery merge
+  replays (P11).
 - `src/games/word-fishing/journal.js`, `src/games/card-battle/album.js` — the
-  achievement codecs.
-- `progress.js` also calls `migrateStorage('lydLabyrint:progress', …)` — the
-  precedent for "never lose a child's progress during a change".
+  achievement codecs and their monotonic record functions.
 
 **UI entry points**
 
 - `src/home/main.jsx` — the library page: a `GAMES` array of four visible tiles
-  plus a commented-out Card Battle tile. Natural home of the account panel (P12).
-- `src/shared/GameHeader.jsx` — back link + title pill, shared by every game.
+  plus commented-out hidden games. Natural home of the "Konto" link and of the
+  early sync pull.
+- Six page entry points, each a seven-line `createRoot(...).render(<Game />)`
+  file: `src/games/<slug>/main.jsx`. These are the only game-side files this
+  plan touches, and only to wrap the component in `SyncGate`.
 - `vite.config.js` — `discoverGameEntries()` auto-discovers every
-  `games/*/index.html`; the home `index.html` is an explicit entry.
-  `test.testTimeout: 20000`; coverage `include: ['src/**/*.{js,jsx}']`, excluding
-  test files, `src/test/**` and every `src/**/main.jsx`.
+  `games/*/index.html`; the home `index.html` is an explicit entry (the new
+  `account/index.html` becomes a second explicit entry).
+- `eslint.config.js` — browser globals and React rules only for `src/**`; a new
+  `edge/**` block with Worker globals is required (C5).
 
 **Tooling and machine**
 
-- `.github/workflows/`: `ci`, `deploy-cloudflare`, `deploy-pages`, `codeql`,
-  `opencode`, `opencode-review`.
-- `opencode.json` — the coding agent's bash allowlist is deliberately narrow:
-  `npm ci`, `npm run lint`, `npm run test*`, `npm run build`, read-only git.
-  **`cargo` is not in it** (WP9).
-- `docs/agent-pipeline.md` exists. `docs/audit/BASELINE.md`, `PLAN.md` and
-  `SUMMARY.md` are **referenced by `AGENTS.md` and `README.md` but absent from
-  this working tree.** The coverage baseline therefore cannot currently be
-  checked (P13).
-- This machine: Node v24.15.0, npm 11.12.1. **Rust is not installed** (`cargo`,
-  `rustc`, `rustup` are all unrecognised) and **wrangler is not installed** — it
-  is used only in CI, through `wrangler-action`.
+- Rust **is** installed on this machine: `rustc`/`cargo` 1.99.0
+  (`stable-x86_64-pc-windows-msvc`), with Visual Studio 2022 Build Tools 18
+  present, so `cargo test` can link. The `wasm32-unknown-unknown` target is
+  **not** installed — and this plan does not need it.
+- `worker-build` and `wrangler` are not installed globally; `wrangler` becomes a
+  pinned devDependency (C5) so CI and the local machine agree.
+- Docker Desktop is installed but its daemon is not running. It is required for
+  `docker build`, the dev Postgres, and `wrangler dev` with a container (H1).
+- `docs/audit/BASELINE.md`, `PLAN.md` and `SUMMARY.md` are referenced by
+  `AGENTS.md` and `README.md` but **do not exist in git history**; the coverage
+  baseline is re-established in C2.
+- `opencode.json` allows the coding agent only `npm ci`, `npm run lint`,
+  `npm run test*`, `npm run build` and read-only git — `cargo` is not in it (C4).
 
 ---
 
-## P5 Options considered, and why A won
+## P5 Options considered, and why the chosen two won
 
-### A — Rust Worker (`workers-rs`) + D1, same-origin `/api/*`  ✅ **CHOSEN**
+### Runtime
 
-Cloudflare supports Rust by compiling it to WebAssembly (`workers-rs`), running on
-the same Workers runtime as JavaScript. `Cargo` → `wasm32-unknown-unknown` →
-`wasm-bindgen` → `worker-build` → `wrangler deploy`. The existing `wrangler.jsonc`
-gains `main`, `assets.binding: ASSETS`, `run_worker_first: ["/api/*"]` and a
-`d1_databases` binding; static assets keep being served exactly as today.
+**A. Rust in a Cloudflare Container, fronted by a Worker — ✅ CHOSEN.**
+`wrangler deploy` builds the image and pushes it; a Durable Object owns the
+container and proxies `/api/*` into it; everything else is still static assets
+served by the edge. A normal `axum` binary with normal tooling, `cargo test`
+against a real Postgres, and no WASM constraints. Costs: 1-3 s cold start after
+`sleepAfter`, an ephemeral container disk (irrelevant — the database is
+external), one extra deploy moving part (the image), and no direct access to
+Cloudflare bindings, which forces D4.
 
-**Pros** — free; reuses the pipeline that already exists (one deploy job, one
-required-reviewer gate); *all* backend code is Rust, so it genuinely teaches the
-language; `worker::d1` gives typed SQL from Rust; assets and API share an origin,
-so **no CORS and no cross-origin cookie problems**; the array form of
-`run_worker_first` means game page loads never execute Rust at all, so the free
-request budget is spent only on API calls.
+**B. Rust compiled to WebAssembly inside the Worker (workers-rs) + D1.**
+The community-standard Cloudflare-native pairing, and it would put the database
+one function call away (`env.DB`). Rejected by the owner in favour of a real
+Rust service; the CPU ceiling that once made WASM attractive is no longer a
+constraint either way.
 
-**Cons** — a second toolchain; the Rust-on-Workers ecosystem is smaller than
-JS-on-Workers (no `tokio`/`async_std`, some crates do not compile for
-`wasm32-unknown-unknown`, debugging is thinner); the **10 ms free CPU ceiling**
-rules out password hashing (P7); CI and the coding agent's allowlist need
-`cargo`; every deploy also needs a migration step.
+**C. A JS/TS Worker talking to a Rust→WASM library.** Lowest risk, but the
+backend stops being "written in Rust" and the owner asked for the real thing.
 
-### B — JS Worker + a Rust→WASM library + D1 (hybrid)
+### Datastore
 
-The Worker script is JS/TS (HTTP, cookies, D1); a Rust crate compiled with
-`wasm-pack` holds the *pure* logic (code generation, HMAC verification, payload
-validation, the merge), unit-tested with plain `cargo test`.
+**A. Postgres on a free serverless tier (Neon) — ✅ CHOSEN.** The container is
+an ordinary Linux process, so a normal TCP connection and `sqlx` work: real
+migrations, real SQL, real integration tests (`#[sqlx::test]`) against a
+throwaway database. Costs: a provider outside Cloudflare, 1 GB of storage,
+scale-to-zero after 5 minutes idle (a few hundred ms to wake), and a restore
+window short enough that a nightly `pg_dump` to R2 is part of the plan.
 
-**Pros** — lowest risk; Rust where the learning value is highest (pure functions,
-real `cargo test`, no WASM-in-the-Cloud quirks); the same crate could later run in
-the browser. **Cons** — two languages in one Worker; `wasm-bindgen` plumbing
-(`WebAssembly.Module` vs `Instance`, the `__wbg_set_wasm` patch) is a known rough
-edge; less "I built a backend in Rust".
+**B. Keep D1 and reach it from the container.** Containers cannot use Workers
+bindings — that is an architectural boundary, not a quota: bindings are objects
+the Workers runtime injects into an *isolate*, and D1 has no public SQL/TCP
+endpoint with which a foreign process could authenticate. The supported bridge
+is an **outbound handler** in the front-door Worker that intercepts the
+container's HTTP calls to a virtual hostname, so every query becomes a round
+trip through JavaScript. Cloudflare's own D1 REST API (`…/d1/database/…/query`)
+is a second route, but it needs an account-scoped D1 token inside the container.
+Both were rejected: the data layer would be partly JavaScript, un-testable from
+`cargo`, and slower, for the sole benefit of keeping data inside Cloudflare.
 
-> Kept as the fallback if WP1's spike (M0) fights the toolchain. **The schema, the
-> merge rules and the API surface in P10/P11 are identical either way** — only the
-> HTTP/cookie layer moves, so switching costs a day, not a rewrite.
+**C. SQLite in the container.** The container disk is ephemeral — a fresh disk
+from the image on every start — so this loses every account on the first sleep
+unless something replicates it out (Litestream-style, or an R2 FUSE mount that
+Cloudflare itself describes as not SSD-like). Rejected for accounts.
 
-### C — Cloudflare Access does the login; Rust only stores progress
-
-Access (Zero Trust) in front of `/api/*` only; the identity arrives as an
-authenticated header/JWT. **Pros** — essentially no auth code; Cloudflare handles
-recovery and identity providers; library pages stay public. **Cons** — identity
-and config live in the **dashboard, not the repo**, which cuts against this
-project's reviewable-everything habit; the frontend must handle Access's
-redirect-to-login flow inside a fetch-based app; Cloudflare's docs warn that with
-static assets present `ctx.access` is **not** passed to the user Worker; and the
-account feature then cannot work at all without a third-party identity service.
-(Free Zero Trust is commonly quoted at up to 50 users — **verify on the account**
-before committing.)
-
-### D — Rust (Axum/Actix) on Fly.io or Render + managed Postgres
-
-**Pros** — the best pure Rust learning: `axum`, `sqlx`, `tokio`, `argon2`, real
-servers, no WASM target, no 10 ms ceiling, passwords done properly.
-**Cons** — **not free.** Fly.io has no free allowance, requires a card, and bills
-per resource (smallest shared machines are low single-digit $/month; stopped
-machines still cost rootfs at $0.15/GB-month); there is a trial credit, not a
-free tier. Render's free web tier sleeps after ~15 minutes idle, so the first
-request of the evening takes tens of seconds — a bad first impression for a
-child. Plus a second deploy pipeline, host, backups, TLS and secrets, and the
-site stops being a one-command static deploy.
-
-### E — Rust→WASM in the browser only
-
-Teaches Rust, no backend, **but cannot give cross-device progress.** A side quest,
-not a solution.
-
-### Comparison
-
-| | Rust learning | Free? | Auth code to write | One deploy pipeline | Risk |
-| --- | --- | --- | --- | --- | --- |
-| **A. Rust Worker + D1** | ★★★★★ | ✅ (10 ms CPU) | yes | ✅ | medium |
-| B. JS Worker + Rust lib | ★★★★ | ✅ | yes | ✅ | low |
-| C. Access + Rust API | ★★★★ | ✅ | **none** | ✅ (config outside repo) | medium |
-| D. Rust on Fly/Render | ★★★★★ | ❌ ~$0-5/mo | yes | ❌ second pipeline | low tech / high ops |
-| E. Browser WASM | ★★★ | ✅ | n/a | ✅ | — no accounts |
+**D. Durable Object SQLite.** Lives on the Durable Object's side of the
+boundary, not on the container's; reaching it from Rust means inventing another
+RPC protocol. Rejected with B.
 
 ---
 
-## P6 Cloudflare platform facts and free-tier limits
+## P6 Platform facts and limits
 
-Figures taken from Cloudflare's docs (Workers *Limits*, *Pricing*; D1 *Pricing*,
-*Limits*; KV *Limits*; Durable Objects *Pricing*). **Re-check them before you
-commit to a design decision** — Cloudflare changes limits.
+**Re-check these before changing a decision — Cloudflare, Neon and GitHub all
+move.** Figures below were verified while writing this plan.
 
-### Workers
+### Workers Paid (the plan the owner is on)
 
-| Feature | Workers **Free** | Workers Paid ($5/month) |
+| Feature | Workers Paid |
+| --- | --- |
+| CPU time per HTTP request | **30 s default, 5 min maximum** |
+| Requests | unlimited (10 M/month included, then $0.30/M) |
+| CPU-ms included | 30 M/month, then $0.02/M |
+| Memory per isolate | 128 MB |
+| Subrequests per request | 10,000 |
+| Request body size | set by the zone plan (Free/Pro: 100 MB) |
+| Static asset requests | free and unlimited |
+
+CPU time is not wall time: waiting on the network (Neon, R2, the container) does
+not count. Static asset requests never invoke the Worker at all, because
+`run_worker_first` is scoped to `/api/*`.
+
+### Cloudflare Containers
+
+| Item | Value |
+| --- | --- |
+| Instance types | `lite` 1/16 vCPU / 256 MiB / 2 GB · `basic` 1/4 vCPU / 1 GiB / 4 GB · `standard-1…4` up to 4 vCPU / 12 GiB / 20 GB |
+| Cold start | "often in the 1-3 second range" |
+| `sleepAfter` | 10 minutes by default; the instance scales to zero |
+| Shutdown | SIGTERM, then up to 15 minutes before SIGKILL — hence graceful shutdown in P8 |
+| Disk | **ephemeral**; a fresh disk from the image on every start; no persistent volumes, no privileged mode |
+| Network | outbound internet enabled by default |
+| Architecture | `linux/amd64` only |
+| Attach rule | a container can only be reached **through its Durable Object** |
+| Image build | `wrangler deploy` builds and pushes when `image` points at a Dockerfile; Docker must be running (locally and in CI) |
+| Included on Workers Paid | 25 GiB-hours memory, 375 vCPU-minutes, 200 GB-hours disk per month |
+| Overage | memory $0.0000025/GiB-s · CPU $0.000020/vCPU-s · disk $0.00000007/GB-s |
+
+Awake-hour arithmetic, since memory and disk bill on *provisioned* resources
+while the instance is awake and CPU bills only on actual use:
+
+| | `lite` | `basic` |
 | --- | --- | --- |
-| Requests | 100,000/day | no limit |
-| **CPU time per HTTP request** | **10 ms** | 5 min (default 30 s) |
-| Memory per isolate | 128 MB | 128 MB |
-| Subrequests per request | 50 | 10,000 |
-| Environment variables | 64/Worker, 5 KB each | 128/Worker, 5 KB each |
-| Worker size | 64 MiB | 64 MiB |
-| Workers per account | 100 | 500 |
-| Static asset files per Worker version | 20,000 | 100,000 |
+| Billed per awake hour | 0.25 GiB-h + 2 GB-h | 1 GiB-h + 4 GB-h |
+| Awake hours inside the allowance | **~100 h/month** | **~25 h/month** (memory binds) |
+| Extra cost per awake hour | ~$0.0028 | ~$0.010 |
+| A hobby month (~45-60 h awake, counting the 10-minute tail) | $0 | ~$0.35 |
 
-Two definitions that matter more than the numbers:
+Config keys (current shape): `containers[]` (`class_name`, `image`,
+`instance_type`, `max_instances`, `scheduling_policy`, `build_context`),
+`durable_objects.bindings`, and `exports.<Class>` with
+`{ "type": "durable-object", "storage": "sqlite" }`. The older `migrations`
+array still works; the two must not be configured together.
 
-- **CPU time ≠ wall time.** Cloudflare: *"CPU time measures how long the CPU
-  spends executing your Worker code. Waiting on network requests (such as
-  `fetch()` calls, KV reads, or database queries) does not count toward CPU
-  time."* So a slow D1 query is free; a slow loop is not.
-- **Static assets with the array form of `run_worker_first` never invoke the
-  Worker.** Loading a game page costs zero Worker requests and zero CPU. Only
-  `/api/*` does.
+### Cloudflare Access (the test environment's gate)
 
-### D1 (the datastore we use)
+- Zero Trust has a free plan with a small user count; a **one-time PIN** policy
+  needs no identity provider.
+- Access protects a hostname **including static assets**, even though the asset
+  router does not pass identity (`ctx.access`) to the user Worker — this plan
+  does not need that identity.
+- **Service tokens** let a machine (the CI smoke check) through without a
+  browser login.
 
-| | Workers Free |
+### Workers static assets
+
+- `assets.directory`, `assets.binding`, `assets.run_worker_first` (boolean or an
+  array of paths; the array form is what keeps game pages free and fast).
+- A `_headers` file in the asset directory **is** honoured — used for
+  `X-Robots-Tag: noindex` on the test hostname. It does **not** apply to
+  responses generated by Worker or container code, so the API sets that header
+  itself when `NOINDEX=1`.
+- Custom domains: `routes: [{ "pattern": "host", "custom_domain": true }]`, one
+  hostname per Worker, and two Workers may own different subdomains of the same
+  zone. A hostname that already has a CNAME record cannot be made a custom
+  domain.
+
+### Neon free tier (the database)
+
+| Item | Value |
 | --- | --- |
-| Databases per account | 10 (1 comfortably enough) |
-| Storage | 5 GB total |
-| **Rows read** | 5,000,000 / day |
-| **Rows written** | 100,000 / day |
-| Queries per Worker invocation | 50 |
-| Max row / string size | 2 MB |
-| Point-in-time recovery (Time Travel) | 7 days |
-| Concurrent connections per invocation | 6 |
-
-Billing counts **rows scanned**, not rows returned — index the columns you filter
-on (`README`'s note: an unindexed `WHERE` still scans). A "row written" is any
-`INSERT`/`UPDATE`/`DELETE`, plus index maintenance.
-
-### Workers KV (rejected as the datastore)
-
-| | Free |
-| --- | --- |
-| Reads | 100,000 / day |
-| **Writes to different keys** | **1,000 / day** |
-| Writes to the same key | 1 per second |
 | Storage | 1 GB |
+| Compute | 100 CU-hours/project/month |
+| Idle behaviour | scales to zero after 5 minutes; a few hundred ms to wake |
+| Consequence | no reliance on session state (prepared-statement caches, temp tables, `LISTEN/NOTIFY`) across suspends; sqlx reconnects cleanly |
+| Backups | short restore window — hence the nightly `pg_dump` to R2 |
 
-Two disqualifying properties: **1,000 writes/day** is uncomfortably close to a
-progress-sync workload (which writes on every meaningful game event), and KV is
-**eventually consistent** — "save, then read it back on the other device" can read
-a stale value for up to a minute. Great for configuration, wrong for progress.
+### Cloudflare R2 (backups)
 
-### Durable Objects (a possible future, not now)
+Free tier includes 10 GB of storage with no egress fees; S3-compatible API, so
+`aws s3 cp` in a scheduled workflow is enough.
 
-Available on the Workers **Free** plan with the **SQLite** storage backend only
-(100,000 requests/day free). Strongly consistent, per-object, and the right tool
-if a leaderboard or real-time feature ever arrives. Heavier mental model than
-this feature needs.
+### GitHub Actions pull-request deploys
 
-### Secrets, bindings and routing
-
-- `assets.run_worker_first: ["/api/*"]` runs the Worker script only for matching
-  paths; everything else is served as a static asset with no Worker invocation.
-- With both a script and static assets, assets are tried first unless
-  `run_worker_first` says otherwise.
-- Bindings (`d1_databases`, secrets) are declared in `wrangler.jsonc` and read
-  from `env` in Rust; secrets are set with `wrangler secret put` and are **never**
-  written to the repository.
-- The deploy reuses the Worker name `learn-and-play`, so the custom domain and
-  the `cloudflare-production` approval gate are unchanged.
+- Repository and environment secrets **are** available to `pull_request` runs
+  whose head branch is in this repository; fork PRs get no secrets and a
+  read-only `GITHUB_TOKEN`, so the workflow guards on
+  `github.event.pull_request.head.repo.full_name == github.repository`.
+- A sticky PR comment is `gh pr comment --edit-last --create-if-none` with
+  `pull-requests: write`.
+- The test workflow must use its **own** `concurrency` group: sharing the
+  production `cloudflare` group would cancel a production run that is waiting
+  for approval.
 
 ---
 
-## P7 Decision record: the 10 ms CPU limit, and why the credential is a player code
+## P7 Decision record: password accounts, no recovery, and argon2id on `lite`
 
-This is the single most important constraint in the whole plan. Read it before
-changing any part of the auth design.
+### Why a password is now the right credential
 
-### What the limit is
+The previous revision of this plan chose a 16-character "player code" for one
+reason only: a properly expensive password hash does not fit in the free plan's
+10 ms CPU budget, and making it fit would mean making it worthless. That reason
+is gone. On Workers Paid there is no CPU ceiling worth designing around, so an
+account becomes the thing a parent expects: a username and a password.
 
-> Cloudflare, Workers *Limits*: **CPU time per HTTP request — Free: 10 ms,
-> Paid: 5 min (default 30 s).**
->
-> *"The average Worker uses approximately 2.2 ms per request. Heavier workloads
-> that handle **authentication**, server-side rendering, or parse large payloads
-> typically use **10-20 ms**."*
+### Why there is no email and no recovery
 
-Properties that make it a design constraint rather than a footnote:
+The owner's adjustment removes the whole email chain — provider, sending
+subdomain, SPF/DKIM records, verification and reset tokens, a second secret, and
+the only piece of personal data the previous plan would have stored. What that
+buys beyond simplicity: **there is no personal data in this system at all.**
 
-- **It is per request, not per day.** You cannot amortise it, batch around it, or
-  spread it over several requests. Cross the line and the request **fails** — it
-  does not get slower.
-- **Local dev does not enforce it the way production does.** `wrangler dev` will
-  happily run a 300 ms computation that the deployed Worker rejects. **Never
-  assume a login that works locally will work in production.**
-- **Database time is free.** A D1 `await` is I/O, not CPU. So the database is not
-  the problem; the computation is.
+What it costs is recovery. With no email address there is no verified channel
+back into an account, and no security question, PIN or recovery code is offered
+either — a 4-digit PIN is a decoration, not a protection, and a recovery code is
+a second credential to lose. So: **a forgotten password loses the account and
+its progress.** The plan mitigates the consequence rather than the cause:
 
-### Where the milliseconds go on a login request
+- sessions last 12 months and roll forward on use, so a child on the same
+  tablet signs in approximately never;
+- the sign-up screen tells the user, in Norwegian, to write the password down;
+- a signed-in user can change the password (requiring the current one), which
+  is the only credential operation that exists.
 
-`POST /api/session` = parse a small JSON body → `SELECT` one user → **verify the
-credential** → set a cookie. Only the middle step is interesting.
+A recovery code remains the obvious future addition (it is exactly the previous
+plan's player code, re-used as a backup credential); it is deliberately out of
+scope, and recorded in P17 as such.
 
-| Work | Estimated CPU | Verdict on Free (10 ms) |
+### argon2id parameters, and why `lite` is affordable
+
+| Setting | Value | Source |
 | --- | --- | --- |
-| Parse a small JSON body, build the response, `Set-Cookie` | < 0.1 ms | fine |
-| D1 `SELECT` one row by a unique indexed column | ~0.1-1 ms | fine |
-| **PBKDF2-SHA256, 600,000 iterations** (OWASP's current guidance) | **hundreds of ms** | ❌ 30-100× over |
-| **PBKDF2-SHA256, 100,000 iterations** (older common guidance) | ~tens of ms | ❌ several× over |
-| **PBKDF2-SHA256, 10,000 iterations** (already weak) | ~5-15 ms | ❌ at or over the line |
-| **HMAC-SHA256 of a high-entropy player code** | **< 0.05 ms** | ✅ ~200× under |
-| Passkey signature verify (P-256) | ~1-3 ms | ✅ under |
-| Avoiding user enumeration costs a second dummy hash on a miss | ×2 the above | ❌ worse |
+| Algorithm | argon2id, v19 | OWASP Password Storage Cheat Sheet |
+| Memory `m` | 19456 KiB (19 MiB) | OWASP stated minimum |
+| Iterations `t` | 2 | same |
+| Parallelism `p` | 1 | same |
+| Pepper | 32 random bytes, `Argon2::new_with_secret` | keeps a leaked dump from being crackable offline without the secret |
+| Rehash | on successful sign-in when the stored parameters differ from the target | OWASP "upgrading the work factor" |
 
-**These are estimates, not measurements.** In particular, Web Crypto's PBKDF2 runs
-in native code inside the runtime, and its true billed-CPU figure is the one
-number this document cannot give you. That is why R10 in the runbook exists: a
-dev-only endpoint that lets you measure the real cost on the real account, in the
-real runtime, before deciding anything permanent.
+Lower-memory profiles (m = 9216/t = 4, m = 7168/t = 5) are *equivalents*: they
+do roughly the same total work. They are therefore **not** a lever for a slow
+instance, and going below the minimum is not a lever either. The only real lever
+is the instance size, and the arithmetic says the small one is fine:
 
-### Why this matters
+- Billed CPU-ms per hash is the same on either instance (~40-60 ms of work).
+  What changes is wall time, because a 1/16-vCPU share stretches that work:
+  expect roughly **0.5-1.5 s on `lite`** and 0.15-0.4 s on `basic`.
+- That time is paid once per device, by an adult or a child entering a password
+  on a sign-in screen. **No game ever waits on it.**
+- C8 therefore logs the real hash time on the real instance and treats it as an
+  acceptance criterion: if a hash exceeds ~1.5 s, `instance_type` becomes
+  `basic` — one line in `wrangler.jsonc`, no code change, ~$0.35/month at hobby
+  usage.
 
-A password hash is *supposed* to be expensive — that cost **is** its security
-property. If one hash costs 5 ms, an attacker holding your `users` table tries
-~200 passwords per second per core; at 500 ms they try 2. Making the hash fit in
-10 ms means making it worthless. This is not a Cloudflare bug; it is password
-hashing working as designed, measured against a budget deliberately set below
-the authentication workload class.
-
-### Scope: only two routes are ever at risk
-
-Every game request is light JSON plus one D1 upsert — far inside 10 ms. The
-ceiling only bites `POST /api/account` and `POST /api/session`. The architecture
-is not at risk; those two routes are.
-
-### The four paths that were weighed
-
-| Path | What you get | What it costs | Verdict |
-| --- | --- | --- | --- |
-| 1. Email + password on Workers Paid | Done properly: argon2 or PBKDF2 at a real work factor | $5/month, plus an email sender for reset, plus PII for children | Rejected for now, **kept available** |
-| 2. Email + password on Free, reduced work factor | Free, and it works | The hash is weak by construction; a leaked dump is crackable; the 10 ms line is a flaky neighbour | Rejected |
-| 3. Email as identifier + passkey as secret | Findable by email, nothing hashable stored, stays free | Most frontend code; Vitest cannot run a real WebAuthn ceremony | Rejected for now, **strong long-term candidate** |
-| **4. Swappable credential: player code now, email+password later** | Free today; the Rust, the schema and the API are *reused* when you switch | Two credential kinds to support eventually | ✅ **CHOSEN** |
-
-### Additional costs of email + password that are not CPU
-
-1. **Cloudflare does not send email.** Verification and "forgot password" need
-   Resend / Postmark / MailChannels — a second third-party runtime dependency on
-   top of the API.
-2. **Real PII, for children.** Email addresses plus passwords mean a genuine
-   data-protection surface (GDPR-K/COPPA), breach exposure, and a reset flow that
-   must not leak whether an address is registered.
-3. **Hardening costs *more* CPU, not less** — constant-time comparison, dummy
-   hashes on misses, aggressive rate limiting.
-
-### What makes a player code correct rather than a compromise
-
-A **16-character code drawn from a 32-character ambiguity-free alphabet**
-(`K7PM-3XQ9-2RTF-8WHB`), i.e. 80 bits of entropy, stored as
-`HMAC-SHA256(pepper, code)`. There is nothing to brute-force, so a single cheap
-HMAC is not a "cheap substitute" — it is the **correct** verification for that
-kind of credential, exactly as an API key is verified with a hash and not with a
-password KDF. The pepper matters because it means a leaked D1 dump cannot verify
-guesses offline even if someone guesses the alphabet.
+Rate limiting (P9) is what keeps the hash from becoming a denial-of-service
+lever: a per-IP and per-username failure counter with backoff, checked *before*
+the hash is computed.
 
 ---
 
-## P8 Architecture (Option A)
-
-### Request flow
+## P8 Architecture
 
 ```
-Browser (any game page, static, served by Cloudflare as today)
-   │
-   ├── GET /games/<slug>/            → static asset. NO Worker invocation.
-   │
-   └── fetch('/api/…', {credentials:'include'})   → Worker script (Rust)
-                                                     │  session cookie
-                                                     ↓
-                                                   D1 (SQLite)
+browser
+  │
+  ├─ GET /  and  /games/<slug>/     → Cloudflare asset router → dist/
+  │                                   (no Worker code, no container, no CPU)
+  │
+  └─ fetch('/api/…', {credentials:'include'})
+        │
+        ▼
+   learn-and-play  (Worker front door, edge/src/index.js)
+        │  run_worker_first: ["/api/*"]
+        ▼
+   Durable Object  (edge/src/container.js — the only way to reach a container)
+        │  starts it if asleep (1-3 s), then proxies HTTP
+        ▼
+   Rust service  (api/ — axum on :8080)
+        │  sqlx
+        ▼
+   Neon Postgres
 ```
 
-Only `/api/*` reaches Rust. Game pages are served by Cloudflare's asset router
-with no script execution at all, so:
-- the existing game pages cannot be broken by backend bugs, and
-- the 100,000 requests/day budget is spent only on API calls.
+Properties that make this safe:
 
-### Why same-origin
-
-The API lives on the same Worker that serves the assets, so requests are
-same-origin: no CORS, no `SameSite=None`, no preflight, no second domain to
-configure. This is the main reason the plan reuses the existing Worker name
-instead of deploying a separate `api.` Worker.
-
-**Consequence for GitHub Pages.** `deploy-pages.yml` publishes a build on a
-*different* origin, where `/api/*` does not exist. If Pages is kept, the frontend
-must call an absolute API URL and the Worker must send CORS headers — which
-immediately makes cookies cross-site. Recommendation: **retire Pages in the same
-change** (R14), which `README.md` already anticipates.
+- **Same origin.** The API lives on the same hostname as the games, so there is
+  no CORS, no `SameSite=None`, and no cross-origin cookie problem.
+- **A backend failure cannot break a game.** Game pages are assets; they never
+  touch the container.
+- **Only the API pays cold starts.** The first `/api/*` request after ten idle
+  minutes waits; a game page never does.
 
 ### Target file layout
 
 ```
-worker/                             NEW — Rust workspace root
-  Cargo.toml                        [workspace] + [profile.release] lto/strip/codegen-units
-  rust-toolchain.toml               pins the channel + the wasm32-unknown-unknown target
-  crates/
-    core/                           PURE Rust — zero `worker` dependency
-      Cargo.toml
-      src/lib.rs                    the modules below re-exported
-      src/code.rs                   player-code generation + normalisation
-      src/secret.rs                 HMAC + constant-time compare
-      src/validate.rs               key allowlist, size caps
-      src/merge.rs                  the per-key merge rules (P11)   ← OPTIONAL, see WP9
-      tests/                        `cargo test` runs here, on the host, in milliseconds
-    app/                            THE WORKER — depends on `worker` + `core`
-      Cargo.toml
-      src/lib.rs                    #[event(fetch)] router for /api/*
-      src/account.rs                signup / signin / signout / me
-      src/progress.rs               GET/PUT progress
-      src/db.rs                     thin worker::d1 glue, no logic
-  migrations/0001_init.sql
-src/shared/api.js                   NEW — fetch wrapper, credentials: 'include'
-src/shared/syncable.js              NEW — the registry: which keys sync + how to merge
-src/shared/sync.js                  NEW — pull, merge, debounce, push, fail-open
-src/shared/account.js               NEW — useAccount()
-src/shared/persistence.js           + an optional fire-and-forget write observer
-src/home/AccountPanel.jsx           NEW — Norwegian account UI on the library page
-docs/backend/PLAN.md, RUNBOOK.md    this document and its companion
+api/                                  NEW — the Rust service (runs in the container)
+  Cargo.toml, Cargo.lock              pin dependencies; `--locked` everywhere
+  rust-toolchain.toml                 the channel CI and this machine agree on
+  Dockerfile                          cargo-chef multi-stage → distroless, nonroot
+  .dockerignore
+  migrations/0001_init.sql            P10's schema
+  src/main.rs                         args (`serve` | `migrate`), tracing, shutdown
+  src/lib.rs                          the router builder, so tests can use it
+  src/{config,app,state,error}.rs
+  src/domain/{password,session,username,rate_limit}.rs   pure logic, unit tests
+  src/store/{users,sessions,progress,attempts}.rs        sqlx queries only
+  src/routes/{health,accounts,sessions,password,progress}.rs
+  tests/{health,accounts,progress}.rs  `#[sqlx::test]` integration tests
+edge/                                 NEW — the Worker front door
+  src/index.js                        assets + `/api/*` → the container
+  src/container.js                    the Durable Object that owns the container
+  test/front-door.test.js             routing test with a stubbed binding
+wrangler.jsonc                        production config (unchanged until C13)
+wrangler.test.jsonc                   the test Worker: own name, database, route
+docker-compose.yml                    Postgres 17 for local dev and tests
+sync-keys.json                        the single source of truth for synced keys
+src/shared/api.js                     fetch wrapper (never throws on failure)
+src/shared/account.js                 useAccount()
+src/shared/syncable.js                the merge registry
+src/shared/sync.js                    pull, debounce, push, ownership
+src/shared/SyncGate.jsx               the hydration gate the game pages mount
+src/account/{main.jsx,AccountPage.jsx,style.css}
+account/index.html                    the account page entry point
+.github/workflows/deploy-test.yml     pull requests → the test environment
+.github/workflows/backup.yml          nightly pg_dump → R2
 ```
 
-**Why two crates (`core` + `app`) and not one.** `cargo test` must be able to run
-your logic tests on the host machine in milliseconds, and a crate that depends on
-`worker`/`worker-sys` may not build for a non-wasm host target at all. Keeping the
-pure logic in a crate with **no `worker` dependency** guarantees a fast, reliable
-test loop — and it is the same "pure functions, thin glue" discipline this repo
-already applies to a game's `*logic.test.js` files.
-
-### `wrangler.jsonc` after the change
+### `wrangler.test.jsonc` (the test Worker, written in C5)
 
 ```jsonc
 {
-  "name": "learn-and-play",              // unchanged → same domain, same approval gate
-  "main": "worker/crates/app/src/lib.rs",       // ⚠ see the note below
-  "compatibility_date": "2026-09-20",
-  "build": {
-    "command": "worker-build --release",
-    "cwd": "worker"
-  },
+  "name": "learn-and-play-test",            // a separate Worker, not a Wrangler env:
+  "main": "edge/src/index.js",              // container config inside `env.*` is
+  "compatibility_date": "…",                // not documented, a second file is explicit
   "assets": {
-    "directory": "./dist",               // unchanged: the games, served exactly as today
+    "directory": "./dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]       // only /api/* runs Rust
+    "run_worker_first": ["/api/*"]
   },
-  "d1_databases": [
-    { "binding": "DB", "database_name": "learn-and-play", "database_id": "<from the dashboard>" }
-  ]
+  "containers": [
+    { "class_name": "ApiContainer", "image": "./api/Dockerfile",
+      "instance_type": "lite", "max_instances": 1 }
+  ],
+  "durable_objects": { "bindings": [{ "name": "API_CONTAINER", "class_name": "ApiContainer" }] },
+  "exports": { "ApiContainer": { "type": "durable-object", "storage": "sqlite" } },
+  "routes": [{ "pattern": "test.play2learn.divanchyshyn.com", "custom_domain": true }],
+  "vars": { "PUBLIC_ORIGIN": "https://test.play2learn.divanchyshyn.com", "NOINDEX": "1" }
 }
 ```
 
-> ⚠ **Verify `main` and `build.command` against a freshly generated template.**
-> `worker-build` emits a small JavaScript shim, and the `workers-rs` template
-> currently points `main` at *that generated file* (historically
-> `build/worker/shim.mjs`) rather than at the `.rs` source, with a build command
-> roughly `cargo install -q worker-build && worker-build --release`. Exact paths
-> have moved between versions. **RUNBOOK R2 generates a throwaway template outside
-> the repo and copies the current canonical keys** — do that instead of trusting
-> the snippet above verbatim.
+`wrangler.jsonc` gets the same shape in C13, keeping `"name": "learn-and-play"`
+so the custom domain and the approval gate survive untouched.
 
 ### The Rust entry point
 
 ```rust
-use worker::*;
-
-#[event(fetch)]
-async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
-    // routes /api/* — everything else is a static asset and never gets here
-    Response::ok("ok")
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let config = Config::from_env()?;          // missing DATABASE_URL is allowed
+    match config.command {
+        Command::Migrate => run_migrations(&config).await,
+        Command::Serve   => serve(config).await,   // binds 0.0.0.0:$PORT, SIGTERM-aware
+    }
 }
 ```
 
-## P9 Identity and session model
+`serve` builds the router in `lib.rs` (`build_app(state)`), so every integration
+test drives the real router through `tower::ServiceExt::oneshot` instead of
+starting a server.
 
-### The credential
+---
+
+## P9 Accounts, credentials and sessions
+
+### The credential pair
 
 | Property | Value |
 | --- | --- |
-| Alphabet | 32 characters, **no `0`/`O`, no `1`/`I`/`L`** (it gets written down and typed by a human) |
-| Length | 16 characters, shown in groups of four: `K7PM-3XQ9-2RTF-8WHB` |
-| Entropy | 80 bits |
-| Stored as | `HMAC-SHA256(pepper, normalised_code)` — never the code itself |
-| Normalisation | Uppercase, drop everything that is not alphanumeric, so `k7pm 3xq9 …` and `K7PM-3XQ9-…` are the same code |
-| Shown | **Exactly once**, when the account is created |
-
-The code is a bearer secret: whoever holds it, holds the account. That is the
-same property `localStorage` already has — whoever holds the browser, holds the
-progress — so this makes nothing worse, and makes one thing much better: the
-progress now survives the device.
-
-### No PIN in the MVP — and why
-
-A 4-digit PIN is only 10,000 possibilities. Verified cheaply, it is security
-theatre; verified properly, it is the same CPU problem as a password. What *would*
-make it meaningful is aggressive per-account lockout — and lockout is the wrong
-first experience for a seven-year-old. Revisit only if "someone found the
-written-down code" turns out to be a real threat in practice.
+| Username | 3-20 characters, must start with a letter, then letters, digits, `-` or `_`; stored as typed, unique on `lower(username)` |
+| Reserved usernames | a short list (`admin`, `administrator`, `root`, `system`, `support`, `test`) rejected at sign-up |
+| Password | 8-128 bytes. No composition rules, no Unicode normalisation (OWASP: do not reduce input space), a byte cap so a huge body cannot become CPU |
+| Stored | `$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`, peppered (P7) |
+| Shown | never; not even to the account itself |
 
 ### Sessions
 
 | Property | Choice | Why |
 | --- | --- | --- |
-| Token | 256 bits of CSPRNG output, base64url | unguessable |
-| Stored server-side as | `SHA-256(token)` | a database dump does not yield usable cookies |
-| Cookie | `HttpOnly; Secure; SameSite=Lax; Path=/` | unreadable by scripts; `Lax` plus an `Origin` check covers CSRF without a token |
-| Lifetime | ~12 months | a child should not be asked to log in repeatedly |
-| Revocable | yes, by deleting the row | "log out everywhere" and "delete my account" are the same mechanism |
+| Token | 256 bits from the OS CSPRNG, base64url | unguessable |
+| Stored | `sha256(token)` as `bytea` | a database dump yields no usable cookies |
+| Cookie | `__Host-lap_sid` — `HttpOnly; Secure; SameSite=Lax; Path=/`, no `Domain` | the `__Host-` prefix forces Secure, Path=/ and no Domain; browsers accept Secure cookies on `localhost` and on the test hostname over HTTPS |
+| Lifetime | 12 months, rolling (`last_seen_at` refreshed on use) | a child should not be asked to sign in again (D8 makes this matter) |
+| Why `Lax` and not `Strict` | top-level navigation from an external link still carries the session, so a signed-in child arriving from a bookmark or a chat message is not shown as signed out; state-changing requests are additionally protected by an `Origin` check | `Strict` would make that first page load look signed out |
+| Revocation | deleting the row | "sign out everywhere" is `DELETE FROM sessions WHERE user_id = …`, which is also what a password change does (keeping the current session) |
 
 ### Threat notes
 
-- **Rate limiting.** In-memory per-isolate counters for failed sign-ins; a D1
-  counter row is written **only on failure**, so normal use costs ~0 rows
-  written. An 80-bit code is not brute-forceable anyway — the limiter exists to
-  stop hammering the database, not to protect the code.
-- **Enumeration.** `POST /api/session` returns the same response and takes the
-  same time whether or not the code matched (do the HMAC either way).
-- **Constant-time comparison** for the HMAC.
-- **Size caps** on every request body, plus a **key allowlist** on the progress
-  endpoint, so a client cannot store arbitrary keys.
-- **No PII at all.** `users` holds a uuid and a timestamp. That is a design
-  feature, not an accident.
+- **Enumeration.** Sign-in returns one uniform body, status and timing for a
+  wrong username and a wrong password (a dummy hash runs on a miss when the
+  account is unknown, so both paths cost the same). Sign-up is *not*
+  enumeration-protected on purpose: with usernames and no email, "that username
+  is taken" reveals nothing about a person, and a child typing a name their
+  sibling already uses deserves to be told.
+- **Rate limiting.** `auth_attempts` holds per-IP and per-username counters
+  (`ip:<addr>` / `user:<name>`): failures inside a 15-minute window, then a
+  429 with a backoff window. Counters are checked **before** argon2 runs, which
+  is what stops the hash from being a denial-of-service lever. The IP comes from
+  `X-Client-IP`, which the front door sets from `CF-Connecting-IP` after
+  deleting any client-supplied value; `X-Forwarded-For` is never trusted.
+- **CSRF.** `SameSite=Lax` plus an `Origin` check against `PUBLIC_ORIGIN` on
+  every POST/PUT/DELETE.
+- **Response caching.** `Cache-Control: no-store` on every account response.
+- **Container cold start.** A sign-in on a sleeping instance costs 1-3 s (start)
+  plus the hash. The account page shows its own "logger inn …" state, which is
+  honest and is not a game.
 
 ---
 
 ## P10 Data model and HTTP API
 
-### Schema (`worker/migrations/0001_init.sql`)
+### Schema (`api/migrations/0001_init.sql`)
 
 ```sql
--- One row per account. Deliberately holds no personal data at all.
+-- One row per account. Deliberately holds no personal data at all: no email,
+-- no name, no birthday, no analytics id.
 CREATE TABLE users (
-  id         TEXT PRIMARY KEY,          -- uuid v4
-  created_at INTEGER NOT NULL           -- unix milliseconds, server-stamped
+  id            uuid PRIMARY KEY,
+  username      text NOT NULL,
+  password_hash text NOT NULL,          -- argon2id PHC string, peppered
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
 );
-
--- The 'kind' column is what makes "Path 4" a drop-in rather than a rewrite:
--- 'password' (identifier = email) and 'passkey' rows slot in beside 'code' rows
--- with no schema change and no change to sessions or progress.
-CREATE TABLE credentials (
-  id          TEXT PRIMARY KEY,
-  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  kind        TEXT NOT NULL CHECK (kind IN ('code','password','passkey')),
-  identifier  TEXT,                     -- email for 'password'; NULL for 'code'
-  secret_hash TEXT NOT NULL,            -- HMAC(code) | pbkdf2/argon2(password) | public key
-  created_at  INTEGER NOT NULL
-);
--- A partial unique index: one account per email, but many NULL identifiers.
-CREATE UNIQUE INDEX credentials_identifier
-  ON credentials(identifier) WHERE identifier IS NOT NULL;
+CREATE UNIQUE INDEX users_username_key ON users (lower(username));
 
 CREATE TABLE sessions (
-  token_hash TEXT PRIMARY KEY,          -- SHA-256 of the cookie value, never the value
-  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL
+  token_hash   bytea PRIMARY KEY,       -- sha256 of the cookie value, never the value
+  user_id      uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  last_seen_at timestamptz NOT NULL DEFAULT now(),
+  expires_at   timestamptz NOT NULL
 );
-CREATE INDEX sessions_user ON sessions(user_id);
+CREATE INDEX sessions_user_key ON sessions (user_id);
 
 -- Progress is stored as opaque per-record blobs keyed by the storage key the
 -- games already use. `payload` is exactly what the game's own codec produces.
 CREATE TABLE progress (
-  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  record_key TEXT NOT NULL,             -- e.g. 'soundLabyrinth:gallery'
-  payload    TEXT NOT NULL,
-  updated_at INTEGER NOT NULL,          -- server-stamped revision
+  user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  record_key text NOT NULL,             -- e.g. 'soundLabyrinth:gallery'
+  payload    text NOT NULL,
+  revision   bigint NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, record_key)
 );
 
--- Written only on failed sign-in, so normal use costs no rows written.
-CREATE TABLE login_failures (
-  code_hash    TEXT PRIMARY KEY,
-  failures     INTEGER NOT NULL,
-  locked_until INTEGER
+-- Written only on a failed sign-in; counters, never a lockout that a user
+-- cannot escape.
+CREATE TABLE auth_attempts (
+  key           text PRIMARY KEY,       -- 'ip:<addr>' | 'user:<lowercase>'
+  window_start  timestamptz NOT NULL DEFAULT now(),
+  failures      integer NOT NULL DEFAULT 0,
+  blocked_until timestamptz
 );
 ```
 
-Notes:
-- `PRIMARY KEY (user_id, record_key)` gives the upsert its conflict target and
-  makes the read for one user a single indexed scan (which is what D1 bills).
-- `ON DELETE CASCADE` is what makes "delete my account" real: one `DELETE` from
-  `users` and every credential, session and progress row goes with it.
-- D1 is SQLite; enable foreign keys per the D1 docs if the cascade does not fire
-  (`PRAGMA foreign_keys = ON` / the documented equivalent).
+Notes: `ON DELETE CASCADE` is what makes "delete my account" real — one `DELETE`
+from `users` takes the sessions, the progress rows and the attempt counters with
+it, and that is verified by a test. `PRIMARY KEY (user_id, record_key)` gives
+the upsert its conflict target and makes a user's records one indexed read.
 
 ### HTTP API
 
 | Method | Path | Body | Returns | Notes |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/health` | — | `{ ok: true }` | proves the Worker runs; the M0 acceptance test |
-| `POST` | `/api/account` | `{}` | `{ code: "K7PM-…" }` | creates user + code credential, sets the session cookie; **the only time the code is ever returned** |
-| `POST` | `/api/session` | `{ code }` | `{ ok: true }` | signs in; same response and timing on a miss |
-| `DELETE` | `/api/session` | — | `{ ok: true }` | deletes this session row, clears the cookie |
-| `GET` | `/api/me` | — | `{ signedIn: boolean, createdAt?: number }` | never returns the code |
-| `GET` | `/api/progress` | — | `{ records: [{ key, payload, updatedAt }] }` | this user's blobs |
-| `PUT` | `/api/progress` | `{ records: [{ key, payload, updatedAt }] }` | `{ accepted, rejected, revisions }` | per-record revision gate |
-| `DELETE` | `/api/account` | — | `{ ok: true }` | WP8: erases user, credentials, sessions, progress |
+| `GET` | `/api/health` | — | `{ ok, db }` | no auth; `db` is `up`, `down` or `unconfigured`; the M0 acceptance test |
+| `POST` | `/api/account` | `{ username, password }` | `201 { username }` + session cookie | `409` when the username is taken, `400` when it is invalid |
+| `POST` | `/api/session` | `{ username, password }` | `200 { username }` + cookie | uniform `401` on any failure; 429 when throttled |
+| `DELETE` | `/api/session` | — | `204` | deletes this session row, clears the cookie |
+| `GET` | `/api/me` | — | `{ signedIn, username? }` | never returns a hash |
+| `POST` | `/api/password` | `{ currentPassword, newPassword }` | `204` | requires the current password; deletes every *other* session |
+| `DELETE` | `/api/account` | `{ password }` | `204` | cascade deletes everything that user owns |
+| `GET` | `/api/progress` | — | `{ records: [{ key, payload, revision }] }` | all records in one response: there are three and they are tiny |
+| `PUT` | `/api/progress` | `{ records: [{ key, payload, baseRevision }] }` | `{ accepted: [...], conflicts: [...] }` | per-record revision gate (P11) |
 
-Rules enforced by the Worker:
+Rules the service enforces:
 
-- Session cookie required on everything except `/api/health`, `/api/account` and
-  `POST /api/session`.
-- `record_key` must be in the server's **allowlist** (`soundLabyrinth:gallery`,
-  `wordFishing:journal`, `cardBattle:album`) — anything else is rejected.
-- `payload` has a hard size cap (start at 64 KB; every real payload is < 1 KB).
-- `updated_at` in the request is the revision the client *last saw*. The server
-  writes only when its stored `updated_at` is **older than or equal to** that
-  value, then stamps a fresh one. This is what stops a stale device from
-  clobbering newer progress.
-- `PUT` additionally checks the `Origin` header (with `SameSite=Lax` this covers
-  CSRF without a token).
-
-### API design notes
-
-- `GET /api/progress` returns **all** records in one response. There are three of
-  them and they are tiny; one request beats a per-game round trip and keeps the
-  request count (and therefore the free-tier budget) low.
-- The server never parses a `payload`. Validating it is the client's job, using
-  the codecs that already exist (P11) — which is why a corrupt server value
+- A session cookie is required on everything except `/api/health`,
+  `POST /api/account` and `POST /api/session`.
+- `record_key` must be in the allowlist, which is read from `sync-keys.json`
+  with `include_str!` so the JavaScript registry and the Rust allowlist can
+  never drift apart.
+- `payload` has a hard 64 KB cap (every real payload is under 1 KB).
+- `PUT` and every state-changing route check `Origin` against `PUBLIC_ORIGIN`.
+- The server **never parses a payload**. Validating it is the client's job,
+  using the codecs that already exist — which is why a corrupt server value
   cannot break a game.
 
 ---
 
-## P11 Progress sync: what syncs, what never syncs, how conflicts resolve
+## P11 Progress: what syncs, how it merges, how it never breaks a game
 
 ### The governing principle
 
-**`localStorage` stays the source of truth for play.** The API is a *mirror*, not
-a gate. Games must keep working with the network down, stay instant, and never
-show an error because a server was unreachable. This extends the promise
-`persistence.js` already makes — *"a full or locked store is not the child's
-problem"* — to the network.
+**Postgres is the record; `localStorage` is a cache.** On a device that is
+signed in and has a warm cache, a game starts instantly from local data and the
+database is reconciled in the background. On a device with nothing cached —
+first visit, cleared storage, a different account — the game waits briefly for
+the database (1.5 s at most), and if that fails it plays from cache anyway.
+
+The promise `persistence.js` already makes — *"a full or locked store is not the
+child's problem"* — is extended to the network: **a child must never see a
+dialog, a toast or an error because a server disagreed.** That is a hard
+requirement with a test.
 
 ### What syncs, and what must never sync
-
-**Durable achievements only.** The repo already draws this line for us:
-`progress.js` says the piece session is cleared by "Start på nytt" *while the
-gallery survives it*. That is exactly the distinction.
 
 | Storage key | Syncs? | Why |
 | --- | --- | --- |
 | `soundLabyrinth:gallery` | ✅ | durable: which pictures have been assembled |
 | `wordFishing:journal` | ✅ | durable: words caught, trips finished, decorations unlocked |
 | `cardBattle:album` | ✅ | durable: animals found |
-| `soundLabyrinth:progress` | ❌ device-local | the picture being assembled *right now* |
-| `soundLabyrinth:game` | ❌ device-local | the maze being walked *right now* |
-| `wordFishing:trip` | ❌ device-local | the trip in progress |
-| every `<game>:muted` | ❌ device-local | a child may reasonably mute the tablet and not the laptop |
+| `soundLabyrinth:progress` | ❌ | the picture being assembled *right now* |
+| `soundLabyrinth:game` | ❌ | the maze being walked *right now* |
+| `wordFishing:trip` | ❌ | the trip in progress |
+| every `<game>:muted` | ❌ | a child may reasonably mute the tablet and not the laptop |
 
-Why the sessions must not sync: they are *a moment*, not progress. A stale
-`wordFishing:trip` copied from another device would drop the child onto a boat
-with the wrong crates and the wrong count. Losing a session costs one trip's
-worth of sorting; corrupting one costs trust in the game.
+In-progress sessions must not sync because they are *a moment*, not progress: a
+stale `wordFishing:trip` copied from another device drops the child onto a boat
+with the wrong crates. Losing a session costs one trip's sorting; corrupting one
+costs trust in the game.
 
 ### Merge rules, per key
 
-Every synced record is merged by a **pure function**, so it can be unit-tested
-without a network, a database or a browser.
+Every synced record is merged by a **pure function**, unit-tested without a
+network, a database or a browser. All three underlying values are **monotonic** —
+a word caught cannot be un-caught — so a union can never lose progress.
 
 | Key | Merge |
 | --- | --- |
-| `wordFishing:journal` | `words` = order-preserving **union**; `decorations` = order-preserving **union**; `trips` = **max** |
-| `cardBattle:album` | `discovered` = order-preserving **union** |
-| `soundLabyrinth:gallery` | `seen` = order-preserving **union**, then `round` is **rebuilt** by replaying `recordSeenImage` |
+| `wordFishing:journal` | `words` = order-preserving union; `decorations` = order-preserving union; `trips` = max |
+| `cardBattle:album` | `discovered` = order-preserving union |
+| `soundLabyrinth:gallery` | `seen` = order-preserving union, then `round` is **rebuilt** by replaying `recordSeenImage` from `puzzle.js` |
 
-All three are safe because the underlying values are **monotonic**: a word caught
-cannot be un-caught, an animal found cannot be unfound, a picture assembled cannot
-be unassembled. A union therefore never loses progress, and a device that has been
-offline for a week cannot wipe the other device's work.
+The gallery replay is the real rule the game uses, not an approximation of it,
+so a merged gallery behaves exactly like one the child built locally.
 
-### The gallery needs no clock at all
+### Revisions (no device clocks)
 
-`src/games/sound-labyrinth/puzzle.js` and `progress.js` already export everything
-needed, and they are pure:
-
-```js
-// The merged gallery is reconstructed from the durable fact, not guessed from
-// which device wrote last.
-const mergedSeen = unionInOrder(localGallery.seen, remoteGallery.seen);
-const merged = mergedSeen.reduce(
-  (gallery, index) => recordSeenImage(gallery, index, PUZZLE_IMAGES.length),
-  createGallery(),
-);
-```
-
-Because `recordSeenImage` is the real rule the game uses (including the "a full
-round restarts from this picture" behaviour), replaying it over the unioned
-`seen` produces a *correct* `round` — not an approximation. This is a
-table-testable pure function in Vitest today.
-
-### Revision scheme (no device clocks)
-
-1. The client remembers, per key, the **server revision it last saw**
+1. The client remembers, per key, the revision it last saw
    (`localStorage['sync:revision:<key>']`).
-2. On load (if signed in): `GET /api/progress`. For each record, if the server's
-   `updatedAt` is **newer** than the revision the client remembers, merge it into
-   local state and write the merged result back to local storage.
-3. On change: debounce (~2 s idle), then `PUT /api/progress` with each record's
-   `updatedAt` set to the revision the client last saw.
-4. The server accepts only when its stored revision is not newer than that value,
-   stamps a fresh revision, and returns it. The client stores the new revision.
+2. On load (if signed in) it calls `GET /api/progress`. For each record whose
+   revision is newer than the one it remembers, it merges and writes the merged
+   value back to `localStorage`.
+3. On a storage write it debounces (~2 s idle) and calls `PUT /api/progress`
+   with each record's `baseRevision` set to the revision it last saw.
+4. The server writes only when its stored revision equals `baseRevision` (or the
+   row is absent and `baseRevision` is 0), then bumps it. Otherwise the row comes
+   back as a conflict; the client merges again and retries once.
 
-**Why server-stamped revisions rather than timestamps:** device clocks are wrong,
-timezones are wrong, and a tablet with a flat battery can jump years. A
-server-assigned counter cannot be lied to by a client, and ordering is then
+Server-stamped revisions rather than timestamps, because device clocks are wrong,
+timezones are wrong, and a tablet with a flat battery can jump years. Ordering is
 decided by one authority instead of by comparing two machines' opinions.
 
-### The first-sign-in rule (protects existing progress)
+### Ownership: whose progress is in this browser?
 
-When an account is created **on a device that already has progress**, that device
-**uploads**, it does not download. A child who has been playing for weeks and then
-creates an account must never be wiped by an empty server row. This is
-`migrateStorage`'s philosophy applied over the network:
-
-> the local value is never replaced by a remote value that is not strictly newer.
-
-Order of first sign-in:
-
-1. `POST /api/account` → cookie set, code returned.
-2. **Push** every local syncable record that has no revision yet.
-3. From then on, the normal pull/merge/push cycle above.
-
-### Failure behaviour (fail-open, pinned by tests)
+Local state carries `sync:owner` — an account id, `anonymous` (never signed in)
+or `detached` (was signed in, now signed out). The rules, each with a test:
 
 | Situation | Behaviour |
 | --- | --- |
-| Not signed in | sync module does nothing at all; no requests |
-| Network error / non-2xx | swallowed; a retry happens on the next change or next page load |
-| Server returns junk for a record | the game's own `codec.parse` rejects it, and the game falls back to `initial()` |
-| Storage unavailable | unchanged from today: the game plays fine and forgets on reload |
+| Sign in, owner is the same account | normal pull / merge / push |
+| Sign in (or sign up) on an `anonymous` device | **upload local records first** (as `baseRevision` 0), then pull and merge. A child who played for weeks and then creates an account is never wiped |
+| Sign in as a *different* account on a `detached` device | **clear the cached synced records, then pull.** One child's progress can never be uploaded into another's account |
+| Sign out | keep the cache so play continues; owner becomes `detached`; stop syncing |
+| Delete the account | delete the local synced records too |
+
+### The hydration gate
+
+`src/shared/SyncGate.jsx` wraps the game component in each of the six
+`src/games/<slug>/main.jsx` files; game components and `games/*/index.html` are
+untouched. It waits for the pull **only** when this device has nothing cached
+for the signed-in account, with a 1.5 s ceiling, and renders a small Norwegian
+loading line while it waits. The library page starts the pull as soon as it
+loads, so by the time a child opens a game the cache is almost always already
+warm and the gate resolves synchronously.
+
+### Failure behaviour (pinned by tests)
+
+| Situation | Behaviour |
+| --- | --- |
+| Not signed in | the sync module does nothing at all; no requests are made |
+| Network error or non-2xx | swallowed; retried on the next change or the next page load |
+| The server returns junk for a record | the game's own `codec.parse` rejects it and the game falls back to `initial()` |
+| Storage unavailable | unchanged from today: the game plays and forgets on reload |
 | Backend entirely down | games work exactly as they do today; only account screens show a message |
-
-**A child must never see a dialog, a toast or a spinner because a server
-disagreed.** That is a hard requirement, and P13 pins it with a test.
-
-### Where the merge lives
-
-**In the client** (WP6), because the codecs and the pure game rules are already
-there and already tested, and because it guarantees the server can never corrupt
-local state. Moving it into Rust later is **WP9** — a genuinely good second Rust
-exercise, because the tests to port already exist.
 
 ---
 
 ## P12 Frontend integration
 
-**No game component changes.** Everything lands in `src/shared/` and `src/home/`.
-
-### New shared modules
+**No game component changes.** Everything lands in `src/shared/`, `src/account/`,
+the six page entry points and the library page.
 
 | File | Responsibility |
 | --- | --- |
-| `src/shared/api.js` | one `request()` wrapper: base URL, `credentials: 'include'`, JSON in/out, `AbortController` timeout, never throws on network failure (returns `null`) |
-| `src/shared/syncable.js` | the registry — one row per synced key: `{ key, gameId, merge }`. A new game adds one row here **and** one entry to the Rust allowlist |
-| `src/shared/sync.js` | `startSync()`, `stopSync()`, `pullAndMerge()`, debounced `push()`; subscribes to storage writes |
-| `src/shared/account.js` | `useAccount()` — `{ signedIn, createdAt, signUp(), signIn(code), signOut() }` |
+| `src/shared/api.js` | one `request()` wrapper: same-origin base, `credentials: 'include'`, JSON in/out, `AbortController` timeout, and **never throws** on a network failure (returns a failure result) |
+| `src/shared/account.js` | `useAccount()` — `{ signedIn, username, signUp, signIn, signOut, changePassword, deleteAccount }` |
+| `src/shared/syncable.js` | the registry: `{ key, merge }` per synced key, built on the games' existing codecs |
+| `src/shared/sync.js` | `startSync()`, `pull()`, debounced `push()`, ownership, revisions, and the "has this device got a cache" decision the gate asks |
+| `src/shared/SyncGate.jsx` | the hydration gate |
+| `src/shared/persistence.js` | **+ an optional fire-and-forget write observer**, wrapped in `try/catch` so a listener can never break a save |
+| `src/account/AccountPage.jsx` | sign in, sign up, change password, delete account, signed-in view |
+| `src/home/main.jsx` | a "Konto" link (and the early pull), nothing else |
 
-### The base URL
+Norwegian copy for the account page, for example:
 
-```js
-// Same-origin by default. VITE_API_BASE exists only so the build can point at an
-// absolute URL if GitHub Pages is ever kept alongside the Worker.
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
-```
+- Heading *"Konto"*; actions *"Logg inn"*, *"Lag konto"*, *"Logg ut"*.
+- Sign-up warning, stated honestly: *"Skriv ned passordet og ta godt vare på
+  det. Vi kan ikke gjenopprette det hvis du glemmer det."*
+- Signed in: *"Du er logget inn som {username}. Framgangen din lagres og følger
+  deg til andre enheter."*
+- Errors are calm and never accusatory: *"Fant ingen konto med det
+  brukernavnet."* / *"Passordet stemmer ikke."* / *"Brukernavnet er opptatt."* /
+  *"Passordet må ha minst 8 tegn."*
+- The delete-account confirmation spells out what disappears: the account, its
+  saved progress, and the sign-in on every device.
 
-### How `persistence.js` learns about writes
+All identifiers English, all child-facing text Norwegian — the rule in
+`AGENTS.md`.
 
-Add an **optional, fire-and-forget** observer. Default behaviour is unchanged, so
-no existing test moves:
-
-```js
-const observers = new Set();
-export function onStorageWrite(fn) { observers.add(fn); return () => observers.delete(fn); }
-
-// inside writeStorage, after a successful write:
-for (const fn of observers) {
-  try { fn(key, serialized); } catch { /* a listener must never break a game */ }
-}
-```
-
-`sync.js` is the only subscriber, and it registers itself only when signed in.
-The `try`/`catch` is not decoration: **a bug in sync must not be able to break a
-game's save.**
-
-### UI placement
-
-- **Account panel on the library page** (`src/home/AccountPanel.jsx`, rendered by
-  `src/home/main.jsx`). This is the right home because the library is the entry
-  point a parent sees, and because no game page has to grow any chrome.
-- **No status chip inside games.** A child mid-maze should never be shown "syncing…"
-  or "offline". Deciding to keep sync invisible is a design decision, not an
-  omission.
-- Norwegian copy in the panel, for example:
-  - Heading: *"Konto"*
-  - New account: *"Lag konto"* / *"Spillkoden din"* / *"Skriv ned koden og ta vare på den. Den er nøkkelen til framgangen din."*
-  - Returning: *"Logg inn med spillkode"* / placeholder *"K7PM-3XQ9-…"*
-  - Signed in: *"Du er logget inn. Framgangen din lagres."* / *"Logg ut"*
-  - Errors are calm and never accusatory: *"Fant ingen konto med den koden."*
-- A "kopier koden" button is worth having (children and parents both lose codes).
-
-### Naming
-
-All identifiers English (`syncable.js`, `mergeRecord`, `pullAndMerge`), all
-child-facing text Norwegian — exactly the rule in `AGENTS.md`.
+---
 
 ## P13 Testing strategy
 
-### Rust (`cargo test`, host target, milliseconds)
+### Rust (`cargo test`)
 
-In `worker/crates/core` — logic only, no `worker` dependency:
+- `domain/` — pure logic, no database, no server: username validation and
+  normalisation, reserved names, password length rules, argon2 hash/verify and
+  rehash detection, session-token minting and hashing, rate-limit window and
+  backoff arithmetic.
+- `tests/` — `#[sqlx::test]` integration tests that drive the **real router**
+  through `tower::ServiceExt::oneshot` against a throwaway database per test
+  (created by sqlx against a local Postgres in Docker, and by a GitHub Actions
+  service container in CI): sign-up → cookie → `/api/me` → sign out; a wrong
+  password indistinguishable from an unknown username; throttling after N
+  failures; password change keeping one session and deleting the rest;
+  delete-account leaving zero rows; the progress revision gate, size cap and
+  key allowlist.
+- `tests/health.rs` — the router answers `/api/health` without a database.
 
-- code generation: length, alphabet (no ambiguous characters), determinism given a
-  seeded RNG, normalisation of typed-in codes (case, dashes, spaces)
-- HMAC: same code → same hash; different pepper → different hash; constant-time
-  comparison behaviour
-- validation: allowlisted keys accepted, unknown keys rejected, size caps enforced
-  on the boundary (cap-1, cap, cap+1)
-- (WP9 only) the merge functions, ported from the JS tests
-
-> A crate that depends on `worker` may not compile for a non-wasm host target,
-> which is the reason for the two-crate split in P8. Never put logic you want to
-> unit-test in the `app` crate.
-
-### Vitest (the existing suite)
+### Vitest (the existing suite, extended)
 
 | Area | Tests |
 | --- | --- |
-| `syncable.test.js` | every merge rule, as a table: union preserves order, `trips` takes the max, the gallery replay produces the expected `round` |
-| `sync.test.js` | with a mocked `fetch`: signed-out does nothing; a newer remote revision merges and writes back; an older one does not clobber; a stale client's push is rejected; **a network failure leaves local state untouched and throws nothing** |
-| `account.test.js` | sign-up returns the code once; sign-in sends the normalised code; sign-out clears local state |
-| `AccountPanel.test.jsx` | one rendered happy path: create → read the code → sign out → sign back in |
+| `syncable.test.js` | every merge rule as a table: unions preserve order, `trips` takes the max, the gallery replay produces the expected `round` |
+| `sync.test.js` | mocked `fetch`: signed out makes no requests; a newer remote revision merges and writes back; an older one does not clobber; a stale push is reconciled; the ownership table above; **a network failure leaves local state untouched and throws nothing** |
+| `account.test.js` / `api.test.js` | request shapes, cookie-dependent behaviour mocked, sign-out clears local hints |
+| `AccountPage.test.jsx` | rendered happy paths: sign up → signed-in view → sign out; the "write your password down" warning; calm error rendering |
+| `SyncGate.test.jsx` | warms from cache instantly when the device has data; waits (and then gives up at the ceiling) when it does not; renders the game either way |
 | `persistence.test.js` (extend) | an observer that throws does not break `writeStorage` |
+| `edge/test/front-door.test.js` | `/api/*` reaches the container binding, everything else falls through to assets, the client-supplied IP header is replaced |
 | existing game tests | **must not change** — proof that no game was touched |
 
 ### The rules this repo already imposes, which these tests must respect
@@ -932,207 +859,121 @@ In `worker/crates/core` — logic only, no `worker` dependency:
 - Restore shared mute state in `afterEach`; read a default the way a page load
   does (`vi.resetModules()` + fresh import).
 - The suite-wide `testTimeout: 20000` is enough; do not add private ceilings.
-- Cookie behaviour cannot be observed in jsdom (`HttpOnly` is not implemented), so
-  **test the client's request shape and the server's response handling with a
-  mocked `fetch`** rather than trying to read `document.cookie`.
+- Cookie behaviour cannot be observed in jsdom (`HttpOnly` is not implemented),
+  so test the client's request shape and the server's response handling with a
+  mocked `fetch` instead of reading `document.cookie`.
 
-### Coverage caveat — read this before the coverage gate is used
+### Coverage
 
-`vite.config.js` sets `coverage.include: ['src/**/*.{js,jsx}']`, so
-`api.js`, `syncable.js`, `sync.js` and `account.js` are **inside the report** the
-moment they exist, and untested new modules drop the numbers at 0 %.
-`docs/audit/BASELINE.md` — the file `README.md` and `AGENTS.md` name as the
-threshold — **is missing from this working tree.** Before using coverage as a
-gate, restore it from git history or re-establish it with
-`npm.cmd run test:coverage` on a clean `main`.
+`vite.config.js` includes `src/**/*.{js,jsx}`, so every new shared module and
+the account page appear in the report the moment they exist. `docs/audit/
+BASELINE.md` is re-established in C2 (the file referenced today does not exist),
+and the numbers must not fall below it.
 
 ---
 
-## P14 CI and deployment changes
+## P14 CI, the test environment, and the production cutover
 
-### `ci.yml` (and the `verify` job of `deploy-cloudflare.yml`)
+### `ci.yml` (and the `verify` job of the production workflow)
 
-Add, **before** the npm steps so a Rust failure fails fast:
+Rust steps run **before** the npm steps so a Rust failure fails fast:
 
 ```yaml
 - uses: dtolnay/rust-toolchain@stable
   with:
-    targets: wasm32-unknown-unknown
     components: rustfmt, clippy
 - uses: Swatinem/rust-cache@v2
   with:
-    workspaces: worker
-- name: Rust format
-  run: cargo fmt --manifest-path worker/Cargo.toml --all --check
-- name: Rust lint
-  run: cargo clippy --manifest-path worker/Cargo.toml --all-targets -- -D warnings
-- name: Rust tests
-  run: cargo test --manifest-path worker/Cargo.toml
-- name: Worker builds for wasm
-  run: cargo build --manifest-path worker/crates/app/Cargo.toml --target wasm32-unknown-unknown --release
+    workspaces: api
+- run: cargo fmt --manifest-path api/Cargo.toml --all --check
+- run: cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+- run: cargo test --manifest-path api/Cargo.toml      # with a postgres service
+- run: docker build -t learn-and-play-api:ci api
 ```
 
-Keep the action versions already used in the file. The last step exists because
-`cargo test` only proves the *host* build; the wasm target is what actually ships.
+`docker build` is in the list because the image is what actually ships and the
+Dockerfile is the one file `cargo test` cannot check.
 
-### `deploy-cloudflare.yml`
+### The test environment (`.github/workflows/deploy-test.yml`)
 
-1. The `deploy` job must gain the same Rust toolchain + cache, because
-   `wrangler deploy` now runs `build.command` (`worker-build`).
-2. A migration step runs **before** the deploy:
+- **Trigger:** `pull_request` (`opened`, `synchronize`, `reopened`) plus
+  `workflow_dispatch` as a manual escape hatch.
+- **Guards:** head branch must be in this repository (fork PRs never see
+  secrets), and `dependabot/**` branches are skipped so a dependency bump does
+  not steal the shared test slot.
+- **Concurrency:** its own `deploy-test` group — never the production
+  `cloudflare` group, whose `cancel-in-progress` would kill a production run
+  waiting for approval.
+- **Steps:** checkout → node → `npm ci` → lint/test/build → rust toolchain and
+  cache → fmt/clippy/test → write `dist/_headers` with
+  `X-Robots-Tag: noindex` → migrations against the test database →
+  `wrangler deploy --config wrangler.test.jsonc` → smoke check `/api/health`
+  through the Access service token → a sticky comment with the URL, the commit
+  SHA and the smoke result.
+- **One shared slot:** the most recent PR to deploy owns the URL; the comment
+  says which commit is live. Per-branch isolation (Cloudflare Previews) exists
+  but its container support is documented as partial, so it is deliberately not
+  used here; it is recorded as a future option in P17.
+- **Protection:** Cloudflare Access with a one-time-PIN policy for the owner's
+  address (and a service token for CI). Access protects the assets too, so the
+  whole test site is private, which is also why no robots policy is critical —
+  the `_headers` file is belt and braces.
 
-```yaml
-- name: Apply D1 migrations
-  run: npx wrangler d1 migrations apply learn-and-play --remote
-```
+### Production cutover (C13)
 
-3. **Token scope.** `CLOUDFLARE_API_TOKEN` currently deploys static assets. It now
-   also needs D1 permissions (at minimum `Workers D1: Edit`, plus `Workers Scripts:
-   Edit` and `Account Settings: Read`). Cloudflare's permission names change —
-   verify in the dashboard's token editor.
-4. The `cloudflare-production` environment's required-reviewer gate is **unchanged**,
-   so a human still approves every production deploy. A failed migration fails the
-   deploy job, and therefore never half-ships a backend with the wrong schema.
-5. `dist/` continues to come from the `verify` job's artifact. Consider uploading a
-   built worker artifact too if the extra `worker-build` time in the deploy job
-   becomes annoying; not required for M0.
+`wrangler.jsonc` gains `main`, the assets binding, `run_worker_first`, the
+container, the Durable Object and the production `vars`, keeping the Worker name
+`learn-and-play` so the custom domain and the `cloudflare-production` required
+reviewers are untouched. The deploy job gains the Rust toolchain, the migration
+step, and `wrangler deploy`. A failed migration fails the job, so the site can
+never run new code against an old schema.
 
-### Worker size and startup
+**Nothing production changes before C13.** The branch is developed and verified
+on the test environment, and the production deploy is simply not approved until
+the cutover commit is on `main`.
 
-The free plan allows a 64 MiB Worker and a 1-second startup. Rust wasm is far
-inside that with `lto = true`, `strip = true`, `codegen-units = 1`, and
-`worker-build` running `wasm-opt` automatically. Keep an eye on it anyway — the
-usual cause of growth is pulling in a large crate for one small helper.
+### Backup (C12)
 
-### Cache hints
+`.github/workflows/backup.yml` runs nightly (`postgres:17` client image →
+`pg_dump` → gzip → `aws s3 cp` to R2), because Neon's free tier restore window is
+short. The RUNBOOK carries the restore procedure, and a manual run is an
+acceptance criterion for C12.
 
-`Swatinem/rust-cache` caches the registry and `target/`. A `cargo install
-worker-build` in the deploy job is **not** covered by it (installed binaries live
-in `~/.cargo/bin`); either accept the install time, use `cargo-binstall`, or cache
-`~/.cargo/bin` with an explicit `actions/cache` step keyed on the `worker-build`
-version. Decide at WP7 with real timings, not now.
+### GitHub Pages (C14)
 
-### `deploy-pages.yml`
-
-**Recommendation: retire it in the same change (R14).** Pages cannot serve
-`/api/*`, so keeping it means a cross-origin API, CORS headers, and cookies with
-`SameSite=None`. `README.md` already states it should go once the custom domain is
-verified. Retiring it is a *removal of a published surface*, so it is worth doing
-as its own clearly-labelled commit.
-
-### Dependabot and CodeQL
-
-- `.github/dependabot.yml` already watches GitHub Actions and npm. Consider adding
-  a `cargo` ecosystem entry for `/worker` so crates get updates too.
-- CodeQL has Rust support in preview; adding it is optional and can wait.
+Delete `deploy-pages.yml` **and** set Settings → Pages → Source to *None*.
+Deleting only the workflow leaves the last deployment serving, which would be a
+silent lie in the docs.
 
 ---
 
-## P15 Work packages WP0 – WP9
+## P15 Work packages C1 – C15 (one commit each)
 
-Each package lists **what**, **done when** (acceptance criteria), and the
-**runbook steps** that carry it out. Do them in order; each one ends green.
+Each package is one commit, in order, and each one ends green. "Green" means
+`npm run lint`, `npm run test`, `npm run build` and, from C4 on,
+`cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+and `docker build`.
 
-### WP0 — Decision record and the written amendment *(docs only, no code)*
+| # | Commit | What lands |
+| --- | --- | --- |
+| **C1** | `docs(backend): revise the plan for paid Workers, containers and username accounts` | This document, the rewritten `RUNBOOK.md`, the amended static-only rule in `AGENTS.md`, the "no longer static" correction in `.opencode/agents/review.md`, and the README's "planned" section |
+| **C2** | `docs(audit): re-establish the coverage baseline` | `docs/audit/BASELINE.md` measured with `npm run test:coverage` |
+| **C3** | `feat(api): axum service skeleton with a health endpoint` | `api/` lib + bin, `/api/health`, env config, tracing, SIGTERM shutdown, `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `.gitignore` additions |
+| **C4** | `ci: check the Rust service and build the container image` | The Rust job in `ci.yml`, cargo and docker entries in `dependabot.yml`, the `cargo` allowlist in `opencode.json`, and the docs that describe them (`AGENTS.md`, `docs/agent-pipeline.md`, `.opencode/agents/review.md`) |
+| **C5** | `feat(edge): Worker front door that routes /api/* into the container` | `edge/`, `wrangler.test.jsonc`, the pinned `wrangler` and `@cloudflare/containers` devDependencies, the ESLint Worker-globals block, the front-door test. Production config untouched |
+| **C6** | `ci(deploy): publish every pull request to the test environment` | `deploy-test.yml` with its guards, concurrency group, noindex `_headers`, smoke check and sticky comment |
+| **C7** | `feat(api): Postgres schema, migrations and a migrate subcommand` | `0001_init.sql`, the sqlx pool, `api migrate`, `db` in `/api/health`, `#[sqlx::test]` support and the CI Postgres service |
+| **C8** | `feat(api): accounts — sign up, sign in, sessions, password change, delete` | argon2id + pepper, session mint/verify, the cookie, five account endpoints, rate limiting, `X-Client-IP` handling, and the measured hash time |
+| **C9** | `feat(api): progress records with a revision gate` | `GET`/`PUT /api/progress`, the `sync-keys.json` allowlist, size caps, revisions and conflicts |
+| **C10** | `feat(web): account page` | `account/index.html` + Vite entry, `src/account/*`, `src/shared/api.js`, `src/shared/account.js`, the library link, the README privacy note |
+| **C11** | `feat(web): progress sync with a local cache` | `sync-keys.json`, `syncable.js`, `sync.js`, the persistence observer, `SyncGate.jsx`, the six entry-point wrappers, the early pull on the library page |
+| **C12** | `ci(backup): nightly pg_dump to R2` | `backup.yml`, the restore procedure in the RUNBOOK, the R2 setup steps |
+| **C13** | `feat(deploy): move production to the front door, container and Postgres` | `wrangler.jsonc` and `deploy-cloudflare.yml` in full, the README hosting section |
+| **C14** | `chore: retire GitHub Pages` | `deploy-pages.yml` deleted, and every document that mentions Pages updated |
+| **C15** | `docs: record the backend as built` | PLAN status → built, the RUNBOOK's as-built commands, the README's account and privacy sections, the final `AGENTS.md` pass, a re-measured coverage baseline |
 
-- Rewrite the *Stack and deployment* rule in `AGENTS.md` so it describes the new
-  truth instead of forbidding it (ready-to-paste text in RUNBOOK R14).
-- Update the `AGENTS.md` structure block (`worker/`, the new shared modules, these
-  two docs), the Testing section (Rust tests live in `worker/`), the Definition of
-  done (add `cargo fmt`/`clippy`/`test`), and the deployment paragraph.
-- Update `README.md`: the account feature, what syncs, what does not, and the
-  privacy position.
-- Replace the "growing later" comment in `wrangler.jsonc` with a description of
-  what is actually there.
-- **Done when:** the docs describe the code as built, and the deliberate
-  overrides are stated with their costs (P3).
-- **Runbook:** R14.
-
-### WP1 — Skeleton and the spike (M0) *— do not skip this*
-
-- Generate a throwaway `workers-rs` template **outside the repo** to read the
-  current canonical config (R2), then create `worker/` in the repo.
-- `/api/health` in Rust; `wrangler.jsonc` gains `main`, `assets.binding`,
-  `run_worker_first: ["/api/*"]`, `build`, and (at WP2) `d1_databases`.
-- `.gitignore` gains `worker/target/`, `build/`, `.dev.vars`.
-- A **dev-only** computation endpoint for the CPU experiment (R10), not routed in
-  production.
-- **Done when:** `https://play2learn.divanchyshyn.com/api/health` returns JSON,
-  **and every existing game route is byte-identical** (`curl -I` on each
-  `/games/<slug>/` before and after), **and** the deploy job still waits for the
-  required reviewer.
-- **Runbook:** R2, R3, R4, R10.
-
-### WP2 — Schema and migrations
-
-- `worker/migrations/0001_init.sql` (P10) created in the dashboard's D1 database,
-  applied locally and remotely.
-- **Done when:** applying twice is a no-op; `SELECT` from `wrangler d1 execute`
-  shows the tables; the deploy job applies migrations before deploying.
-- **Runbook:** R1, R5.
-
-### WP3 — Accounts
-
-- `worker/crates/core`: code generation, normalisation, HMAC, constant-time
-  compare, session-token hashing — all pure, all `cargo test`ed.
-- `worker/crates/app/account.rs` + `db.rs`: `POST /api/account`,
-  `POST /api/session`, `DELETE /api/session`, `GET /api/me`.
-- Cookie, rate limiting, enumeration resistance, pepper from `env`.
-- **Done when:** `cargo test` covers the pure rules, and a real round trip works
-  against the deployed Worker (create → sign out → sign in).
-- **Runbook:** R4, R6.
-
-### WP4 — Progress API
-
-- `GET`/`PUT /api/progress` with the key allowlist, size caps, revision gate and
-  the `Origin` check.
-- **Done when:** a stale push is rejected, an oversize payload is rejected, an
-  unknown key is rejected, and a round trip returns the same payload.
-- **Runbook:** R4, R8.
-
-### WP5 — Frontend
-
-- `api.js`, `syncable.js`, `sync.js`, `account.js`, the `persistence.js` observer,
-  `src/home/AccountPanel.jsx` wired into `src/home/main.jsx`.
-- **Done when:** sync works end to end for one key; **no file under `src/games/`
-  has changed**; with the network blocked, every game still plays and no error is
-  shown.
-- **Runbook:** R4, R8.
-
-### WP6 — Tests
-
-- Rust and Vitest coverage as listed in P13, including the network-down test.
-- **Done when:** `npm.cmd run lint`, `npm.cmd run test`, `cargo test`, `cargo
-  clippy` and `npm.cmd run build` all pass, and the coverage baseline has either
-  been restored or re-established.
-- **Runbook:** R7, R8.
-
-### WP7 — CI and deploy
-
-- P14 in full: Rust toolchain, cache, fmt/clippy/test/wasm-build in CI; toolchain
-  + migrations in the deploy job; token scope widened.
-- **Done when:** both workflows are green, and a deliberately broken migration
-  fails the deploy job instead of shipping.
-- **Runbook:** R7.
-
-### WP8 — Hardening and privacy
-
-- `DELETE /api/account` (cascades everything), security headers, a calm error
-  vocabulary, and a short privacy note in the README.
-- **Done when:** deleting an account leaves no rows behind in any table.
-- **Runbook:** R8, R14.
-
-### WP9 — Optional Rust follow-ups (pick when you want more Rust)
-
-1. **Move the merge into Rust.** Port the JS merge rules into
-   `worker/crates/core/src/merge.rs`, with the *existing* Vitest tests as the
-   specification. You get `cargo test` on real domain logic.
-2. **Add the passkey credential** (`kind = 'passkey'`, P-256 verification, ~1-3 ms,
-   stays free).
-3. **Add email + password** — only if you move to Workers Paid. Reuses the
-   `credentials.kind` column; needs an email sender.
-4. **Port a game's pure rules to Rust** (e.g. the Shop's answer checking) and run
-   them through wasm in the browser — the "one language everywhere" experiment.
+P18 lists the checkpoints a human must complete along the way; they are the only
+steps that cannot be done from the repository.
 
 ---
 
@@ -1140,55 +981,70 @@ Each package lists **what**, **done when** (acceptance criteria), and the
 
 | Milestone | Content | What it proves | Risk to the live site |
 | --- | --- | --- | --- |
-| **M0** | WP1: `/api/health` in Rust, deployed, game pages unchanged | the toolchain, the build and the deploy path all work | none (assets untouched) |
-| **M1** | WP2 + WP3: D1, migrations, accounts round trip | the free CPU budget is comfortable for the credential chosen | none (games never call it yet) |
-| **M2** | WP4 + WP5 for **one** key: `soundLabyrinth:gallery` | end-to-end sync, plus the fail-open behaviour under a blocked network | low |
-| **M3** | WP5 for all three achievement keys + the Pages decision | the feature is actually useful | low |
-| **M4** | WP6 + WP7 + WP8: tests, CI, hardening, privacy | the change is finished by this repo's own definition of done | none |
+| **M0** | C3 – C6: skeleton, CI, front door, test deployment | The container, the image build, the Durable Object proxy and the PR-to-test-env pipeline all work | none (production config untouched) |
+| **M1** | C7: schema and migrations | A real database, reachable from the container, migrated by CI | none |
+| **M2** | C8: accounts round trip | Passwords, sessions, cookies through the Durable Object, and the real argon2 cost on `lite` | none |
+| **M3** | C9 – C11: progress API and the frontend | Cross-device progress with a cache, and the fail-open guarantee under a blocked network | low |
+| **M4** | C12 – C15: backups, cutover, Pages retirement, docs | The change is finished by this repo's own definition of done | the cutover itself, mitigated by the unchanged approval gate and a one-command rollback |
 
-Start at M0 and stop after it for a day if you like — M0 on its own is a
-genuinely valuable, zero-risk experiment, and it is the step that tells you
-whether Rust-on-Workers is pleasant for *you*.
+---
 
 ## P17 Risks, failure modes and rollback
 
 | # | Risk | Likelihood | Mitigation |
 | --- | --- | --- | --- |
-| R1 | Rust/wasm toolchain friction on Windows (`worker-build` fetching `wasm-opt`) | medium | M0 exists to surface it before anything depends on it; CI on ubuntu is the authority, local dev is a convenience |
-| R2 | The 10 ms CPU ceiling on the two auth routes | low with a player code, **high** if the credential changes | the credential design (P7); R10 measures real cost before any permanent decision |
-| R3 | A backend bug breaks a game | very low by construction | game pages never invoke the Worker; the merge is client-side; the codecs still validate |
-| R4 | A child loses progress to a sync bug | medium — the worst outcome here | union-only merges on monotonic data; the revision gate; first sign-in uploads; never overwrite with a non-newer value; tests for each |
-| R5 | `localStorage` and server drift apart confusingly | medium | the server is a mirror only; local play always wins for sessions; delete-account is real (WP8) |
-| R6 | Rust build time slows every deploy | medium | `rust-cache`; build in the verify job; accept a 1-3 min deploy |
-| R7 | Migration fails in production | low | migrate *before* deploy; a failed migration fails the job; run it locally first; D1 Time Travel gives 7 days of point-in-time recovery |
-| R8 | Coverage gate fails because new modules are untested | high if forgotten | P13's coverage caveat; test the new shared modules with the feature, not after |
-| R9 | `docs/audit/BASELINE.md` is missing, so the gate has no number | certain today | restore from git history or re-establish on a clean `main` before relying on it |
-| R10 | Someone stores data they cannot delete | low | cascade delete is in the schema from the first migration (WP8 finishes the endpoint) |
+| R1 | Container cold start (1-3 s) after ten idle minutes | certain, harmless | Only `/api/*` waits; games are assets; the gate waits only on a device with no cache, and only 1.5 s |
+| R2 | argon2id is slow on the `lite` share | medium | C8 measures the real hash time on the real instance and switches `instance_type` to `basic` if it exceeds ~1.5 s. Lowering the work factor is not the lever |
+| R3 | Neon's free tier (1 GB, scale-to-zero, short restore window) | medium | Tiny data, a measured wake-up in C8, a nightly dump to R2 (C12) and a documented restore |
+| R4 | `Set-Cookie` through the Durable Object is not documented by Cloudflare | low, but unverified | It is the first acceptance check of C8; the fallback is copying `Set-Cookie` explicitly in the front door |
+| R5 | A sync bug loses a child's progress | medium — the worst outcome here | Union-only merges over monotonic data, the ownership table, revision conflicts, upload-before-download on first sign-in, and a test for each |
+| R6 | The container image build slows every deploy | medium | cargo-chef layering and the GitHub Actions layer cache; a 3-6 minute PR deploy is accepted |
+| R7 | Two environments, two databases, two secret sets | medium | Explicit RUNBOOK checklists, a documented "reset the test database" command, and everything proven on the test env first |
+| R8 | Cost creep | low | `max_instances: 1`, `sleepAfter: 10m`, and P6's awake-hour arithmetic showing `lite` inside the included allowance for hobby use |
+| R9 | A forgotten password loses an account | certain eventually | Accepted by design (D7): long-lived sessions, an honest warning at sign-up, and a recovery code recorded here as the obvious future addition |
+| R10 | Fork or bot pull requests reaching the test environment | low | The same-repo guard, the dependabot skip, Cloudflare Access, and a rule-limited sign-up path |
+| R11 | GitHub Pages keeps serving after its workflow is deleted | certain if forgotten | C14's dashboard step, with the reason written into the RUNBOOK and the README |
+| R12 | Cloudflare renames a config key (containers moved from `migrations` to `exports` once already) | medium | The config is read from the current docs when C5 lands; the RUNBOOK says to re-check before copying |
 
 ### Rollback
 
 | Situation | Action |
 | --- | --- |
-| The Worker misbehaves | `npx wrangler rollback` (restores the previous version, assets included), or revert the commit — the assets are unaffected either way |
-| The backend should be removed entirely | revert the `wrangler.jsonc` + `worker/` commit; the site returns to exactly today's static deploy; D1 data can be exported first with `wrangler d1 export` |
-| A migration was wrong | D1 Time Travel (7 days on Free) restores the database to a point in time; then fix forward with a new migration |
-| The account feature is unwanted | the frontend modules are additive; deleting `AccountPanel` from the library page hides it without touching any game |
+| The backend misbehaves after cutover | `npx wrangler rollback --name learn-and-play` (restores the previous version, assets included), or revert C13 and approve the deploy |
+| The backend should be removed entirely | revert C13; the site returns to exactly today's static deploy, and the games never depended on the API. Export the database first if it holds anything worth keeping |
+| A migration was wrong | restore from the nightly dump (or Neon's own restore) and fix forward with a **new** migration; never edit an applied one |
+| The account feature is unwanted | the frontend modules are additive; deleting the "Konto" link and the account page hides it without touching any game |
+| The test environment is noisy or expensive | delete the `learn-and-play-test` Worker and its custom domain in the dashboard; production is unaffected |
 
-**The most important rollback property:** because `run_worker_first` scopes Rust to
-`/api/*`, a total backend failure degrades to *"accounts do not work"* and never to
-*"the games do not load"*.
+**The most important rollback property:** because `run_worker_first` scopes code
+to `/api/*`, a total backend failure degrades to *"accounts do not work"* and
+never to *"the games do not load"*.
 
-## P18 Open decisions that need a human
+### Deliberately out of scope
 
-| # | Decision | Needed by | Notes |
-| --- | --- | --- | --- |
-| Q1 | Install the Rust toolchain on this machine | WP1 | R0; includes the MSVC build tools |
-| Q2 | Add `wrangler` as a devDependency, or use `npx wrangler` | WP1 | changes `package.json`; `npx` downloads on demand |
-| Q3 | Create the D1 database and widen the API token scope | WP1/WP2 | dashboard work, cannot be scripted from here |
-| Q4 | Retire `deploy-pages.yml` in this change, or keep it with CORS | WP5 | retiring is cleaner and already anticipated by the README |
-| Q5 | Should the coding agent be allowed to work on Rust? | WP7 | adds `cargo` commands to `opencode.json`'s bash allowlist; every deploy command stays denied |
-| Q6 | Add a `cargo` entry to `dependabot.yml`? | WP7 | optional |
-| Q7 | Restore or re-establish `docs/audit/BASELINE.md` | WP6 | required before the coverage gate means anything |
+A recovery code (the previous plan's player code, re-used as a backup
+credential); per-child profiles under one parent account; Cloudflare Previews
+for per-PR URLs instead of one shared test slot; Cloudflare Turnstile on
+sign-up; an admin view; email of any kind.
+
+---
+
+## P18 Human checkpoints
+
+Everything else in this plan can be done from the repository. These cannot.
+
+| # | Needed by | What |
+| --- | --- | --- |
+| H1 | C3 | Start Docker Desktop (installed; the daemon is not running). Needed for `docker build`, the dev Postgres and `wrangler dev` |
+| H2 | C6 | Cloudflare: confirm Workers Paid; widen or replace `CLOUDFLARE_API_TOKEN` for Workers Scripts and Containers; create a `cloudflare-test` GitHub environment (no reviewers) holding `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` |
+| H3 | C6 | Neon: create the project and two databases (`learn_and_play`, `learn_and_play_test`); keep both connection strings (with `sslmode=require`) |
+| H4 | C6 | Zero Trust: create the Access application for `test.play2learn.divanchyshyn.com` with a one-time-PIN policy for your address, and a service token for the CI smoke check |
+| H5 | C6 | Confirm `test.play2learn.divanchyshyn.com` has no existing CNAME (a hostname with one cannot become a custom domain) |
+| H6 | C8 | Set the test Worker's secrets: `DATABASE_URL`, `PEPPER` (`wrangler secret put --config wrangler.test.jsonc`) |
+| H7 | C12 | Create the R2 bucket, a lifecycle rule, and the S3 credentials the backup workflow uses |
+| H8 | C13 | Add the Rust job to the required status checks in branch protection |
+| H9 | C13 | Create the production database, set the production Worker's secrets, then approve the one production deploy |
+| H10 | C14 | Settings → Pages → Source: None |
 
 ---
 
@@ -1201,102 +1057,113 @@ codebase will actually use — nothing more.
 
 | Term | Meaning |
 | --- | --- |
-| **crate** | A compilation unit / library. `worker`, `worker-macros` and your `core` are crates. |
-| **package** | A directory with a `Cargo.toml` that builds one or more crates. |
-| **workspace** | Several packages built together from one root `Cargo.toml` — that is what `worker/` is. |
-| **`cargo`** | The build tool *and* the package manager (like `npm`): `cargo build`, `cargo test`, `cargo fmt`, `cargo clippy`. |
-| **target triple** | What you compile *for*. `wasm32-unknown-unknown` is the Workers target; your laptop's default is the host target. |
-| **`#[event(fetch)]`** | A macro that wraps your Rust function as the Worker's `fetch` handler. |
-| **`Result<T, E>`** | Either success `Ok(T)` or failure `Err(E)`. `worker::Result<Response>` is used throughout. |
-| **`?`** | "If this failed, return the error now." Removes most error-handling noise. |
-| **`Option<T>`** | A value that may be absent: `Some(x)` or `None`. |
-| **`String` vs `&str`** | Owned text vs. a borrowed view of text. You will pass `&str` around and build `String`s. |
-| **`struct` / `enum` / `match`** | Rust's data types and its exhaustive switch. `enum CredentialKind { Code, Password, Passkey }` plus `match` is the idiomatic way to express P10's `kind` column — a good first thing to write. |
-| **`serde`** | Derive macros that turn structs into JSON and back: `#[derive(Serialize, Deserialize)]`. |
-| **`#[cfg(test)] mod tests`** | A test module in the same file: `#[test] fn name() { assert_eq!(…) }`. |
-| **derive / traits** | Reusable behaviour (`Clone`, `Debug`, `Serialize`). You will write `#[derive(…)]` and rarely write a trait yourself. |
+| **crate** | A compilation unit / library: `axum`, `sqlx`, `argon2`, and this project's own `api` crate |
+| **package** | A directory with a `Cargo.toml` |
+| **`cargo`** | The build tool *and* the package manager (like `npm`): `cargo build`, `cargo test`, `cargo fmt`, `cargo clippy` |
+| **target** | What you compile *for*. This project compiles for the host machine (`cargo test`, Linux in the container) — no WASM target needed |
+| **`Result<T, E>`** | Either success `Ok(T)` or failure `Err(E)`; `anyhow::Result` in `main`, `sqlx::Error`/`ApiError` inside |
+| **`?`** | "If this failed, return the error now." Removes most error-handling noise |
+| **`Option<T>`** | A value that may be absent: `Some(x)` or `None` |
+| **`String` vs `&str`** | Owned text vs. a borrowed view of text |
+| **`struct` / `enum` / `match`** | Data types and Rust's exhaustive switch — the natural way to write the `Command::Serve | Command::Migrate` choice in `main.rs` |
+| **`serde`** | Derive macros that turn structs into JSON and back: `#[derive(Serialize, Deserialize)]` |
+| **`#[tokio::main]`** | Turns `async fn main` into a normal `main` running on the async runtime |
+| **`#[sqlx::test]`** | A test that gets a fresh throwaway database, runs `migrations/`, and hands the test a pool |
+| **`#[cfg(test)] mod tests`** | A test module in the same file: `#[test] fn name() { assert_eq!(…) }` |
+| **derive / traits** | Reusable behaviour (`Clone`, `Debug`, `Serialize`). You will write `#[derive(…)]` and rarely write a trait yourself |
 
 **You will not need:** `unsafe`, manual memory management, explicit lifetimes,
-macros you write yourself, or a threaded async runtime.
+macros you write yourself, or WASM.
 
-### The one surprise if you come from Python/JavaScript
+### The one surprise if you come from JavaScript
 
 Ownership: a value has exactly one owner, and passing it *moves* it. In practice
 the compiler tells you exactly where, the message is unusually good, and the fix
-is usually `&` (borrow) or `.clone()` (copy). Expect the first week to be a fight
-with `cargo build`, and the second week to be faster than you were in JS.
+is usually `&` (borrow) or `.clone()`. Expect the first week to be a fight with
+`cargo build`, and the second week to be faster than you were in JS.
 
 ### Your actual first three Rust files
 
-1. `worker/crates/core/src/code.rs` — generate a code, normalise a typed-in one.
-   Pure functions in, pure functions out. Nothing else. `cargo test` it.
-2. `worker/crates/core/src/secret.rs` — HMAC + constant-time compare.
-3. `worker/crates/app/src/lib.rs` — the router, returning `{"ok":true}` for
-   `/api/health`. This is the M0 milestone, and it touches no database at all.
+1. `api/src/routes/health.rs` — a handler returning `{ "ok": true }`, plus the
+   router in `lib.rs` that mounts it. This is M0: it touches no database.
+2. `api/src/domain/username.rs` — validate and normalise a typed-in username.
+   Pure functions in, pure functions out. `cargo test` it.
+3. `api/src/domain/password.rs` — hash and verify with argon2id, and detect when
+   a stored hash needs upgrading.
 
-That order means **your first Rust is fully unit-tested before it ever runs in the
-cloud**, which is the whole reason for the two-crate split in P8.
+That order means **your first Rust is fully unit-tested before it ever runs in
+the cloud**.
 
 ### The loop you will actually work in
 
 ```powershell
-cd worker
-cargo test -p core        # milliseconds, no network, no wasm
-cargo check               # fast compile check
+cd api
+cargo test            # milliseconds for the pure logic, seconds with a database
+cargo check           # fast compile check
 cargo clippy --all-targets -- -D warnings
 cargo fmt
 ```
 
-Use `wrangler dev` (RUNBOOK R4) only when you need to exercise HTTP, cookies or D1.
+Use `docker compose up -d db` for the local database, and `wrangler dev` only
+when you need to exercise the HTTP path through the Durable Object.
 
 ### Learning resources
 
-- *The Rust Programming Language* — <https://doc.rust-lang.org/book/> (chapters 1-10
-  cover everything above)
+- *The Rust Programming Language* — <https://doc.rust-lang.org/book/> (chapters
+  1-10 cover everything above)
 - *Rustlings*, small exercises to build the reflexes —
   <https://github.com/rust-lang/rustlings>
-- *The Rust Wasm Book* — <https://rustwasm.github.io/docs/book/>
-- `workers-rs`, including its `examples/` directory —
-  <https://github.com/cloudflare/workers-rs>
-- Cloudflare's Rust guide and its supported-crates notes —
-  <https://developers.cloudflare.com/workers/languages/rust/>
+- `axum` examples — <https://github.com/tokio-rs/axum/tree/main/examples>
+- `sqlx` — <https://docs.rs/sqlx> and its `migrate!` macro
+- *Zero to Production in Rust* (Luca Palmieri) — the book this architecture
+  resembles, without the parts this project does not need
+
+---
 
 ## P20 Glossary and references
 
 | Term | Meaning in this project |
 | --- | --- |
-| **assets** | The static files in `dist/` (the games), served by Cloudflare directly. |
-| **binding** | Something the Worker can use: `DB` (D1), `ASSETS` (the static files), `PEPPER` (a secret). |
-| **D1** | Cloudflare's SQLite database service. |
-| **`dist/`** | The Vite build output; the deployable site. |
-| **fail-open** | If the backend misbehaves, play continues unaffected. |
-| **migration** | A numbered SQL file that changes the schema, applied in order. |
-| **player code** | The credential: a 16-character bearer secret ("spillkode"). |
-| **revision** | The server-stamped `updated_at` on a progress record; the tie-breaker for sync. |
-| **session** | A signed-in browser: a row in `sessions` plus an `HttpOnly` cookie. |
-| **`run_worker_first`** | The config that decides which paths invoke the Worker script instead of being served as assets. |
-| **Worker** | A Cloudflare serverless function; here it serves `/api/*` only. |
-| **`workers-rs`** | The Rust crate that lets you write a Worker in Rust (compiled to WebAssembly). |
+| **assets** | The static files in `dist/` (the games), served by Cloudflare's asset router |
+| **binding** | Something a *Worker* can use (`ASSETS`, a D1 database, a KV namespace). Containers have no bindings |
+| **container** | A Firecracker microVM running this project's Docker image, reachable only through its Durable Object |
+| **Durable Object** | A single-threaded, stateful Worker class; here it exists to own and proxy the container |
+| **front door** | This project's Worker (`edge/`): serves assets and forwards `/api/*` to the container |
+| **fail-open** | If the backend misbehaves, play continues unaffected |
+| **migration** | A numbered SQL file that changes the schema, applied in order |
+| **PHC string** | The `$argon2id$v=19$m=…$salt$hash` text form argon2 hashes are stored in |
+| **revision** | The server-assigned per-record counter that decides which progress write wins |
+| **run_worker_first** | The config that decides which paths invoke code instead of being served as assets |
+| **session** | A signed-in browser: a row in `sessions` plus an `HttpOnly` cookie |
+| **SyncGate** | The component that briefly waits for the database before a game mounts, and gives up after 1.5 s |
 
 **References — worth re-reading before changing a decision:**
 
-- Workers limits / pricing —
+- Workers limits and pricing —
   <https://developers.cloudflare.com/workers/platform/limits/>,
   <https://developers.cloudflare.com/workers/platform/pricing/>
-- D1 limits / pricing — <https://developers.cloudflare.com/d1/platform/limits/>,
-  <https://developers.cloudflare.com/d1/platform/pricing/>
-- KV limits — <https://developers.cloudflare.com/kv/platform/limits/>
-- Durable Objects pricing —
-  <https://developers.cloudflare.com/durable-objects/platform/pricing/>
-- Static asset routing (the `run_worker_first` array) —
-  <https://developers.cloudflare.com/workers/static-assets/routing/>
-- Rust on Workers — <https://developers.cloudflare.com/workers/languages/rust/>
-- Wrangler configuration —
-  <https://developers.cloudflare.com/workers/wrangler/configuration/>
+- Containers: configuration, images, limits, pricing —
+  <https://developers.cloudflare.com/containers/configuration/wrangler/>,
+  <https://developers.cloudflare.com/containers/guides/image-management/>,
+  <https://developers.cloudflare.com/containers/platform/limits/>,
+  <https://developers.cloudflare.com/containers/platform/pricing/>
+- Static asset routing and headers —
+  <https://developers.cloudflare.com/workers/static-assets/routing/worker-script/>,
+  <https://developers.cloudflare.com/workers/static-assets/headers/>
+- Custom domains — <https://developers.cloudflare.com/workers/configuration/routing/custom-domains/>
+- Cloudflare Access for Workers — <https://developers.cloudflare.com/workers/configuration/cloudflare-access/>
+- Neon free tier and compute lifecycle — <https://neon.com/pricing>,
+  <https://neon.com/docs/introduction/compute-lifecycle>
+- OWASP Password Storage Cheat Sheet —
+  <https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html>
+- OWASP Session Management Cheat Sheet —
+  <https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html>
+- GitHub Actions secrets and pull requests —
+  <https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets>
 
 ## P21 Revision log
 
 | Date | Change |
 | --- | --- |
-| 2026-10-01 | Initial plan written from a design session. Option A (Rust Worker + D1, Workers Free plan) and Path 4 (swappable credential, player code first) chosen. Nothing implemented. |
-
+| 2026-10-01 | Initial plan written from a design session: Rust Worker (WASM) + D1 on the Workers Free plan, player-code credential, `localStorage` as the source of truth, GitHub Pages kept. Nothing implemented. |
+| 2026-10-02 | Rewritten after Workers Paid: Rust axum **container** fronted by a Worker, Postgres on Neon, username + password accounts with **no email and no recovery**, database as the record with `localStorage` as a cache, a pull-request test environment on `test.play2learn.divanchyshyn.com` behind Cloudflare Access, and GitHub Pages retired. Work packages restated as one commit each (C1 – C15). |
