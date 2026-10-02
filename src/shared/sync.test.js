@@ -5,6 +5,7 @@ import {
   HYDRATION_TIMEOUT_MS,
   OWNER_DETACHED,
   PUSH_DEBOUNCE_MS,
+  flushPush,
   needsHydration,
   readOwner,
   readRevision,
@@ -258,6 +259,184 @@ describe('the sync engine', () => {
     expect(readOwner()).toBe(OWNER_DETACHED);
     expect(readRevision(ALBUM)).toBe(0);
     expect(albumCodec.parse(readStorage(ALBUM))).toEqual({ discovered: ['fox'] });
+  });
+
+  it('sends nothing when nothing changed', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    const fetchMock = apiMock({ me: { signedIn: true, username: 'Kid' } });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+    const before = fetchMock.requests.length;
+
+    await flushPush();
+
+    expect(fetchMock.requests).toHaveLength(before);
+  });
+
+  it('sends what is waiting when the page is hidden', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    const fetchMock = apiMock({ me: { signedIn: true, username: 'Kid' } });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+
+    vi.useFakeTimers();
+    writeStorage(ALBUM, album(['fox']));
+    // The debounce has not fired yet; the child closing the tab must not cost them
+    // the fox they just found.
+    await flushPush();
+
+    const puts = fetchMock.requests.filter((request) => request.method === 'PUT');
+    expect(puts).toHaveLength(1);
+    expect(albumCodec.parse(puts[0].body.records[0].payload)).toEqual({ discovered: ['fox'] });
+  });
+
+  it('says so, quietly, when the account check is refused', async () => {
+    writeSignInHint('Kid');
+    const fetchMock = vi.fn(async (url) =>
+      url === '/api/me' ? { ok: true, status: 200, text: async () => JSON.stringify({ signedIn: false }) } : json({ records: [] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await startSync();
+
+    expect(result).toEqual({ ok: true, signedIn: false });
+    expect(readSignInHint()).toBeNull();
+    // Signed out means nothing else is asked for.
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/me']);
+  });
+
+  it('ignores a record this version does not sync', async () => {
+    writeSignInHint('Kid');
+    const fetchMock = apiMock({
+      me: { signedIn: true, username: 'Kid' },
+      records: [
+        { key: 'soundLabyrinth:game', payload: '{"a maze in progress"}', revision: 7 },
+        { key: 'cardBattle:album', payload: album(['fox']), revision: 2 },
+      ],
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+
+    expect(readStorage('soundLabyrinth:game')).toBeNull();
+    expect(readRevision('soundLabyrinth:game')).toBe(0);
+    expect(albumCodec.parse(readStorage(ALBUM))).toEqual({ discovered: ['fox'] });
+  });
+
+  it('keeps a change waiting when the service refuses it', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    const fetchMock = apiMock({
+      me: { signedIn: true, username: 'Kid' },
+      put: () => json({ error: 'internal' }, 500),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+
+    vi.useFakeTimers();
+    writeStorage(ALBUM, album(['fox']));
+    await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 1);
+
+    expect(albumCodec.parse(readStorage(ALBUM))).toEqual({ discovered: ['fox'] });
+    expect(readRevision(ALBUM)).toBe(0);
+
+    // The next attempt — a later change, or the next page load — still sends it.
+    writeStorage(ALBUM, album(['fox', 'owl']));
+    await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 1);
+
+    const puts = fetchMock.requests.filter((request) => request.method === 'PUT');
+    expect(puts.length).toBeGreaterThanOrEqual(2);
+    expect(albumCodec.parse(puts.at(-1).body.records[0].payload)).toEqual({
+      discovered: ['fox', 'owl'],
+    });
+  });
+
+  it('ignores a conflict for a record this version does not sync', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    const fetchMock = apiMock({
+      me: { signedIn: true, username: 'Kid' },
+      put: (body) =>
+        json({
+          accepted: body.records.map((record) => ({
+            key: record.key,
+            revision: record.baseRevision + 1,
+          })),
+          conflicts: [{ key: 'soundLabyrinth:game', payload: '{}', revision: 3 }],
+        }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+
+    vi.useFakeTimers();
+    writeStorage(ALBUM, album(['fox']));
+    await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 1);
+
+    expect(readStorage('soundLabyrinth:game')).toBeNull();
+    expect(readRevision('soundLabyrinth:game')).toBe(0);
+    expect(readRevision(ALBUM)).toBe(1);
+  });
+
+  it('puts up with an answer that carries no records at all', async () => {
+    writeSignInHint('Kid');
+    let call = 0;
+    const fetchMock = vi.fn(async (url, init = {}) => {
+      call += 1;
+      if (url === '/api/me') return json({ signedIn: true, username: 'Kid' });
+      if ((init.method ?? 'GET') === 'GET') return { ok: true, status: 200, text: async () => '' };
+      return json({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await startSync();
+
+    expect(result.signedIn).toBe(true);
+    expect(call).toBeGreaterThanOrEqual(2);
+  });
+
+  it('drops a pending push when the page is torn down', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    const fetchMock = apiMock({ me: { signedIn: true, username: 'Kid' } });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+
+    vi.useFakeTimers();
+    writeStorage(ALBUM, album(['fox']));
+    const before = fetchMock.requests.length;
+
+    // A test seam, and also what a torn-down page does: stop everything pending.
+    resetSync();
+    await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 1);
+
+    expect(fetchMock.requests).toHaveLength(before);
+    expect(albumCodec.parse(readStorage(ALBUM))).toEqual({ discovered: ['fox'] });
+  });
+
+  it('starts again after signing in on the same page', async () => {    const fetchMock = apiMock();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    writeSignInHint('Kid');
+    const signedIn = apiMock({ me: { signedIn: true, username: 'Kid' } });
+    vi.stubGlobal('fetch', signedIn);
+
+    const result = await startSync();
+
+    expect(result.signedIn).toBe(true);
+    expect(signedIn.requests.map((request) => request.url)).toEqual([
+      '/api/me',
+      '/api/progress',
+    ]);
   });
 });
 

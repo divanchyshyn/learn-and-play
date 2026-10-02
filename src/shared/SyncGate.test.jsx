@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
-import { SyncGate } from './SyncGate.jsx';
+import { StartSync, SyncGate } from './SyncGate.jsx';
 import { writeSignInHint } from './account.js';
 import { writeStorage } from './persistence.js';
 import { HYDRATION_TIMEOUT_MS, resetSync } from './sync.js';
@@ -46,6 +46,33 @@ describe('the sync gate', () => {
 
     expect(screen.getByText('Spillet')).toBeInTheDocument();
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('renders instantly when the tab goes away before the database answers', async () => {
+    writeSignInHint('Kid');
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+
+    const { unmount } = render(<SyncGate>{game}</SyncGate>);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    // Closing the page mid-wait must not leave a state update behind it.
+    unmount();
+  });
+
+  it('the library page only warms the cache, and shows nothing of its own', async () => {
+    writeSignInHint('Kid');
+    const fetchMock = vi.fn(async (url) =>
+      url === '/api/me' ? json({ signedIn: true, username: 'Kid' }) : json({ records: [] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { container } = render(<StartSync />);
+
+    expect(container).toBeEmptyDOMElement();
+    await vi.waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/me', expect.anything()),
+    );
   });
 
   it('waits for the database on a device that has nothing, then renders', async () => {

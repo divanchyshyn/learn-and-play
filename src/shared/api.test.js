@@ -80,6 +80,20 @@ describe('the API wrapper', () => {
     expect(result).toEqual({ ok: true, status: 204, data: null });
   });
 
+  it('survives a body that cannot be read at all', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => {
+        throw new Error('the connection dropped mid-body');
+      },
+    });
+
+    const result = await request('/progress');
+
+    expect(result).toEqual({ ok: true, status: 200, data: null });
+  });
+
   it('reports an unreachable service as offline', async () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
 
@@ -95,6 +109,27 @@ describe('the API wrapper', () => {
     const result = await request('/progress', { timeoutMs: 10 });
 
     expect(result).toEqual({ ok: false, status: 0, error: 'timeout' });
+  });
+
+  it('aborts a request that never answers, rather than waiting forever', async () => {
+    vi.useFakeTimers();
+    let signal;
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          signal = init.signal;
+          signal.addEventListener('abort', () => {
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          });
+        }),
+    );
+
+    const pending = request('/me', { timeoutMs: 250 });
+    await vi.advanceTimersByTimeAsync(251);
+
+    expect(signal.aborted).toBe(true);
+    await expect(pending).resolves.toEqual({ ok: false, status: 0, error: 'timeout' });
+    vi.useRealTimers();
   });
 
   it('passes keepalive through, so a last write can outlive the page', async () => {

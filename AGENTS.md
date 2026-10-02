@@ -23,7 +23,7 @@ applies to these changes too, unless the person asks for something else.
 
 ## Project goal
 
-Build a small, friendly collection of browser games for children. Games should be easy to understand, work without accounts or a backend, and support learning through play. The current games practise Norwegian words, but future games may cover reading, counting, maths, or similar skills.
+Build a small, friendly collection of browser games for children. Games should be easy to understand and support learning through play; every game must work without an account, and an account (optional, for carrying progress between devices) may never be needed to play. The current games practise Norwegian words, but future games may cover reading, counting, maths, or similar skills.
 
 ## Naming
 
@@ -111,7 +111,7 @@ api/tests/                              Integration tests that drive the real ro
 opencode.json                           Coding agent config: model, permissions, provider
 .opencode/agents/review.md              Read-only reviewer agent used by the review workflow
 docs/agent-pipeline.md                  How the agent pipeline is wired up and how to run it
-docs/backend/PLAN.md                    The planned backend for accounts and cross-device progress: decisions, design, work packages C1-C15 (NOT BUILT - the app is still static)
+docs/backend/PLAN.md                    The backend for accounts and cross-device progress as built: decisions, design, the C1-C15 work packages, and what the build changed about the plan
 docs/backend/RUNBOOK.md                 Step-by-step runbook for that backend: toolchain, Neon and Cloudflare setup, Cloudflare Access, migrations, secrets, deploy, rollback, troubleshooting
 docs/audit/BASELINE.md                  The measured build, lint, test and coverage gate every later change is compared against
 ```
@@ -349,6 +349,8 @@ npm run test:coverage
 ```
 
 `vite.config.js` scopes the report to `src/**/*.{js,jsx}` (excluding test files and the page entry points, which are one `createRoot` call each), so a module nobody imports appears at 0 % instead of being absent. Coverage must never fall below the figures recorded in `docs/audit/BASELINE.md` — overall and per file for any file a change touches.
+
+On a loaded machine, add `-- --testTimeout=60000` to the coverage run: instrumentation roughly doubles the runtime of the heaviest Sound Labyrinth test, which already sits near the suite-wide 20 s ceiling. That is a measurement detail, not a change to the suite CI runs.
 
 ## CI
 

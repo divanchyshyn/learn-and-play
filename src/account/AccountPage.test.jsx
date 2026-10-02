@@ -98,4 +98,108 @@ describe('the account page', () => {
     );
     expect(screen.getByRole('button', { name: 'Slett kontoen' })).toBeInTheDocument();
   });
+
+  it('changes the password and says other devices have to sign in again', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: true, username: 'TestKid' }));
+    render(<AccountPage />);
+
+    await screen.findByText('Du er logget inn som TestKid');
+    fireEvent.click(screen.getByRole('button', { name: 'Bytt passord' }));
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    fireEvent.change(await screen.findByLabelText('Nåværende passord'), {
+      target: { value: 'et-langt-passord' },
+    });
+    fireEvent.change(screen.getByLabelText('Nytt passord'), {
+      target: { value: 'et-enda-lengre-passord' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Lagre nytt passord' }));
+
+    expect(await screen.findByText(/Andre enheter må logge inn på nytt/)).toBeInTheDocument();
+  });
+
+  it('keeps the form open when the password change is refused', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: true, username: 'TestKid' }));
+    render(<AccountPage />);
+
+    await screen.findByText('Du er logget inn som TestKid');
+    fireEvent.click(screen.getByRole('button', { name: 'Bytt passord' }));
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'password_too_short' }, 400));
+    fireEvent.change(await screen.findByLabelText('Nåværende passord'), {
+      target: { value: 'et-langt-passord' },
+    });
+    fireEvent.change(screen.getByLabelText('Nytt passord'), { target: { value: 'kort' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Lagre nytt passord' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Passordet må ha minst 8 tegn.');
+  });
+
+  it('signs out and offers the forms again', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: true, username: 'TestKid' }));
+    render(<AccountPage />);
+
+    await screen.findByText('Du er logget inn som TestKid');
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    fireEvent.click(screen.getByRole('button', { name: 'Logg ut' }));
+
+    expect(await screen.findByRole('tab', { name: 'Logg inn' })).toBeInTheDocument();
+    expect(screen.getByText(/Du er logget ut/)).toBeInTheDocument();
+  });
+
+  it('deletes the account and lands back on the signed-out page', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: true, username: 'TestKid' }));
+    render(<AccountPage />);
+
+    await screen.findByText('Du er logget inn som TestKid');
+    fireEvent.click(screen.getByRole('button', { name: 'Slett kontoen min' }));
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    fireEvent.change(await screen.findByLabelText('Passordet ditt'), {
+      target: { value: 'et-langt-passord' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Slett kontoen' }));
+
+    expect(await screen.findByRole('tab', { name: 'Logg inn' })).toBeInTheDocument();
+  });
+
+  it('can back out of both forms without changing anything', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: true, username: 'TestKid' }));
+    render(<AccountPage />);
+
+    await screen.findByText('Du er logget inn som TestKid');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bytt passord' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Avbryt' }));
+    expect(screen.getByRole('button', { name: 'Bytt passord' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Slett kontoen min' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Avbryt' }));
+    expect(screen.getByRole('button', { name: 'Logg ut' })).toBeInTheDocument();
+
+    // Nothing was sent beyond the initial "who am I?" question.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('says it is working while a sign-in is in flight', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: false }));
+    render(<AccountPage />);
+
+    await screen.findByRole('tab', { name: 'Logg inn' });
+
+    let release;
+    fetchMock.mockImplementationOnce(
+      () => new Promise((resolve) => { release = () => resolve(jsonResponse({ username: 'TestKid' })); }),
+    );
+
+    fireEvent.change(screen.getByLabelText('Brukernavn'), { target: { value: 'TestKid' } });
+    fireEvent.change(screen.getByLabelText('Passord'), { target: { value: 'et-langt-passord' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Logg inn' }));
+
+    expect(await screen.findByRole('button', { name: 'Logger inn …' })).toBeDisabled();
+
+    release();
+    expect(await screen.findByText('Du er logget inn som TestKid')).toBeInTheDocument();
+  });
 });

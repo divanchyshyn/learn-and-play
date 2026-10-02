@@ -1,9 +1,12 @@
 # Backend plan — username accounts and database progress (Rust container + Postgres)
 
-> **Status: PLANNED, not built.** Nothing in this document exists in the code
-> yet: the site is still static, and every game still saves to `localStorage`
-> only. This document was rewritten from scratch after the project owner bought
-> **Workers Paid**; it replaces the earlier free-tier plan entirely.
+> **Status: BUILT.** Every work package below (C1 – C15) is implemented on the
+> branch `feature/rust-backend`, in one commit each. The games are still static
+> assets served by Cloudflare's asset router; `/api/*` is a Rust service in a
+> Cloudflare Container with Postgres behind it. What remains before this is live
+> is the human setup the plan never pretended to automate: the Neon databases,
+> the Cloudflare secrets, the Access application for the test hostname, and one
+> approved production deploy (P18).
 >
 > **Companion document:** [`RUNBOOK.md`](./RUNBOOK.md) — the hands-on steps
 > (installs, Neon and Cloudflare setup, Access, secrets, migrations, deploy,
@@ -1168,3 +1171,4 @@ when you need to exercise the HTTP path through the Durable Object.
 | --- | --- |
 | 2026-10-01 | Initial plan written from a design session: Rust Worker (WASM) + D1 on the Workers Free plan, player-code credential, `localStorage` as the source of truth, GitHub Pages kept. Nothing implemented. |
 | 2026-10-02 | Rewritten after Workers Paid: Rust axum **container** fronted by a Worker, Postgres on Neon, username + password accounts with **no email and no recovery**, database as the record with `localStorage` as a cache, a pull-request test environment on `test.play2learn.divanchyshyn.com` behind Cloudflare Access, and GitHub Pages retired. Work packages restated as one commit each (C1 – C15). |
+| 2026-10-02 | **Built.** All fifteen packages landed on `feature/rust-backend`. Three things differed from the written plan and are recorded here rather than quietly fixed: `sync-keys.json` moved from the repository root into `api/` (the container image is built from `api/`, so a file outside it cannot be read at compile time), the shared key list is now compiled into the binary from there, and the coverage baseline was re-measured and updated with the reason (see `docs/audit/BASELINE.md`). The five human checkpoints in P18 are still open. |

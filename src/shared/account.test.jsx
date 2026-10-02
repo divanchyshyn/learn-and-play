@@ -140,10 +140,29 @@ describe('the account state', () => {
     window.localStorage.setItem('account:signedIn', JSON.stringify({ username: 42 }));
     expect(readSignInHint()).toBeNull();
 
+    window.localStorage.setItem('account:signedIn', JSON.stringify('TestKid'));
+    expect(readSignInHint()).toBeNull();
+
     writeSignInHint('TestKid');
     expect(readSignInHint()).toEqual({ username: 'TestKid' });
 
     clearSignInHint();
+    expect(readSignInHint()).toBeNull();
+  });
+
+  it('signs in even when the answer does not name the account', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: false }));
+    const { result } = renderHook(() => useAccount());
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, 200));
+    await act(async () => {
+      await result.current.signIn('TestKid', 'et-langt-passord');
+    });
+
+    expect(result.current.signedIn).toBe(true);
+    expect(result.current.username).toBeNull();
+    // Nothing worth remembering, so nothing is remembered.
     expect(readSignInHint()).toBeNull();
   });
 });

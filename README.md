@@ -83,26 +83,42 @@ The library lives at <https://play2learn.divanchyshyn.com/>, and each game sits 
 
 GitHub Pages was **retired** on 2026-10-02: the workflow is gone and the repository's Pages source is set to None, so the old `https://<user>.github.io/learn-and-play/` URLs no longer serve anything. That was deliberate rather than accidental - accounts need `/api/*`, which cannot exist on `github.io`, and two hosts would have meant two copies of the same site drifting apart. Progress saved in `localStorage` belongs to the origin it was saved on, so whatever was played under the old URLs stays there.
 
-## Planned: accounts and cross-device progress (not built yet)
+## Accounts and cross-device progress
 
-Accounts that let a child sign in and carry their progress between devices are
-planned but **not implemented** - the site is still fully static, the games still
-save only to `localStorage`, and nothing below exists in the code yet. The
-design, the alternatives that were rejected and the costs of the choice are
-recorded in [`docs/backend/PLAN.md`](./docs/backend/PLAN.md); the step-by-step
-instructions for building and running it (toolchain, Neon and Cloudflare setup,
-Cloudflare Access, migrations, secrets, deploy, rollback, troubleshooting) are in
-[`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md).
+A child can create an account and carry their progress between devices; every
+game still works exactly as it always did without one. The design, the
+alternatives that were rejected and the costs of the choice are recorded in
+[`docs/backend/PLAN.md`](./docs/backend/PLAN.md); the hands-on guide (toolchain,
+Neon and Cloudflare setup, Cloudflare Access, migrations, secrets, deploy,
+rollback, troubleshooting) is in [`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md).
 
-In short: a small **Worker front door** on this same domain serves the games as
-static assets exactly as today and forwards `/api/*` to a **Rust service**
-(`axum` + `sqlx`) running in a **Cloudflare Container**; **Postgres on Neon**
-stores accounts and progress; an account is a **username and a password**
-(argon2id, no personal data at all). The database becomes the record and
-`localStorage` a cache, so progress follows a child to another device while every
-game keeps working, unchanged, when the backend is down. There is deliberately
-**no email**, and therefore no password recovery: a forgotten password loses the
-account, and the sign-up screen says so. A second Worker on
-`test.play2learn.divanchyshyn.com`, behind Cloudflare Access, deploys every pull
-request so a change can be tried on a tablet before it goes live.
+- **Signing in** happens at [/account/](./account/): a username and a password,
+  nothing else. There is deliberately **no email address**, and therefore no
+  password recovery — the sign-up page says so, and a forgotten password means a
+  lost account. What is stored is a username, an argon2id hash of the password,
+  and the games' own progress; no real names, no birthdays, no analytics.
+- **What follows a child between devices** is what they have *earned*: the
+  pictures assembled in Lyd-labyrinten, the words caught and trips finished in
+  Ordfiske, the animals found in Kortkrig. A picture being assembled right now, a
+  fishing trip in progress, and the speaker setting all stay on the device that
+  was playing.
+- **The database is the record; `localStorage` is a cache.** On a device that has
+  played before, a game starts instantly from that cache and is reconciled with
+  the database behind it. On a device with nothing saved, a game waits for the
+  database for a moment (at most 1.5 seconds) and then plays anyway. Every merge
+  is a union of things a child has earned, so syncing can add progress but never
+  take it away.
+- **A backend outage is invisible in a game.** Game pages are static assets
+  served by Cloudflare's asset router and never invoke any code; only `/api/*`
+  reaches the service. With the backend down, the games play exactly as before
+  and only accounts are unavailable.
+- **A test copy of the whole site** lives at
+  <https://test.play2learn.divanchyshyn.com/>. Every pull request in this
+  repository is deployed there automatically (behind Cloudflare Access, with its
+  own database) so a change can be tried on a tablet before it is approved for
+  production. It is a single shared slot: the most recent pull request to deploy
+  owns it.
+- Accounts roll forward with the rest of the site: anything that changes what a
+  child sees or hears is in the README, and anything that changes how accounts or
+  progress behave is in `AGENTS.md` under *Stack and deployment*.
 
