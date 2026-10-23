@@ -19,12 +19,11 @@ Issue labelled `ai-ready`  (or a `/oc` comment)
    branch + pull request  (body closes the issue)
         │
         ├─ .github/workflows/ci.yml              lint + test + build, and the Rust service   (required)
-        ├─ .github/workflows/deploy-test.yml     publishes the pull request to the test hostname
         ├─ .github/workflows/codeql.yml          security analysis     (required)
         └─ .github/workflows/opencode-review.yml read-only review comment
         │
         ▼
-   HUMAN REVIEW  →  merge  →  deploy-cloudflare.yml: verify  →  APPROVE  →  live
+   HUMAN REVIEW  →  merge  →  deploy.yml: verify  →  APPROVE  →  live
 ```
 
 The human steps are reviewing the pull request and approving the production
@@ -57,7 +56,8 @@ never touched without you.
 | `.opencode/agents/review.md` | Read-only reviewer agent (`mode: primary`, because the GitHub action only accepts primary agents) |
 | `.github/workflows/opencode.yml` | Starts the agent from an issue label or `/oc` comment |
 | `.github/workflows/opencode-review.yml` | Runs the reviewer on every in-repo pull request |
-| `.github/workflows/ci.yml` | lint + test + build, now including the build |
+| `.github/workflows/ci.yml` | lint + test + build, and the Rust service checks and image |
+| `.github/workflows/deploy.yml` | the gated production deploy: migrate, Cloud Run, Worker, smoke-check |
 | `.github/workflows/codeql.yml` | CodeQL analysis on pull requests and weekly |
 | `.github/dependabot.yml` | Weekly npm and actions updates, grouped |
 | `.github/ISSUE_TEMPLATE/` | Issue forms whose fields double as the agent's brief |
@@ -87,7 +87,7 @@ These are repository settings, not files, so they have to be done by hand once.
 3. **Protect `main`.** Settings → Branches → add a rule for `main`:
    - require a pull request before merging
    - require at least one approval
-   - require status checks: `Run game tests` (ci.yml) and `Analyze JavaScript` (CodeQL)
+   - require status checks: `Run game tests` and `Check the Rust service` (ci.yml), and `Analyze JavaScript` (CodeQL)
    - require branches to be up to date, and block force pushes
    This is the setting that makes every other promise here true — it is what
    stops an agent (or anyone) from reaching the published site unreviewed.
@@ -101,18 +101,13 @@ These are repository settings, not files, so they have to be done by hand once.
 6. **Enable CodeQL.** Settings → Code scanning. CodeQL is free for public
    repositories; it uses the workflow in `codeql.yml`.
 7. **Gate the production deploy.** Settings → Environments → new environment
-   named `cloudflare-production`, with yourself under **Required reviewers**
-   (optionally restricted to the `main` branch). The `deploy-cloudflare.yml`
-   deploy job references that environment, so it waits for your approval before
-   it can reach the live site. Create the environment *before* merging a change to
-   that workflow: an environment that is referenced but not yet configured is
-   created empty, so that first deploy would run unreviewed.
-8. **Let pull requests deploy themselves.** Settings → Environments → new
-   environment named `cloudflare-test`, **without** required reviewers, holding
-   the test database's connection string and the Cloudflare Access service token.
-   `deploy-test.yml` publishes every same-repository pull request to
-   `test.play2learn.divanchyshyn.com` so a change can be tried on a tablet before
-   anyone approves it for production.
+   named `production`, with yourself under **Required reviewers** (and deployment
+   branches restricted to `main`). The `deploy.yml` deploy job references that
+   environment, so it waits for your approval before it can reach Google Cloud or
+   Cloudflare. Create the environment *before* merging a change to that workflow:
+   an environment that is referenced but not yet configured is created empty, so
+   that first deploy would run unreviewed. The GCP secrets and variables are in
+   `docs/backend/RUNBOOK.md` → R8; there is no test environment any more.
 
 ## Day to day
 
@@ -139,7 +134,7 @@ These are repository settings, not files, so they have to be done by hand once.
 | --- | --- |
 | Prompt injection from an issue or diff telling the agent to exfiltrate | `webfetch`, `websearch` and `external_directory` are denied; the bash allowlist has no `curl`, `wget`, `env` or `printenv` |
 | The agent changing the backend's environment | The allowlist has `cargo fmt/check/test/clippy/build` and `docker build`, and **nothing that deploys or reads a secret**: no `wrangler`, no `docker push`, no `docker run`, no `cargo install`, no `.env` / `.dev.vars` |
-| The agent reaching production | Branch protection on `main`; the agent only ever opens a pull request. The Cloudflare deploy job additionally waits on the `cloudflare-production` environment's required reviewers, so even a merged change needs a human approval before it goes live |
+| The agent reaching production | Branch protection on `main`; the agent only ever opens a pull request. The `deploy.yml` job additionally waits on the `production` environment's required reviewers, so even a merged change needs a human approval before it reaches Cloud Run or Cloudflare |
 | Adding dependencies behind your back | `npm install` is denied; only `npm ci` is allowed. The agent must stop and ask |
 | Secrets leaking into the agent's shell | `DEEPSEEK_API_KEY` is the only secret in the job, and the bash allowlist cannot read the environment |
 | The reviewer changing what it reviews | The `review` agent denies `edit`; the workflow's `GITHUB_TOKEN` has `contents: read` plus `pull-requests: write`, which is only good for posting comments |

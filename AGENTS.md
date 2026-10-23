@@ -59,11 +59,11 @@ Build a small, friendly collection of browser games for children. Games should b
 
 - React with Vite, using JavaScript and CSS.
 - This is a multi-page application, not a single-page router.
-- Cloudflare Workers serves the generated `dist/` directory as static assets, deployed by `.github/workflows/deploy-cloudflare.yml` behind the `cloudflare-production` environment's required reviewers (Worker configuration in `wrangler.jsonc`).
-- **The games stay static; accounts and cross-device progress are a deliberate, human-agreed exception to that rule** (the design and its costs are recorded in `docs/backend/ARCHITECTURE.md`). A game page is served by Cloudflare's asset router and never invokes any code, so a backend failure can never break a game. The exception lives behind `/api/*`: a Rust service (`api/`, axum + sqlx) in a Cloudflare Container, reached through a small Worker front door (`edge/`) that owns the container's Durable Object, with Postgres (Neon) as the datastore. What it costs: the site now has a database, a container image in every deploy, runtime secrets per environment, and sync code that can lose progress if it is wrong.
+- Cloudflare Workers **Free** serves the generated `dist/` directory as static assets and proxies `/api/*`, deployed by `.github/workflows/deploy.yml` behind the `production` environment's required reviewers (Worker configuration in `wrangler.jsonc`). Static asset requests are free and unlimited; only `/api/*` counts toward the free plan's 100,000 Worker requests/day.
+- **The games stay static; accounts and cross-device progress are a deliberate, human-agreed exception to that rule** (the design and its costs are recorded in `docs/backend/ARCHITECTURE.md`). A game page is served by Cloudflare's asset router and never invokes any code, so a backend failure can never break a game. The exception lives behind `/api/*`: a Rust service (`api/`, axum + sqlx) on **Google Cloud Run's always-free tier**, reached through a small Worker front door (`edge/`) that adds `X-Door-Secret`, with Postgres (**Neon free**) as the datastore. What it costs: the site has a database, a container image in every deploy, runtime secrets, and sync code that can lose progress if it is wrong — deliberately kept inside free allowances, with no paid Cloudflare plan.
 - **Fail-open is a rule, not a preference.** No account and no network must never be visible inside a game: not signed in means no requests at all, and a dead or slow API means the game plays from its local cache. `localStorage` is a cache; the database is the record.
 - An account holds a uuid, a username, an argon2id password hash and the games' own progress blobs - **no personal data**. Never add an email address, a real name, a birthday or analytics to it.
-- Do not add a third-party runtime dependency (a datastore, an auth service, an email sender) without a human decision. The agreed set is Cloudflare Containers, Neon Postgres and Cloudflare R2 for backups; there is deliberately no email provider, and therefore no password recovery.
+- Do not add a third-party runtime dependency (a datastore, an auth service, an email sender) without a human decision. The agreed set is Cloudflare Workers on the Free plan, Google Cloud Run and Neon Postgres. There is deliberately no email provider and therefore no password recovery, and there is deliberately **no automated backup**: Neon's 6-hour restore window, its one manual snapshot and a manual `pg_dump` before risky work are the safety net (`docs/backend/RUNBOOK.md`, R13).
 - Use relative asset paths or Vite imports so the site works at `https://play2learn.divanchyshyn.com/`. GitHub Pages is retired: the site has exactly one host.
 
 ## Structure
@@ -92,15 +92,14 @@ src/test/setup.js                       Vitest setup (jest-dom matchers)
 vite.config.js                          Multi-page build entry points and test config (timeout, coverage)
 eslint.config.js                        ESLint flat config (core, react, react-hooks rules)
 .github/workflows/ci.yml                Runs lint, tests and the build for the frontend, and format, lint, tests and the image build for the Rust service, on pushes and pull requests
-.github/workflows/deploy-cloudflare.yml Cloudflare Workers deploy: verify, then a deploy job behind the cloudflare-production environment's required reviewers
-.github/workflows/deploy-test.yml       Publishes every same-repository pull request to test.play2learn.divanchyshyn.com (one shared slot, behind Cloudflare Access)
-.github/workflows/backup.yml            Nightly pg_dump of the production database to R2
-wrangler.jsonc                          Cloudflare Workers config: serves dist/ as static assets
-wrangler.test.jsonc                     The test Worker (learn-and-play-test): same front door, own database, own hostname, deployed from pull requests
-edge/                                   The Worker front door: serves the assets, and sends /api/* into the container through its Durable Object
-edge/src/router.js                      The routing half, kept free of Cloudflare-only imports so it can be unit-tested
+.github/workflows/deploy.yml            Production deploy: verify, migrate Neon, build and push the image, deploy Cloud Run, deploy the Worker, smoke-check — behind the production environment's required reviewers
+wrangler.jsonc                          The Worker: serves dist/ as static assets and proxies /api/* to Cloud Run (API_BASE_URL)
+edge/                                   The Worker front door: serves the assets and forwards /api/* to the Cloud Run service with X-Door-Secret and X-Client-IP
+edge/src/router.js                      The routing and proxy half, kept free of Cloudflare-only imports so it can be unit-tested
+.dev.vars.example                       Local Worker environment sample (the real .dev.vars is gitignored)
 docker-compose.yml                      Local Postgres for developing and testing the API
-api/                                    The Rust service that runs as a Cloudflare Container: axum routes, sqlx store, migrations, Dockerfile
+api/                                    The Rust service on Google Cloud Run: axum routes, sqlx store, migrations, Dockerfile
+api/.env.example                        Local API environment sample (the real api/.env is gitignored)
 api/src/domain/                         Pure backend logic (passwords, sessions, usernames, rate limits) with its own unit tests: no database, no HTTP
 api/tests/                              Integration tests that drive the real router against a throwaway database
 .github/workflows/codeql.yml            CodeQL security analysis on pull requests and weekly
@@ -112,7 +111,7 @@ opencode.json                           Coding agent config: model, permissions,
 .opencode/agents/review.md              Read-only reviewer agent used by the review workflow
 docs/agent-pipeline.md                  How the agent pipeline is wired up and how to run it
 docs/backend/ARCHITECTURE.md            How accounts and cross-device progress work today, and why: the shape of the site, the data, the API, the sync rules, and what was rejected
-docs/backend/RUNBOOK.md                 Step-by-step runbook for that backend: toolchain, Neon and Cloudflare setup, Cloudflare Access, migrations, secrets, deploy, rollback, troubleshooting
+docs/backend/RUNBOOK.md                 Step-by-step runbook for that backend: toolchain, Neon, Google Cloud, the Cloudflare Free plan, secrets, deploy, costs, backups, rollback, troubleshooting
 docs/audit/BASELINE.md                  The measured build, lint, test and coverage gate every later change is compared against
 ```
 
@@ -354,7 +353,7 @@ On a loaded machine, add `-- --testTimeout=60000` to the coverage run: instrumen
 
 ## CI
 
-`.github/workflows/ci.yml` runs two jobs on every push and pull request: `Run game tests` (lint, the whole suite, the build) and `Check the Rust service` (format, lint, tests, and the container image build). `.github/workflows/deploy-test.yml` publishes every same-repository pull request to the test hostname. `.github/workflows/deploy-cloudflare.yml` runs the same checks on `main` and then waits, behind the `cloudflare-production` environment's required reviewers, for a human to approve the deploy. Failing checks can therefore never reach either host, and nothing reaches the live site without approval. Keep every job green before handing off changes.
+`.github/workflows/ci.yml` runs two jobs on every push and pull request: `Run game tests` (lint, the whole suite, the build) and `Check the Rust service` (format, lint, tests, and the container image build). `.github/workflows/deploy.yml` runs the same checks on `main` and then waits, behind the `production` environment's required reviewers, for a human to approve the deploy. After approval it migrates Neon, builds and pushes the image to Artifact Registry, deploys the Cloud Run revision, deploys the Worker, and smoke-checks the site, a game page and the service's refusal of a direct request. Failing checks can therefore never reach the live site, and nothing reaches it without approval. Keep every job green before handing off changes.
 
 ## Linting
 
@@ -386,6 +385,7 @@ A change, whether written by a person or by the coding agent, is finished only w
 
 - `npm run lint`, `npm run test` and `npm run build` all pass (use `npm.cmd` in PowerShell on this machine).
 - For anything touching `api/`: `cargo fmt --manifest-path api/Cargo.toml --all --check`, `cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings` and `cargo test --manifest-path api/Cargo.toml` all pass, and the image still builds (`docker build -t learn-and-play-api:ci api`).
+- For anything touching `edge/`, `wrangler.jsonc` or the deploy path: `npx wrangler deploy --dry-run` succeeds, and the front-door tests still prove the proxy, the `X-Client-IP`/`X-Door-Secret` hygiene, the `Set-Cookie` handling and the 502/503 failure modes.
 - New pure logic is exported from the component or module and covered by a unit test; new UI has at least one rendered happy path.
 - New or replaced artwork follows the contract under Game artwork (same dimensions, format, colour mode and rough byte size as the pictures it joins), is imported by the component, is covered by the rotation test, and is present in `dist/assets/`.
 - `README.md` is updated when user-visible behaviour, the game list, or a published route changes.
@@ -426,4 +426,11 @@ cargo fmt --manifest-path api/Cargo.toml --all
 docker build -t learn-and-play-api:ci api                               # the image that ships
 ```
 
-Use `npm.cmd` in PowerShell on this machine because its execution policy may block `npm.ps1`. Note that Windows **Smart App Control** blocks freshly built, unsigned binaries: on this machine `cargo test` and `cargo fmt` fail with "An Application Control policy has blocked this file" unless that feature is turned off, so the Rust gates are normally run inside the `rust:1-bookworm` image or on Linux (see `docs/backend/RUNBOOK.md`, R0).
+The front door and the deploy path (not something the coding agent may run):
+
+```powershell
+npx wrangler deploy --dry-run                  # validates the container-free Worker config
+npx wrangler dev                               # site + Worker on :8787, API on :8080
+```
+
+Use `npm.cmd` in PowerShell on this machine because its execution policy may block `npm.ps1`. Note that Windows **Smart App Control** blocks freshly built, unsigned binaries: on this machine `cargo test` and `cargo fmt` fail with "An Application Control policy has blocked this file" unless that feature is turned off, so the Rust gates are normally run inside the `rust:1-bookworm` image or on Linux (see `docs/backend/RUNBOOK.md`, R0.4).

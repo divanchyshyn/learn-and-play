@@ -14,50 +14,64 @@ the thing safely.
 | Add or change an endpoint | *HTTP API* |
 | Add a game's progress to what syncs | **Progress and sync** |
 | Know what the platform forces on you | *Platform limits that shape the design* |
+| Know what it costs, and what would cost money | *What it costs* |
 | Set it up, deploy it, back it up, fix it | [`RUNBOOK.md`](./RUNBOOK.md) |
 | Know the rules for changing this repository | [`../../AGENTS.md`](../../AGENTS.md) |
 
 ## The shape of the site
 
 One Cloudflare Worker serves two entirely different things under one hostname.
+Cloudflare is on the **Free plan**; the Rust service runs on **Google Cloud Run**
+on the always-free tier; Postgres is **Neon free**.
 
 ```
-browser ──> learn-and-play (Worker: edge/)
-              ├─ /  and  /games/<slug>/  ──> dist/ assets
-              │                              (Cloudflare's asset router: no code runs)
-              └─ /api/**  ──> Durable Object ──> Rust service (api/) ──> Postgres (Neon)
-                                 ApiContainer      axum + sqlx           accounts, progress
+browser ──> learn-and-play (Worker: edge/)                    Cloudflare Free plan
+              ├─ /, /account/, /games/<slug>/  ──> dist/ assets
+              │                                    (asset router: no code runs,
+              │                                     free and unlimited)
+              └─ /api/**  ──> Worker script (100k req/day)
+                                │  adds X-Door-Secret,
+                                │  rewrites X-Client-IP from CF-Connecting-IP
+                                ▼
+                          Rust service (api/)                Cloud Run, us-central1
+                          axum + sqlx                        scale to zero, max 2
+                                │
+                                ▼
+                          Postgres (Neon)                    free plan, US East
+                          accounts, progress
 ```
 
-- **A game page never invokes code.** `run_worker_first` is scoped to `/api/*`, so
-  `/`, `/account/` and every `/games/<slug>/` are served straight from `dist/`.
-  That is not an optimisation, it is the central promise: a backend outage can
-  only ever mean "accounts are unavailable", never "the games do not load".
+- **A game page never invokes code.** `run_worker_first` is scoped to `/api/*`,
+  so `/`, `/account/` and every `/games/<slug>/` are served straight from
+  `dist/`. That is not an optimisation, it is the central promise: a backend
+  outage can only ever mean "accounts are unavailable", never "the games do not
+  load". On the Free plan it also means the games are free and unlimited even
+  when the API's daily request allowance is exhausted.
 - **The games never need an account.** Without one they behave exactly as they
   did before any of this existed: progress saved locally, nothing requested from
   a server.
-- **Only `/api/*` reaches Rust.** The Worker's front door (`edge/`) routes those
-  requests into a Cloudflare Container through the Durable Object that owns it —
-  a container can only be reached through its Durable Object, so that class
-  exists whether or not it looks necessary.
-- **Two environments, one codebase.** `learn-and-play` serves the live site;
-  `learn-and-play-test` serves every pull request on
-  `test.play2learn.divanchyshyn.com`, with its own database, its own secrets and
-  Cloudflare Access in front of it.
+- **Only `/api/*` reaches Rust.** The Worker script forwards those requests to
+  the service's Cloud Run URL. Cloud Run gives that service a public `.run.app`
+  address, so the Worker also sends a **door secret**; the service refuses a
+  request that does not carry it. That is what keeps `X-Client-IP` (and therefore
+  the rate limiter) trustworthy.
+- **One environment.** The pull-request test hostname and Cloudflare Access were
+  retired with the paid stack. `learn-and-play` serves the live site; pull
+  requests are verified by CI and locally, and the `production` environment's
+  required reviewer is the only deploy gate.
 
 ## Where everything lives
 
 | Path | What it is |
 | --- | --- |
-| `edge/src/index.js` | The Worker entry point: exports the Durable Object and the fetch handler |
-| `edge/src/router.js` | Routing, the client-IP header, the 502 fallback — no Cloudflare-only imports, so it is unit-testable |
-| `edge/src/container.js` | `ApiContainer`: the Durable Object that starts, warms and stops the container, and hands it the environment |
+| `edge/src/index.js` | The Worker entry point: one fetch handler, no Durable Object |
+| `edge/src/router.js` | Routing, the proxy, the `X-Client-IP` and door-secret headers, the 502/503 fallbacks — no Cloudflare-only imports, so it is unit-testable |
 | `api/src/main.rs` | `serve` and `migrate`; lazy pool; SIGTERM-aware shutdown |
 | `api/src/app.rs` | The whole HTTP surface in one function, so tests drive the real router |
 | `api/src/domain/` | The rules: passwords, sessions, usernames, rate limits. Pure, unit-tested, no database and no HTTP |
 | `api/src/routes/` | The endpoints; they wire `domain` to `store` and nothing else |
 | `api/src/store/` | Every SQL statement, one module per table group |
-| `api/src/auth.rs` | The `CurrentUser` extractor, the `Origin` check, the rate-limit helpers |
+| `api/src/auth.rs` | The `CurrentUser` extractor, the `Origin` check, the front-door check, the rate-limit helpers |
 | `api/migrations/` | Numbered SQL, applied in order by `api migrate` |
 | `api/sync-keys.json` | The allowlist of keys that may be stored — read by the service at compile time and by the frontend |
 | `src/shared/api.js` | `fetch('/api/*')` in one place: a failure is a value, never an exception |
@@ -66,7 +80,8 @@ browser ──> learn-and-play (Worker: edge/)
 | `src/shared/sync.js` | The sync engine: ownership, revisions, debounced pushes, the hydration decision |
 | `src/shared/SyncGate.jsx` | The component a game mounts inside; the only place a game can wait for the server |
 | `src/account/`, `account/index.html` | The account page — the only page that talks about accounts |
-| `wrangler.jsonc`, `wrangler.test.jsonc` | The production and test Workers: assets, container, Durable Object, routes, vars |
+| `wrangler.jsonc` | The Worker: assets, `run_worker_first`, the `API_BASE_URL` var |
+| `.github/workflows/deploy.yml` | Verify, migrate, build/push the image, deploy Cloud Run, deploy the Worker, smoke-check — behind the `production` approval gate |
 
 ## The request path
 
@@ -77,55 +92,70 @@ seconds — for `GET /api/progress`; otherwise the pull happens behind the game.
 Nothing about this is visible when it works, and nothing about it can fail loudly
 when it does not.
 
-**Creating an account.** `POST /api/account` crosses the front door, which deletes
-any client-supplied `X-Client-IP` and sets it from `CF-Connecting-IP`. The
-Durable Object starts the container if it is asleep (1–3 seconds), then proxies
-the request. Rust validates the username and password, hashes with argon2id, and
-inserts the row; a session row is created and its cookie returned through the
-Durable Object to the browser. The container stays warm for ten idle minutes.
+**Creating an account.** `POST /api/account` crosses the Worker, which deletes
+any client-supplied `X-Client-IP` and `X-Door-Secret`, sets them from
+`CF-Connecting-IP` and the deployment's secret, and forwards the request to Cloud
+Run. The service checks the door secret, validates the username and password,
+hashes with argon2id, inserts the row and returns a session cookie; the Worker
+passes the `Set-Cookie` header back untouched. Cloud Run may need a second or two
+to start an instance if the service is cold.
 
-**Signing in after a quiet night** is the slowest path in the system: container
-start (1–3 s) + Neon waking from its five-minute idle suspend (a few hundred ms)
-+ one argon2id hash. That is why sessions last a year, and why no game ever waits
-on any of it.
+**Signing in after a quiet night** is the slowest path in the system: Cloud Run
+cold start (a second or two) + Neon waking from its five-minute idle suspend (a
+few hundred milliseconds) + one argon2id hash. That is why sessions last a year,
+why the browser's API timeout is eight seconds, and why no game ever waits on any
+of it.
 
 ## Decisions, and what was rejected
 
 | Decision | Choice | Why |
 | --- | --- | --- |
-| Where the backend runs | A Cloudflare Container (`api/`), fronted by a Worker | A normal Rust binary with normal tooling, and `cargo test` against a real Postgres |
-| Where the data lives | Postgres on Neon | A container cannot use Cloudflare bindings (see *Platform limits*), and an external Postgres is the ordinary answer |
+| Where the backend runs | Google Cloud Run (free tier), fronted by a Cloudflare Worker | A normal Rust container with normal tooling; scale to zero keeps it inside the always-free allowance; no paid Cloudflare plan |
+| Where the data lives | Postgres on Neon (free plan) | A managed Postgres with a real connection string and `cargo test` against a real database; no Cloudflare bindings available to a container anyway |
 | How the browser reaches it | Same origin, `/api/*` on the site's own Worker | No CORS, no `SameSite=None`, no second hostname to keep in step |
-| The credential | Username + password | A password hash is only as expensive as the machine allows, and the machine now allows argon2id |
+| The credential | Username + password | A password hash is only as expensive as the machine allows, and Cloud Run allows argon2id |
 | Password storage | argon2id, OWASP's minimum parameters, plus a pepper | Memory-hard, and useless to an attacker who only has the database |
 | The session | A 256-bit token in a `__Host-` cookie; only its SHA-256 is stored | A dump of `sessions` yields nothing that can be presented as a cookie |
 | Recovery | **None**, on purpose | There is no email address, so there is no verified way back in. The sign-up page says so |
 | What syncs | Things a child has earned | A session in progress is a moment, not progress |
 | Where the truth lives | Postgres, with `localStorage` as a cache | Progress follows a child to another device without a game ever waiting for the network |
 | Conflicts | Optimistic revisions, merged with unions | A device that was offline for a week cannot wipe the device that stayed online |
-| The test environment | A second Worker, deployed from pull requests | A change can be tried on a tablet before anyone approves it |
-| GitHub Pages | Retired | Accounts need `/api/*`, which cannot exist on `github.io` |
+| How the service is reached | Same-origin Worker proxy + a shared door secret | Keeps cookies first-party, keeps the public `run.app` address closed, and keeps `X-Client-IP` trustworthy |
+| The hosting split | Cloudflare for assets and the proxy; Cloud Run for Rust | Static assets are free and unlimited on the Free plan; only `/api/*` needs a server |
+| The test environment | Retired | It existed to try a change on a tablet; for a rarely used learning project it doubled the services, secrets and setup |
+| Backups | Neon's 6-hour restore and one manual snapshot, plus a manual dump before risky work | The nightly R2 dump was retired with the paid stack; the limitation is stated in the runbook rather than hidden |
 
 **Rejected, and why** — these are the questions a reader will ask, so they are
 answered here rather than rediscovered:
 
+- **Cloudflare Containers.** The reason this repository was on Workers Paid: a
+  container could only run there. The product is good, but the point of this
+  migration is not to pay $5/month for a site used rarely. Google Cloud Run does
+  the same job inside an always-free allowance, so the container moved and
+  Cloudflare went back to Free.
 - **Rust compiled to WebAssembly in the Worker, with D1.** The Cloudflare-native
-  pairing, and it would put the database one function call away. Rejected in
-  favour of running Rust normally; the CPU ceiling that once made WASM attractive
-  is gone either way.
-- **Keeping D1 and reaching it from the container.** A container has no bindings,
-  so this needs either an outbound handler in the front door (every query becomes
-  an HTTP round trip through JavaScript, and the data layer stops being testable
-  from `cargo`) or an account-scoped D1 token inside the container. Both were
-  rejected as more machinery for a worse developer experience.
-- **SQLite inside the container.** The container's disk is ephemeral — a fresh
-  disk from the image on every start — so this loses every account on the first
-  sleep unless something replicates it out. Not acceptable for accounts.
+  pairing would avoid Cloud Run, but the Worker's CPU ceiling and the migration
+  of the SQL layer make it a rewrite, not a migration.
+- **Keeping D1 and reaching it from Cloud Run.** A Cloud Run service has no
+  Cloudflare bindings, so every query would become an HTTP round trip through
+  JavaScript, and the data layer would stop being testable from `cargo`.
+- **SQLite inside the container.** Cloud Run's disk is ephemeral — a fresh disk
+  from the image on every cold start — so this loses every account on the first
+  scale-to-zero unless something replicates it out. Not acceptable for accounts.
+- **A separate `api.play2learn…` hostname.** It would need CORS, and the session
+  cookie would need `SameSite=None`, which weakens exactly the property the
+  current design gets for free by staying on one origin.
+- **Long-lived Google service-account keys in GitHub.** Workload Identity
+  Federation gives CI a short-lived token for this repository only; there is no
+  key to leak or rotate.
 - **Email + password with verification and reset.** Designed, then dropped at the
   owner's request. It would have added an email provider, a sending subdomain,
   DNS records and the only personal data in the system — and it would have made
   password recovery possible. The trade is stated plainly rather than hidden:
   **a forgotten password loses the account.**
+- **Cloudflare Access for a test copy.** It was a good fit while a test Worker
+  existed; with that environment gone it is another product to maintain for no
+  benefit.
 
 ## Accounts
 
@@ -143,8 +173,8 @@ become CPU. A password is never shown, never logged, and never recoverable.
 **Hashing.** argon2id at m = 19456 KiB, t = 2, p = 1, salted per password, and
 peppered: the deployment's `PEPPER` is digested with SHA-256 and used as argon2's
 secret key. A stolen dump therefore cannot be attacked without a value that lives
-only in the Worker's environment. **Rotating the pepper invalidates every stored
-password**, which is why the runbook treats it as permanent.
+only in Secret Manager. **Rotating the pepper invalidates every stored password**,
+which is why the runbook treats it as permanent.
 
 **Sessions.** A 256-bit token from the OS random generator, base64url-encoded,
 sent in `__Host-lap_sid` — `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no
@@ -167,10 +197,17 @@ out deletes the row and clears the cookie; changing the password deletes every
 - Every `POST`/`PUT`/`PATCH`/`DELETE` must carry this site's `Origin`;
   `SameSite=Lax` is the second lock on the same door. `PUBLIC_ORIGIN` must be set
   for those requests to be accepted at all.
+- Every request must carry the front door's `X-Door-Secret` **when `DOOR_SECRET`
+  is configured**. The Worker deletes whatever a caller sent and writes the
+  deployment's value, so a matching header is evidence the request came through
+  Cloudflare; a direct caller cannot use the rate limiter's IP trust to choose
+  its own address. The secret is compared in constant time.
 - Account responses carry `Cache-Control: no-store`.
 - The only header trusted for a client address is `X-Client-IP`, which the front
   door writes from `CF-Connecting-IP` after deleting whatever the caller sent.
   `X-Forwarded-For` is never read.
+- When `NOINDEX` is set (the production service does), every API response carries
+  `X-Robots-Tag: noindex`.
 
 **What is stored, in full:** a UUID, the chosen username, the argon2id hash, the
 timestamps, the session rows, the progress blobs, and the rate-limit counters.
@@ -216,9 +253,14 @@ request at 20 records; `revision` may not be negative; the service **never parse
 a payload** — validating it is the client's job, using the codecs that already
 exist, so a corrupt stored value cannot break a game.
 
+Two headers are transport details, not part of the public API: `X-Client-IP`
+(written by the Worker) and `X-Door-Secret` (written by the Worker, checked by
+the service). A request that reaches Cloud Run without the door secret is
+answered `403 {"error":"front_door_required"}`.
+
 `GET /api/health` answers `ok` whenever the process is alive and reports the
-database separately: a container that refused to start because Neon was asleep
-would be a container that could not serve the pages which never needed Neon.
+database separately: a service that refused to start because Neon was asleep
+could not even say why it was unavailable, and the games never needed it.
 
 ## Progress and sync
 
@@ -271,49 +313,72 @@ or a slow service is swallowed, retried on the next change or the next page load
 and a game renders from its cache. There is no dialog, toast or spinner tied to
 syncing anywhere in the app.
 
-**Pushes** are debounced by two seconds after the child stops writing, and flushed
-when the page is hidden. Only records that actually changed are sent, and a
-conflict costs one extra round trip.
+**Timeouts.** The client aborts an API request after **8 seconds** (cold start
+plus Neon wake plus the request); the hydration gate's 1.5 seconds is the only
+deadline a child can ever feel. Pushes are debounced by two seconds after the
+child stops writing, and flushed when the page is hidden. Only records that
+actually changed are sent, and a conflict costs one extra round trip.
 
 ## Platform limits that shape the design
 
-- **A container cannot use Cloudflare bindings.** Bindings are objects the Workers
-  runtime injects into an isolate; D1 has no public SQL endpoint a foreign process
-  could authenticate to. That single fact is why the database is external and why
-  the schema, migrations and queries live in Rust rather than in the front door.
-- **The container's disk is ephemeral** and there are no persistent volumes, so
-  nothing may be stored on it. Postgres is the only durable thing.
-- **Cold start is 1–3 seconds** and `sleepAfter` is ten minutes. Only `/api/*`
-  pays it; the games are served by the asset router.
-- **Shutdown is graceful**: SIGTERM, then up to fifteen minutes before SIGKILL —
-  which is why `main.rs` installs a signal handler.
-- **Cloudflare Access** protects the test hostname, assets included. It is a gate,
-  not authentication for the app: accounts on the test environment are ordinary
-  accounts in the test database.
+- **Cloud Run scales to zero.** The first request after idle waits for an
+  instance to start; `--min-instances` stays at 0 because a warm instance is
+  billed around the clock. The service must boot without a reachable database for
+  the same reason: `/api/health` has to answer even while Neon is suspended.
+- **Cloud Run request-based billing.** The free allowance counts memory and vCPU
+  per request; `--max-instances 2` is the cost ceiling. A monitor or keep-warm
+  ping would defeat the allowance, so there is deliberately none.
+- **Cloud Run's public address is real.** `--allow-unauthenticated` is required
+  because Cloudflare has no Google identity, and that makes the door secret
+  necessary rather than optional. It is a shared secret between the Worker and
+  the service, never present in the browser.
+- **The service's disk is ephemeral.** Nothing durable may live on the container
+  filesystem; Postgres is the only durable store.
+- **Shutdown is graceful.** Cloud Run sends SIGTERM and allows a short grace
+  period before SIGKILL, which is why `main.rs` installs a signal handler and the
+  Dockerfile runs the binary in exec form.
+- **Cloudflare Workers Free** allows 100,000 Worker requests/day and 10 ms of CPU
+  per invocation; static asset requests are free and unlimited. Only `/api/*`
+  invokes code, and proxying is I/O-bound, so the CPU ceiling is irrelevant. If
+  the daily cap is ever hit, `/api/*` answers an error while the games keep
+  loading: fail-open is a property of the split, not a promise in a handler.
+- **Neon suspends a free-tier compute after five minutes idle** and keeps a
+  six-hour restore window and one manual snapshot. That is why the service opens
+  its pool lazily and checks a connection before handing it out, and why the
+  runbook says a manual dump is the only durable backup.
 - **`_headers` is honoured for static assets but not for Worker-generated
   responses**, so the API sets its own `X-Robots-Tag: noindex` from `NOINDEX`.
-- **Neon suspends a free-tier compute after five minutes idle** and has a short
-  restore window, which is why `pg_dump` runs nightly to R2 and why the service
-  opens its pool lazily instead of refusing to start without a database.
 
 ## What it costs
 
-Workers Paid is $5/month and includes 30 M CPU-ms, 10 M requests, and — for
-containers — 25 GiB-hours of memory, 375 vCPU-minutes and 200 GB-hours of disk.
-A `lite` instance (1/16 vCPU, 256 MiB, 2 GB) bills memory and disk while awake,
-and CPU only as used:
+Everything in this design fits the always-free allowances; the bill should be
+**$0.00**. The numbers are current as of the migration and are linked rather than
+trusted:
 
-| | `lite` (in use) | `basic` (the fallback) |
+| Service | Free allowance | This site |
 | --- | --- | --- |
-| Awake hours inside the allowance | ~100 h/month | ~25 h/month |
-| Extra cost per awake hour | ~$0.003 | ~$0.010 |
-| A hobby month (~45–60 h awake) | inside the allowance | ≈ $0.35 |
+| Cloud Run (request-based) | 2,000,000 requests, 360,000 GB-seconds, 180,000 vCPU-seconds, 1 GB egress from North America per month | a family's API traffic is a rounding error; the service spends most of its life scaled to zero |
+| Cloudflare Workers Free | 100,000 Worker requests/day; static assets free and unlimited | only `/api/*` counts |
+| Neon Free | 100 CU-hours per project/month, 1 GB storage, 5 GB transfer, scale to zero after 5 min | a small fraction of the compute hours |
+| Artifact Registry | 0.5 GB-month | three images at most, via the cleanup policy |
+| Secret Manager | 6 active versions, 10,000 access operations/month | three secrets read at instance start |
+| Cloud Logging | 50 GiB/month | request logs only, never bodies |
+| GitHub Actions | free for public repositories | CI and the deploy |
 
-The only CPU-bound work in the service is the argon2 hash, measured at **21 ms on
-a full core** — roughly 350 ms on a sixteenth of one. If a real measurement on the
-live instance ever exceeds about 1.5 s, `"instance_type": "basic"` in both
-`wrangler` files is the whole fix. The database is on Neon's free tier and backups
-are a few hundred kilobytes in R2; there is no email provider to pay for.
+What would cost money: a minimum instance, a keep-warm monitor, a region outside
+North America (egress stops being free), more than two instances, images
+accumulating past 0.5 GB, or Neon past 100 CU-hours. The runbook's R12 lists them
+with the guardrail for each.
+
+**Google Cloud still needs a billing account and a payment method**, and a new
+account usually starts on a $300 / 90-day free trial. The trial must be upgraded
+to a paid billing account before it ends, or the project is stopped and its
+resources are deleted after a 30-day grace period. The always-free allowances
+apply after the upgrade too; the card is a platform requirement, not a
+subscription. Cloudflare, Neon and GitHub need no paid plan.
+
+There is no email provider to pay for and no analytics. A manual `pg_dump` costs
+nothing; an automated one was removed deliberately.
 
 ## Working on the Rust service
 
@@ -338,8 +403,12 @@ cargo run  --manifest-path api/Cargo.toml -- migrate
 On this Windows machine, `cargo` cannot run directly: Smart App Control blocks
 freshly built unsigned binaries (build scripts included), so the Rust gates are
 run inside the `rust:1-bookworm` image. The one-line invocation is in
-`RUNBOOK.md` → R0, together with the alternatives (turning that feature off, or
-WSL2). CI on Linux is unaffected.
+`RUNBOOK.md` → R0.4. CI on Linux is unaffected.
+
+The front door has its own tests in `edge/src/router.test.js`: they stub the
+global `fetch`, so the routing, the header hygiene, the `Set-Cookie` handling and
+the two JSON failure modes are proven without Cloudflare's runtime or a real
+service.
 
 ## Changing things
 
@@ -349,39 +418,39 @@ WSL2). CI on Linux is unaffected.
 | Stop syncing a key | Remove it from `api/sync-keys.json` and from the registry. The server keeps the stored rows; a client simply stops asking for them |
 | Add an endpoint | A handler in `api/src/routes/`, its rules in `api/src/domain/` if it has any, its SQL in `api/src/store/`, and mount the router in `api/src/app.rs` |
 | Change a schema | A **new** file in `api/migrations/`. Never edit an applied one: its checksum is recorded |
-| Make the service faster on sign-in | `"instance_type": "basic"` in `wrangler.jsonc` and `wrangler.test.jsonc` |
+| Move the service | Update `API_BASE_URL` in `wrangler.jsonc`, and keep `PUBLIC_ORIGIN` the site's origin |
+| Rotate the door secret | A new `lap-door-secret` version, a new revision, `wrangler secret put API_DOOR_SECRET` with the same value, and a redeploy of the Worker — both sides in one window |
+| Change what the service is allowed to cost | The `--min-instances` / `--max-instances` / `--memory` flags in `.github/workflows/deploy.yml` and the manual deploy in the runbook |
 | Change what the games see | Nothing here. They are static assets and must keep working with this service stopped |
-| Rotate a secret | `wrangler secret put` per Worker; remember that `PEPPER` cannot be rotated without invalidating every password |
-| Point the test environment at something else | `wrangler.test.jsonc` (its own Worker, hostname, database and secrets) |
+| Rotate a secret | Secret Manager for `DATABASE_URL` / `DOOR_SECRET`; remember that `PEPPER` cannot be rotated without invalidating every password |
+| Back up the database | There is no scheduled job. Take a Neon snapshot/branch or a manual `pg_dump` (`RUNBOOK.md` → R13) |
+| Remove the backend entirely | Revert the `/api/*` code and deployment, delete the Cloud Run service, the repository and the secrets. The games are unaffected |
 
 ## History
 
-This backend was designed before it was built, in a plan that went through two
-revisions: the first assumed the Workers free plan, where a 10 ms CPU ceiling
-made a properly expensive password hash impossible and the credential was a
-player code with no password at all. Buying Workers Paid removed that ceiling,
-and the plan was rewritten around a container, an ordinary Rust service, and
-username + password accounts with no email anywhere in the system.
+The backend was first built on Cloudflare Containers, which required Workers
+Paid. That design was sound — a Rust container fronted by a Worker, with Neon as
+the database — but it was paid for a site used rarely. The owner moved the
+container to **Google Cloud Run's always-free tier**, kept the database on
+**Neon**, and returned Cloudflare to the **Free plan** as the host and proxy.
 
-Three things changed while building it, and the commits say so where they
-happened: the shared key list moved from the repository root into `api/` (the
-container image is built from that directory, so a file outside it cannot be read
-at compile time); the coverage baseline was re-measured and recorded with its
-reason; and the plan document itself was replaced by this one.
-
-The plan and its work packages are deliberately gone. Each package was one
-commit, so the history is the record — `git log --oneline main..feature/rust-backend`
-lists the whole build in fifteen lines.
+Three things went with the paid stack, all deliberately: the pull-request test
+environment (a second Worker, hostname, Neon database and container), Cloudflare
+Access, and the nightly `pg_dump` to R2. The test environment is replaced by CI
+and local runs; backups are now Neon's restore window and a manual snapshot,
+which is a real reduction in safety and is recorded as such. The original plan
+document and its work packages are gone; the commits are the record.
 
 ## References
 
 - `RUNBOOK.md` — setup, deploy, migrations, secrets, backup, rollback, troubleshooting
 - `AGENTS.md` — the rules for changing this repository, including what may not be added without a human decision
 - `docs/audit/BASELINE.md` — the measured build, lint, test and coverage gate
-- Workers limits and pricing — <https://developers.cloudflare.com/workers/platform/limits/>, <https://developers.cloudflare.com/workers/platform/pricing/>
-- Containers: configuration, images, limits, pricing — <https://developers.cloudflare.com/containers/configuration/wrangler/>, <https://developers.cloudflare.com/containers/guides/image-management/>, <https://developers.cloudflare.com/containers/platform/limits/>, <https://developers.cloudflare.com/containers/platform/pricing/>
-- Static assets: routing and headers — <https://developers.cloudflare.com/workers/static-assets/routing/worker-script/>, <https://developers.cloudflare.com/workers/static-assets/headers/>
-- Cloudflare Access for Workers — <https://developers.cloudflare.com/workers/configuration/cloudflare-access/>
-- Neon free tier and compute lifecycle — <https://neon.com/pricing>, <https://neon.com/docs/introduction/compute-lifecycle>
+- Cloud Run: deploying, scaling, secrets, billing — <https://cloud.google.com/run/docs>, <https://cloud.google.com/run/pricing>, <https://cloud.google.com/free/docs/free-cloud-features>
+- Workload Identity Federation — <https://cloud.google.com/iam/docs/workload-identity-federation>
+- Artifact Registry — <https://cloud.google.com/artifact-registry/docs>, <https://cloud.google.com/artifact-registry/pricing>
+- Cloudflare Workers Free limits and static assets — <https://developers.cloudflare.com/workers/platform/limits/>, <https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/>
+- Cloudflare Workers static assets routing — <https://developers.cloudflare.com/workers/static-assets/routing/worker-script/>
+- Neon free plan and compute lifecycle — <https://neon.com/faqs/free-plan-limits-and-quotas>, <https://neon.com/docs/introduction/compute-lifecycle>
 - OWASP Password Storage Cheat Sheet — <https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html>
 - OWASP Session Management Cheat Sheet — <https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html>

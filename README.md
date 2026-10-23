@@ -75,9 +75,11 @@ The build writes every published page into `dist/`:
 - `/games/word-fishing/` - Word fishing ("Ordfiske")
 - `/games/number-line-hop/` - Number-line hop ("Tierhopp")
 
-`.github/workflows/deploy-cloudflare.yml` runs the Rust checks (format, lint, tests), lint, the whole test suite and the build on every push to `main`; the verified build is then handed to Cloudflare - but only after a human approves it. The deploy job sits behind the `cloudflare-production` environment's required reviewer, so you approve each production deploy in the workflow run. That job applies the database migrations, builds and pushes the container image, and publishes the Worker in one version, so a Worker rollback rolls back the image with it. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
+`.github/workflows/deploy.yml` runs the Rust checks (format, lint, tests), lint, the whole test suite and the build on every push to `main`; the verified build is then deployed - but only after a human approves it. The deploy job sits behind the `production` environment's required reviewer, so you approve each production deploy in the workflow run. After approval it applies the database migrations, builds and pushes the Rust image to Artifact Registry, deploys the new revision to Google Cloud Run, and publishes the Worker and the verified assets to Cloudflare. `wrangler.jsonc` holds the Worker configuration; the custom domain is attached once in the Cloudflare dashboard.
 
-The site is one Worker with two halves: `/`, `/account/` and `/games/<slug>/` are static assets served by Cloudflare's asset router, and `/api/*` runs the Rust service in a container. Because a game page never invokes any code, a backend outage can only ever mean "accounts are unavailable", never "the games do not load".
+The site is one Worker with two halves: `/`, `/account/` and `/games/<slug>/` are static assets served by Cloudflare's asset router on the **Free plan**, and `/api/*` is proxied to the Rust service on **Google Cloud Run's always-free tier**. Because a game page never invokes any code, a backend outage can only ever mean "accounts are unavailable", never "the games do not load".
+
+The backend stays inside free allowances: Cloudflare Workers Free (static assets are free and unlimited; only `/api/*` counts toward the daily request allowance), Cloud Run with scale-to-zero, and Neon's free Postgres. [`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md) records the guardrails and the one real limitation: there is **no automated backup**, so Neon's restore window and a manual snapshot/dump are the safety net.
 
 The library lives at <https://play2learn.divanchyshyn.com/>, and each game sits at `/games/<slug>/` - for example <https://play2learn.divanchyshyn.com/games/sound-labyrinth/>.
 
@@ -99,9 +101,9 @@ child has earned follows them to another device.
 - The database is the record and `localStorage` is a cache, so a game starts
   instantly on a device that has played before and never waits more than a moment
   (1.5 s) on one that has not. Syncing can add progress, never take it away.
-- A test copy of the whole site lives at
-  <https://test.play2learn.divanchyshyn.com/>: every pull request is deployed
-  there automatically, behind Cloudflare Access and with its own database.
+- There is deliberately **no automated backup** of the database: Neon's six-hour
+  restore window, its one manual snapshot, and a manual `pg_dump` before risky
+  work are the safety net. The runbook records what that costs.
 
 The design and the reasons behind it — including what was rejected — are in
 [docs/backend/ARCHITECTURE.md](./docs/backend/ARCHITECTURE.md).
@@ -113,7 +115,7 @@ The design and the reasons behind it — including what was rejected — are in
 | [`README.md`](./README.md) | This file: what the site is, how to build and run it |
 | [`AGENTS.md`](./AGENTS.md) | The rules for changing the repository — naming, structure, testing, definition of done. Read before a first change |
 | [`docs/backend/ARCHITECTURE.md`](./docs/backend/ARCHITECTURE.md) | How accounts and cross-device progress work, and why they work that way |
-| [`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md) | Operating it: toolchain, Neon, Cloudflare, Access, secrets, migrations, deploy, backup, rollback, troubleshooting |
+| [`docs/backend/RUNBOOK.md`](./docs/backend/RUNBOOK.md) | Operating it: toolchain, Neon, Google Cloud, the Cloudflare Free plan, secrets, migrations, deploy, costs, backups, rollback, troubleshooting |
 | [`docs/agent-pipeline.md`](./docs/agent-pipeline.md) | How the coding agent pipeline is wired up and how to run it |
 | [`docs/audit/BASELINE.md`](./docs/audit/BASELINE.md) | The measured build, lint, test and coverage gate every later change is compared against |
 

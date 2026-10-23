@@ -1,869 +1,1132 @@
-# Backend runbook — username accounts and database progress (Rust container + Postgres)
+# Backend runbook — accounts and progress on Cloudflare Workers Free + Cloud Run + Neon
 
-> **Status: built.** This runbook is the operations guide for the accounts and
-> progress backend. Read [`ARCHITECTURE.md`](./ARCHITECTURE.md) once — its
-> *Decisions, and what was rejected*, *Accounts* and *Progress and sync* sections
-> are the design this runbook operates — then work from here.
+> **Status: built.** This runbook takes the accounts and progress backend from
+> nothing to a verified production deploy on **free tiers**: Cloudflare Workers
+> Free serves the games and proxies `/api/*`, the Rust service runs on **Google
+> Cloud Run**, and Postgres lives on **Neon**. It replaces the old
+> Cloudflare-Containers runbook: there is no Workers Paid plan, no container in
+> the Worker, no test hostname, no Cloudflare Access and no R2 bucket.
 >
-> Everything is written for **Windows PowerShell**. Use `npm.cmd` (not `npm`) in
-> this repo — the execution policy can block `npm.ps1`. Use `curl.exe` (with the
-> extension) so you get the real curl instead of PowerShell's
-> `Invoke-WebRequest` alias. `npx wrangler` is available because `wrangler` is a
-> pinned devDependency (C5).
+> Read [`ARCHITECTURE.md`](./ARCHITECTURE.md) once — *The shape of the site*,
+> *Accounts* and *Progress and sync* — then work from here. This file is the
+> operational record: when a step changes, change it here in the same commit.
+
+Written for **Windows PowerShell**. Use `npm.cmd` (not `npm`) in this repo, and
+`curl.exe` (with the extension) so you get the real curl instead of PowerShell's
+`Invoke-WebRequest` alias.
 
 ## How to use this runbook
 
-Steps are numbered **R0 … R14**, and each ends with a **✅ Check**. Do not move
+Steps are numbered **R0 … R17**, and each ends with a **✅ Check**. Do not move
 on from a failed check: every step is designed to fail loudly and early.
+
+Keep **one PowerShell window** open for R0–R10: several steps set `$env:`
+variables (`PROJECT_ID`, `REGION`, `API_URL`, `PEPPER`, `DOOR_SECRET`, `RUNTIME_SA`)
+that later steps reuse. If a window closes, re-run the small assignment block at
+the start of the step you are on.
+
+### The two rules that must never be broken
+
+1. **The money rule.** Everything in this runbook stays inside a free allowance.
+   Never set `--min-instances` above 0, never add a keep-warm ping to Cloud Run
+   or Neon, keep Cloud Run's `--max-instances` at 2, and check the Google Cloud
+   billing report once a month. The free tiers are listed in R12.
+2. **The fail-open rule.** A game must never break because the backend is down.
+   If any step makes a game show an error, a spinner or a delay, stop: the
+   failure-is-invisible rule in `ARCHITECTURE.md` (*Progress and sync*) has been
+   broken. R11 has the check for it.
 
 ### Jump table
 
-| Step | What it does | Serves | Time |
-| --- | --- | --- | --- |
-| **R0** | Toolchain: Rust, Docker, wrangler, database client | C3 | 20-40 min |
-| **R1** | Neon: project, two databases, connection strings | C6, C7 | 15 min |
-| **R2** | Cloudflare: plan, API token, the test hostname | C5, C6 | 20 min |
-| **R3** | Cloudflare Access for the test environment (+ service token) | C6 | 15 min |
-| **R4** | Repo wiring: what C3 – C5 create, and the local env file | C3 – C5 | 30 min |
-| **R5** | Local development: Postgres in Docker, `cargo run`, `wrangler dev` | C3 – C9 | 20 min |
-| **R6** | Migrations, local and remote | C7 | 15 min |
-| **R7** | Secrets per environment (test and production) | C8, C13 | 10 min |
-| **R8** | CI and deploy workflows | C4, C6, C13 | 45 min |
-| **R9** | Verification checklist for every milestone | all | 20 min |
-| **R10** | Backup and restore (nightly `pg_dump` to R2) | C12 | 20 min |
-| **R11** | Rollback and recovery | all | — |
-| **R12** | Troubleshooting table | all | — |
-| **R13** | Command cheat sheet | all | — |
-| **R14** | Permissions: the coding agent's bash allowlist | C4 | 10 min |
+| Step | What it does | Time |
+| --- | --- | --- |
+| **R0** | Toolchain: Node, Docker, `gcloud`, wrangler, Rust | 30–60 min |
+| **R1** | Neon: project, database, connection string | 15 min |
+| **R2** | Google Cloud: project, billing, APIs, budget alert | 20 min |
+| **R3** | Artifact Registry: the image repository | 10 min |
+| **R4** | Service accounts and Workload Identity Federation | 20 min |
+| **R5** | Secret Manager: database URL, pepper, door secret | 15 min |
+| **R6** | Migrations and the first manual Cloud Run deploy | 40 min |
+| **R7** | Cloudflare: point the Worker at the service, set the door secret | 15 min |
+| **R8** | GitHub Actions: secrets, variables and the approval gate | 20 min |
+| **R9** | The first automated deploy (merge and approve) | 20 min |
+| **R10** | Cloudflare Free plan and cleanup of the old stack | 20 min |
+| **R11** | Verification: routes, accounts, sync, fail-open | 30 min |
+| **R12** | Costs and free-tier guardrails | 10 min |
+| **R13** | Backups and restore (manual — there is no nightly job) | 15 min |
+| **R14** | Rollback and recovery | — |
+| **R15** | Troubleshooting | — |
+| **R16** | Command cheat sheet | — |
+| **R17** | The coding agent's permissions | — |
 
-### Milestone → steps
+### Before you start
 
-| Milestone | Steps |
-| --- | --- |
-| **M0** — container deployed to the test hostname, games untouched | R0, R2 (partial), R4, R5, R8 (test workflow), R9 (M0 block) |
-| **M1** — Postgres, schema, migrations | R1, R6, R9 (M1 block) |
-| **M2** — accounts round trip | R2 (Access), R3, R7, R9 (M2 block) |
-| **M3** — progress sync end to end | R5, R9 (M3 block) |
-| **M4** — backups, cutover, Pages retirement | R10, R11, R9 (M4 block) |
+You need:
 
-### The one rule that must never be broken
+- The Cloudflare zone for `divanchyshyn.com`, with the `learn-and-play` Worker
+  and its `play2learn.divanchyshyn.com` custom domain already attached.
+- A Neon account (you already have one).
+- A Google Cloud account that can create a **billing account**. Google requires
+  a payment method even for the free tier; a new account normally gets a
+  $300 / 90-day free trial. R2 explains what happens when the trial ends.
+- About two hours. R0 is the longest part on a fresh machine.
 
-**A game must never break because the backend is down.** If any step makes a
-game show an error, a spinner or a delay, stop: the fail-open rule in
-`ARCHITECTURE.md` (*Progress and sync* → *Failure is invisible*) has been broken.
-R9 has the check for it.
+Nothing in this runbook deploys the live site before **R9**. The first Cloud Run
+deploy in R6 is a private smoke test; the live site keeps running the old Worker
+until the merge in R9.
 
 ---
 
-## R0 — Prerequisites
+## R0 — Toolchain
 
-### R0.1 — Rust (already installed on this machine)
-
-Verified on this machine when the service was built:
+### R0.1 — Node and npm
 
 ```powershell
-rustc --version      # 1.99.0
-cargo --version      # 1.99.0
-rustup toolchain list
+node --version    # 22.x
+npm.cmd --version
 ```
 
-`stable-x86_64-pc-windows-msvc` is the default and Visual Studio 2022 Build
-Tools are present, which is what `cargo test` needs in order to link. **No
-`wasm32-unknown-unknown` target is needed**: this backend is a normal Linux
-binary, not WebAssembly.
-
-If the toolchain ever has to be installed from scratch:
-
-```powershell
-winget install --id Microsoft.VisualStudio.2022.BuildTools -e   # "Desktop development with C++"
-winget install --id Rustlang.Rustup -e
-# then reopen the terminal
-rustup component add rustfmt clippy
-```
-
-### R0.1b — Windows Smart App Control blocks `cargo test` on this machine
-
-Measured while building C3. Windows **Smart App Control** is on
-(`HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy`,
-`VerifiedAndReputablePolicyState = 1`), and it refuses to run binaries that are
-not signed and reputable — which is exactly what `cargo` produces: build-script
-executables and the test harness. The failure looks like this and is **not** a
-project problem:
-
-```
-error: failed to run custom build command for `serde_core`
-  could not execute process `...\build-script-build` (never executed)
-  An Application Control policy has blocked this file. (os error 4551)
-```
-
-`cargo-fmt` is blocked the same way, so `cargo fmt` fails too.
-
-Three ways forward, in order of preference:
-
-1. **Run the Rust gates in a container** (what this repository does on Windows,
-   and what C3 used):
-
-   ```powershell
-   docker run --rm -v "D:\Repositories\learn-and-play:/work" -w /work/api `
-     -e CARGO_TARGET_DIR=/cargo-target `
-     -v lap-cargo-target:/cargo-target `
-     -v lap-cargo-registry:/usr/local/cargo/registry `
-     rust:1-bookworm sh -c "cargo fmt --all && cargo test && cargo clippy --all-targets -- -D warnings"
-   ```
-
-   The named volumes keep the dependency cache, so the second run is fast. This
-   is closer to CI (Linux) than a Windows build is, and it is unaffected by the
-   policy because the binaries are Linux ones running inside the Docker VM.
-2. **Turn Smart App Control off** (Windows Security → App & browser control →
-   Smart App Control settings → Off). It is a real security feature and turning
-   it off cannot be undone without reinstalling Windows, so decide deliberately.
-3. **Use WSL2** and do the Rust work there — Linux binaries are unaffected.
-
-CI on `ubuntu-latest` is never affected. Keep this in mind when a local `cargo`
-command fails for no apparent reason: check which of the three above applies
-before debugging the code.
+`npm.cmd install` installs Wrangler as a pinned devDependency, so `npx wrangler`
+always uses the same version CI uses. Nothing needs a global install.
 
 ### R0.2 — Docker Desktop
 
-Needed for three things: `docker build` (the container image), the local
-Postgres in `docker-compose.yml`, and `wrangler dev` running the container on
-this machine.
+Docker builds the service image and runs the throwaway Postgres used by the Rust
+tests. It is not needed by the running site.
 
 ```powershell
 docker version --format '{{.Server.Version}}'   # fails while the daemon is stopped
 ```
 
-Start Docker Desktop and re-run until it prints a version. The front door cannot
-be exercised without it.
+Start Docker Desktop and re-run until it prints a version.
 
-### R0.3 — Wrangler
+### R0.3 — Google Cloud CLI
 
-Wrangler is **not** installed globally and does not need to be: C5 adds it as a
-pinned devDependency, so `npm ci` provides it and CI and this machine use the
-same version.
+The CLI is how the project, repository, accounts and secrets are created, and how
+the first manual deploy happens.
 
 ```powershell
-npm.cmd install
-npx wrangler --version
-npx wrangler whoami        # opens a browser the first time
+winget install --id Google.CloudSDK -e
+# then reopen the terminal
+gcloud --version
 ```
 
-`whoami` must print your account name and account id (the id also appears in the
-Cloudflare dashboard URL).
-
-### R0.4 — A Postgres client (optional but useful)
+If `winget` does not have the package, use the installer from
+<https://cloud.google.com/sdk/docs/install> and run `gcloud init`.
 
 ```powershell
-# for looking at a database by hand; psql is not required by any workflow
-winget install --id PostgreSQL.PostgreSQL.17 -e
+gcloud auth login
+gcloud auth list
 ```
 
-Alternatively use the Neon console's SQL editor, or
-`docker run --rm -it postgres:17 psql "<connection string>"`.
+**Do not create a service-account JSON key.** CI authenticates with Workload
+Identity Federation (R4), and there is no long-lived Google credential anywhere.
+
+### R0.4 — Rust, without fighting Windows Smart App Control
+
+Rust is installed on this machine, but **Smart App Control refuses to run freshly
+built unsigned binaries**, which is exactly what `cargo test`, `cargo fmt` and
+build scripts produce. The error starts with
+`An Application Control policy has blocked this file. (os error 4551)`.
+
+Run the Rust gates inside the official image instead (this is also closer to
+CI). The integration tests need the local Postgres, and a container reaches the
+host's published port through `host.docker.internal` on Docker Desktop:
+
+```powershell
+docker compose up -d db
+
+docker run --rm -v "D:\Repositories\learn-and-play:/work" -w /work/api `
+  -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/learn_and_play `
+  -e CARGO_TARGET_DIR=/cargo-target `
+  -v lap-cargo-target:/cargo-target `
+  -v lap-cargo-registry:/usr/local/cargo/registry `
+  rust:1-bookworm sh -c "cargo fmt --all --check && cargo test && cargo clippy --all-targets -- -D warnings"
+```
+
+The named volumes cache the dependency build, so the second run is fast.
+
+### R0.5 — A Postgres client (optional, useful)
+
+`psql` is not required by any workflow. The Neon console has a SQL editor, and
+this one-liner talks to Neon with the official image:
+
+```powershell
+docker run --rm -it postgres:17 psql "<connection string>" -c "select version();"
+```
 
 ### ✅ Check
 
 ```powershell
-rustc --version; cargo --version
-docker version --format '{{.Server.Version}}'
+node --version
 npm.cmd install
 npx wrangler --version
+gcloud --version
+docker version --format '{{.Server.Version}}'
 ```
 
-All four succeed.
+All five succeed. `git status` still shows no `.dev.vars` or `api/.env`.
 
 ---
 
 ## R1 — Neon: the database
 
-### R1.1 — Create the project
+### R1.1 — The project and its region
 
-Sign in at <https://neon.com>, create a project (the free plan is enough — see
-`ARCHITECTURE.md`, *Platform limits that shape the design*, for what it can and
-cannot do). Use the region closest to you — the container will talk to it over
-the public internet, so a nearby region keeps queries quick.
+Sign in at <https://neon.tech>. Reuse your existing project if you already have
+one; otherwise create one with the **US East (Ohio / `aws-us-east-2`)** region,
+so it sits next to Cloud Run in `us-central1`.
 
-### R1.2 — Two databases
+> If your existing project is in Europe, **keep it**. The extra distance costs
+> roughly 100 ms per database query, which only the account page and background
+> sync ever notice; the games do not call the API. Moving a Neon project means
+> creating a new one and restoring a dump, so it is not worth it for a hobby.
 
-The test environment must never touch production data. In one project, create:
+### R1.2 — One database
 
-| Database | Used by |
-| --- | --- |
-| `learn_and_play` | the production Worker |
-| `learn_and_play_test` | `learn-and-play-test` and the PR workflow |
+The production database is `learn_and_play`. There is **no test database any
+more**: the pull-request test environment was retired with the paid stack. If an
+old `learn_and_play_test` database or branch is still there, drop it in R10.
 
-(Neon branches are the other way to do this; two databases in one project is
-simpler and keeps one connection string shape.)
+The schema is created by `api migrate` (R6), never by hand.
 
-### R1.3 — Connection strings
+### R1.3 — The connection string
 
-Copy each database's connection string and append `sslmode=require` if it is not
-already there:
+In the Neon console open **Connect** and copy the **direct connection** string
+(not the pooled one — sqlx uses prepared statements, and the direct string keeps
+that simple):
 
-```
+```text
 postgresql://<user>:<password>@<host>.neon.tech/learn_and_play?sslmode=require
-postgresql://<user>:<password>@<host>.neon.tech/learn_and_play_test?sslmode=require
 ```
 
-Keep them out of the repository. They go into Cloudflare secrets (R7) and, for
-CI, into a GitHub environment secret (R8).
+Append `sslmode=require` if it is missing. Keep it out of the repository: it goes
+into Secret Manager (R5) and GitHub Actions (R8).
 
-### R1.4 — Know the two quirks before you debug them
+### R1.4 — The free-plan quirks to know before debugging them
 
-- **Scale to zero after 5 minutes.** The first query after an idle night waits a
-  few hundred milliseconds. A sign-in after a quiet night therefore costs
-  container start (1-3 s) + database wake + the argon2 hash. The C8 measurement
-  covers exactly this path.
-- **Session state does not survive a suspend.** Never rely on prepared-statement
-  caches, temporary tables or `LISTEN/NOTIFY`. sqlx reconnects cleanly, which is
-  why the pool is configured the way it is in C7.
+- The compute **scales to zero after 5 minutes idle**; the first query after a
+  quiet night waits for a wake-up. The service opens its pool lazily and checks a
+  connection before handing it out, so this shows up as a slower first request,
+  not a failure.
+- The free plan keeps **100 CU-hours per project per month**, **1 GB of storage**,
+  **5 GB of public network transfer**, **10 branches**, a **6-hour instant restore
+  window** and **one manual snapshot**. Do not point a monitor at the database;
+  a keep-warm ping burns compute hours and defeats the free allowance.
+- All limits and the current numbers: <https://neon.com/faqs/free-plan-limits-and-quotas>.
 
 ### ✅ Check
 
 ```powershell
-docker run --rm -it postgres:17 psql "<learn_and_play_test connection string>" -c "select version();"
+docker run --rm -it postgres:17 psql "<learn_and_play connection string>" -c "select version();"
 ```
 
 It connects and prints a version string.
 
 ---
 
-## R2 — Cloudflare: plan, token, test hostname
+## R2 — Google Cloud: project, billing, APIs
 
-### R2.1 — Confirm the plan
+### R2.1 — Create the project
 
-Dashboard → **Workers & Pages** → **Plans**. Confirm **Workers Paid**: the
-container product requires it, and D1's 10 ms ceiling is the reason the previous
-plan was shaped the way it was.
+Project IDs are globally unique. Pick one and use it everywhere (the examples
+below use `learn-and-play-prod`; if that is taken, choose another and keep using
+your choice).
 
-### R2.2 — Widen the API token used by CI
+```powershell
+$env:PROJECT_ID = "learn-and-play-prod"
+$env:REGION = "us-central1"
 
-Dashboard → **My Profile** → **API Tokens** → open the token stored in
-`CLOUDFLARE_API_TOKEN`.
-
-| Scope | Permission | Why |
-| --- | --- | --- |
-| Account | **Workers Scripts: Edit** | deploy the Worker script |
-| Account | **Workers Containers: Edit** (or the closest available name) | build and push the container image |
-| Account | **Account Settings: Read** | resolve the account id |
-
-Cloudflare renames these from time to time — pick the closest equivalents and
-prefer the narrowest token that still deploys. Consider a second, separate token
-for the test workflow.
-
-### R2.3 — Confirm the repository secrets and environments
-
-Repository → **Settings** → **Secrets and variables** → **Actions**: confirm
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` exist.
-
-Repository → **Settings** → **Environments**:
-
-- `cloudflare-production` must exist **with required reviewers**. A referenced
-  environment that does not exist is created *without* protection rules, which
-  would silently remove the human approval gate.
-- Create `cloudflare-test` **without** reviewers: the test deploy is meant to be
-  automatic. Put the test-only secrets here (`TEST_DATABASE_URL` for the
-  migration step, the Access service token for the smoke check).
-
-### R2.4 — The test hostname
-
-`test.play2learn.divanchyshyn.com` becomes a **custom domain of a new Worker**
-named `learn-and-play-test`. C5 declares it in `wrangler.test.jsonc`:
-
-```jsonc
-"routes": [{ "pattern": "test.play2learn.divanchyshyn.com", "custom_domain": true }]
+gcloud projects create $env:PROJECT_ID --name="Learn and Play"
+gcloud config set project $env:PROJECT_ID
+gcloud config set run/region $env:REGION
 ```
 
-The first `wrangler deploy --config wrangler.test.jsonc` creates the DNS record
-and the certificate. Two things to check first:
+If the project already exists and belongs to you, skip the create and just set
+`$env:PROJECT_ID` to it.
 
-- The hostname must **not** already have a CNAME record — a hostname with one
-  cannot be turned into a custom domain. Delete the record if it exists.
-- The zone must be in this account (it is: `play2learn.divanchyshyn.com` already
-  lives here).
+### R2.2 — Billing and the free trial
 
-If the deploy cannot create it, attach the domain once in the dashboard
-(Workers → `learn-and-play-test` → Settings → Domains & Routes) and leave the
-`routes` block out.
+Google Cloud needs an active billing account even when the usage is inside the
+free tier.
 
-### ✅ Check
+1. Open <https://console.cloud.google.com/billing> and create or confirm a
+   billing account (name, country, address, payment method).
+2. Link it to the project: **Billing → Account management → My projects →
+   Learn and Play → Change billing**, or:
 
-- `npx wrangler whoami` prints the account.
-- `cloudflare-production` shows **required reviewers**; `cloudflare-test` exists
-  without any.
-- `test.play2learn.divanchyshyn.com` has no CNAME record in the DNS tab.
+   ```powershell
+   gcloud billing accounts list
+   gcloud billing projects link $env:PROJECT_ID --billing-account=<ACCOUNT_ID>
+   ```
 
----
+3. If you are on the **free trial**: it lasts **90 days** or until the $300
+   credit is gone. Before it ends, **upgrade to a paid billing account**
+   (*Billing → Overview → Upgrade*). If you do not, the project's resources are
+   stopped and, after a **30-day grace period**, permanently deleted. The always-
+   free allowances continue after the upgrade; you are only billed for usage
+   above them, which this runbook is built to avoid.
+   Details: <https://cloud.google.com/free/docs/free-cloud-features>.
 
-## R3 — Cloudflare Access for the test environment
+### R2.3 — Enable exactly the APIs this needs
 
-The test Worker holds a real database and a sign-up form. Access keeps it to
-people you invite, without any code.
+```powershell
+gcloud services enable `
+  run.googleapis.com `
+  artifactregistry.googleapis.com `
+  secretmanager.googleapis.com `
+  iam.googleapis.com `
+  iamcredentials.googleapis.com `
+  sts.googleapis.com `
+  --project $env:PROJECT_ID
+```
 
-### R3.1 — Enable Zero Trust
+`iamcredentials` and `sts` are what Workload Identity Federation uses;
+`run`, `artifactregistry` and `secretmanager` are the products themselves.
 
-Dashboard → **Zero Trust** → choose the **Free** plan → set a team domain (for
-example `divanchyshyn`). No identity provider is needed: the built-in
-**one-time PIN** sends a code to an email address.
+### R2.4 — A budget alert, so a mistake is visible
 
-### R3.2 — The application
-
-Zero Trust → **Access** → **Applications** → **Add an application** →
-**Self-hosted**:
+Console → **Billing → Budgets & alerts → Create budget**:
 
 | Field | Value |
 | --- | --- |
-| Name | `Learn and play (test)` |
-| Session duration | 1 month (so a tablet logs in once, not every visit) |
-| Application domain | `test.play2learn.divanchyshyn.com` |
+| Name | `learn-and-play-guard` |
+| Scope | the project |
+| Amount | **$1** (a tripwire, not a spending plan) |
+| Alerts | 50 %, 90 %, 100 % by email |
 
-Then add a policy: **Allow**, action for the **Emails** selector, containing
-your own address (and anyone else you want to let in).
-
-### R3.3 — A service token for CI
-
-Zero Trust → **Access** → **Service Auth** → **Create service token**, named
-`learn-and-play-ci`. Store the client id and secret as GitHub environment secrets
-in `cloudflare-test` (`CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`) and add a
-second policy to the application: **Service Auth**, action **Allow**, with that
-token.
-
-Without this, the deploy workflow cannot smoke-check its own deployment: it would
-receive Access's login redirect instead of `/api/health`.
-
-### R3.4 — Remember what Access does and does not do
-
-Access protects the hostname, **including the static assets**, so the game pages
-on the test hostname are private too — which is what you want while testing, and
-the reason the `_headers` noindex file is only belt and braces. Access does not
-replace application auth: accounts on the test environment are ordinary accounts
-in the test database.
+At this site's volume the expected bill is **$0.00**. An email means something
+in R12 is being exceeded and needs looking at.
 
 ### ✅ Check
 
-Open `https://test.play2learn.divanchyshyn.com/` in a private window: Cloudflare
-asks for an email code before anything loads. After entering it, the page loads
-(or returns 404 until C6 has deployed once — that is expected at this point).
+```powershell
+gcloud config get-value project
+gcloud services list --enabled --project $env:PROJECT_ID | Select-String "run.googleapis.com|artifactregistry.googleapis.com|secretmanager.googleapis.com"
+```
+
+The project is the one you chose, and all three services are listed.
 
 ---
 
-## R4 — Repo wiring (what C3 – C5 create)
+## R3 — Artifact Registry: where the image lives
 
-Nothing here is a one-off command; it is a description of what the commits add,
-so you can check the result.
+Cloud Run pulls the service image from Artifact Registry. The free allowance is
+0.5 GB-month, so the repository keeps only the newest images.
 
-### R4.1 — `api/` (the Rust service)
+```powershell
+gcloud artifacts repositories create lap `
+  --repository-format=docker `
+  --location=$env:REGION `
+  --description="Learn and Play API images" `
+  --project=$env:PROJECT_ID
+```
 
-- `api/Cargo.toml` — package `learn-and-play-api`, a library plus a binary, with
-  `axum`, `tokio`, `sqlx`, `argon2`, `serde`, `tracing`, `tower-http`.
-- `api/rust-toolchain.toml` — pins the channel and the `rustfmt`/`clippy`
-  components so CI and this machine agree.
-- `api/src/main.rs` — arguments `serve` (default) and `migrate`.
-- `api/Dockerfile` — `cargo-chef` planner → builder → distroless nonroot
-  runtime, `linux/amd64`, listening on `0.0.0.0:8080`.
-- `api/migrations/` — the schema, one numbered file per change.
+Keep the last three (a rollback needs an image, not an archive):
 
-### R4.2 — `edge/` (the Worker front door)
+```powershell
+$policy = @'
+[
+  {
+    "name": "keep-last-three",
+    "action": { "type": "Keep" },
+    "mostRecentVersions": { "keepCount": 3 }
+  }
+]
+'@
+$policyPath = Join-Path $env:TEMP "lap-artifact-cleanup.json"
+Set-Content -Path $policyPath -Value $policy -Encoding ascii
 
-- `edge/src/index.js` — `/api/*` goes to the Durable Object; everything else
-  falls through to `env.ASSETS` (which, with `run_worker_first`, is never even
-  reached for a static path).
-- `edge/src/container.js` — the `ApiContainer` class: `defaultPort = 8080`,
-  `sleepAfter = "10m"`, the container's environment variables, and a ping
-  endpoint of `/api/health`.
-- The front door also **replaces** any client-supplied `X-Client-IP` with
-  `CF-Connecting-IP` before forwarding, so the Rust rate limiter cannot be
-  spoofed.
+gcloud artifacts repositories set-cleanup-policies lap `
+  --location=$env:REGION `
+  --project=$env:PROJECT_ID `
+  --policy=$policyPath
+```
 
-### R4.3 — Local environment files
+### ✅ Check
 
-| File | Holds | Gitignored |
+```powershell
+gcloud artifacts repositories describe lap --location=$env:REGION --project=$env:PROJECT_ID
+```
+
+It prints the repository and the cleanup policy.
+
+---
+
+## R4 — Service accounts and Workload Identity Federation
+
+Two service accounts, deliberately separate:
+
+| Account | Purpose | Roles |
 | --- | --- | --- |
-| `.dev.vars` (repository root) | the Worker's environment for `wrangler dev`: `DATABASE_URL`, `PEPPER`, `PUBLIC_ORIGIN` | yes |
-| `api/.env` | the same values for running the API directly with `cargo run` | yes |
+| `lap-runtime` | the identity the Cloud Run service runs as | only `secretmanager.secretAccessor` on the three secrets (R5) |
+| `lap-deployer` | the identity GitHub Actions deploys as | `run.admin`, `artifactregistry.writer`, `iam.serviceAccountUser` on `lap-runtime` |
 
-`.dev.vars` is read by `wrangler dev`; the container receives those values as
-environment variables. A sample with dummy values is fine to commit
-(`.dev.vars.example`), the real file never is.
+```powershell
+$env:PROJECT_NUMBER = gcloud projects describe $env:PROJECT_ID --format='value(projectNumber)'
+$env:RUNTIME_SA = "lap-runtime@$env:PROJECT_ID.iam.gserviceaccount.com"
+$env:DEPLOYER_SA = "lap-deployer@$env:PROJECT_ID.iam.gserviceaccount.com"
+
+gcloud iam service-accounts create lap-runtime `
+  --display-name="Learn and Play runtime" --project=$env:PROJECT_ID
+gcloud iam service-accounts create lap-deployer `
+  --display-name="Learn and Play deployer" --project=$env:PROJECT_ID
+
+gcloud projects add-iam-policy-binding $env:PROJECT_ID `
+  --member="serviceAccount:$env:DEPLOYER_SA" --role="roles/run.admin" --quiet
+gcloud projects add-iam-policy-binding $env:PROJECT_ID `
+  --member="serviceAccount:$env:DEPLOYER_SA" --role="roles/artifactregistry.writer" --quiet
+gcloud iam service-accounts add-iam-policy-binding $env:RUNTIME_SA `
+  --member="serviceAccount:$env:DEPLOYER_SA" `
+  --role="roles/iam.serviceAccountUser" --project=$env:PROJECT_ID --quiet
+```
+
+The deployer may **deploy as** the runtime identity, but it cannot read the
+secrets: only the running service can.
+
+### R4.1 — The Workload Identity pool
+
+```powershell
+gcloud iam workload-identity-pools create github `
+  --location=global `
+  --display-name="GitHub Actions" `
+  --project=$env:PROJECT_ID
+
+gcloud iam workload-identity-pools providers create-oidc github `
+  --location=global `
+  --workload-identity-pool=github `
+  --display-name="GitHub OIDC" `
+  --issuer-uri="https://token.actions.githubusercontent.com" `
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" `
+  --attribute-condition="assertion.repository == 'divanchyshyn/learn-and-play'" `
+  --project=$env:PROJECT_ID
+```
+
+The condition is the lock: only a workflow run in `divanchyshyn/learn-and-play`
+can exchange its GitHub token for Google credentials.
+
+### R4.2 — Let this repository use the deployer
+
+```powershell
+gcloud iam service-accounts add-iam-policy-binding $env:DEPLOYER_SA `
+  --role="roles/iam.workloadIdentityUser" `
+  --member="principalSet://iam.googleapis.com/projects/$env:PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/divanchyshyn/learn-and-play" `
+  --project=$env:PROJECT_ID --quiet
+```
+
+### R4.3 — The three values GitHub will need
+
+Write these down; R8 copies them into repository variables:
+
+```powershell
+Write-Output "GCP_PROJECT_ID       = $env:PROJECT_ID"
+Write-Output "GCP_REGION           = $env:REGION"
+Write-Output "GCP_WIF_PROVIDER     = projects/$env:PROJECT_NUMBER/locations/global/workloadIdentityPools/github/providers/github"
+Write-Output "GCP_DEPLOYER_SA      = $env:DEPLOYER_SA"
+Write-Output "GCP_RUNTIME_SA       = $env:RUNTIME_SA"
+```
 
 ### ✅ Check
 
 ```powershell
-npm.cmd run lint; npm.cmd run test; npm.cmd run build
-cargo fmt --manifest-path api/Cargo.toml --all --check
-cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path api/Cargo.toml
-npx wrangler deploy --config wrangler.test.jsonc --dry-run
+gcloud iam workload-identity-pools providers describe github `
+  --location=global --workload-identity-pool=github --project=$env:PROJECT_ID
+gcloud iam service-accounts list --project=$env:PROJECT_ID
 ```
 
-All succeed, and `git status` does not list `.dev.vars` or `api/.env`.
+The provider is `ACTIVE`, and both service accounts are listed.
 
 ---
 
-## R5 — Local development
+## R5 — Secret Manager: the three things the service needs
 
-### R5.1 — The database
+| Secret | Used as | Meaning |
+| --- | --- | --- |
+| `lap-database-url` | `DATABASE_URL` | the Neon connection string from R1 |
+| `lap-pepper` | `PEPPER` | the argon2 pepper; **changing it invalidates every password** |
+| `lap-door-secret` | `DOOR_SECRET` | proves a request came through the Cloudflare Worker |
+
+### R5.1 — Generate the pepper and the door secret
 
 ```powershell
-docker compose up -d db
-docker compose logs db --tail 20
+function New-SecretString {
+  $bytes = New-Object byte[] 32
+  [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  [Convert]::ToBase64String($bytes)
+}
+
+$env:PEPPER = New-SecretString
+$env:DOOR_SECRET = New-SecretString
+
+Write-Output "PEPPER      = $env:PEPPER"
+Write-Output "DOOR_SECRET = $env:DOOR_SECRET"
 ```
 
-`docker-compose.yml` runs `postgres:17` on `localhost:5432` with a throwaway
-password, which is the same database the integration tests use.
+**Copy both into your password manager now.** The pepper is permanent: losing it
+does not lock anyone out (it lives in the deployment), but rotating it makes
+every stored password hash unverifiable, and this design has no password
+recovery. The door secret can be rotated, but it must change in **two** places
+(Cloud Run and the Worker) in the same window.
 
-### R5.2 — The API alone (the fast loop)
+### R5.2 — Create the secrets
+
+Use the console if you prefer pasting values (Secret Manager → **Create
+secret**), or the CLI. The CLI needs the value in a file with no trailing
+newline:
 
 ```powershell
-cd api
-$env:DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/learn_and_play?sslmode=disable"
-$env:PEPPER = "dev-pepper-not-used-anywhere-real"
-$env:PUBLIC_ORIGIN = "http://localhost:8080"
-cargo run
+function New-Secret([string]$Name, [string]$Value) {
+  $path = Join-Path $env:TEMP "$Name.txt"
+  [System.IO.File]::WriteAllText($path, $Value)
+  gcloud secrets create $Name --data-file=$path --project=$env:PROJECT_ID --replication-policy=automatic
+  Remove-Item $path -Force
+}
+
+New-Secret "lap-database-url" "<learn_and_play connection string>"
+New-Secret "lap-pepper"       $env:PEPPER
+New-Secret "lap-door-secret"  $env:DOOR_SECRET
 ```
 
-Then, from another terminal:
+### R5.3 — Only the runtime may read them
 
 ```powershell
-curl.exe -s http://localhost:8080/api/health
-# {"ok":true,"db":"up"}
+foreach ($name in "lap-database-url", "lap-pepper", "lap-door-secret") {
+  gcloud secrets add-iam-policy-binding $name `
+    --member="serviceAccount:$env:RUNTIME_SA" `
+    --role="roles/secretmanager.secretAccessor" `
+    --project=$env:PROJECT_ID --quiet
+}
 ```
 
-### R5.3 — The whole thing through the front door
-
-`wrangler dev` runs the Worker, the Durable Object and the container locally:
+### ✅ Check
 
 ```powershell
-npm.cmd run build          # dist/ must exist: the front door serves it
-npx wrangler dev --config wrangler.test.jsonc
+gcloud secrets versions list lap-database-url --project=$env:PROJECT_ID
+gcloud secrets versions access latest --secret=lap-pepper --project=$env:PROJECT_ID | ForEach-Object { $_.Length }
 ```
 
-Open <http://localhost:8787> — the library and the games come from `dist/`, and
-`/api/health` comes from the container. Local `.dev.vars` supplies the
-environment (R4.3). Docker must be running for this path.
+The first lists version 1; the second prints the length (44 for base64 of 32
+bytes). Do not paste the values into logs or chat.
 
-> **Local dev does not reproduce the production cost profile.** Here the
-> container gets the whole machine; in production it gets a `lite` share. That is
-> exactly what the C8 hash-time measurement is for.
+---
 
-### R5.4 — Signing in locally
+## R6 — Migrations and the first manual Cloud Run deploy
+
+This step proves the whole Google Cloud path before the live site depends on it.
+It does **not** touch the live Worker.
+
+### R6.1 — Apply the schema to Neon
 
 ```powershell
-# create an account and capture the session cookie
-Invoke-RestMethod -Method Post -Uri http://localhost:8787/api/account `
+$env:DATABASE_URL = "<learn_and_play connection string>"
+
+docker run --rm -v "D:\Repositories\learn-and-play:/work" -w /work/api `
+  -e DATABASE_URL -e CARGO_TARGET_DIR=/cargo-target `
+  -v lap-cargo-target:/cargo-target `
+  -v lap-cargo-registry:/usr/local/cargo/registry `
+  rust:1-bookworm sh -c "cargo run --locked -- migrate"
+```
+
+It prints `migrations applied`. Running it twice is a no-op: the applied
+migrations are recorded in `_sqlx_migrations`.
+
+### R6.2 — Build and push the image
+
+```powershell
+gcloud auth configure-docker "$env:REGION-docker.pkg.dev"
+
+$image = "$env:REGION-docker.pkg.dev/$env:PROJECT_ID/lap/api:manual"
+docker build -t $image api
+docker push $image
+```
+
+The image is `linux/amd64` and distroless, listens on `$PORT` and handles
+SIGTERM; Cloud Run supplies all three behaviours.
+
+### R6.3 — Deploy the service
+
+Read the flags as the free-tier contract: one vCPU, half a gigabyte, at most two
+instances, no minimum instance, and the three secrets mounted as environment
+variables.
+
+```powershell
+gcloud run deploy learn-and-play-api `
+  --project $env:PROJECT_ID `
+  --image $image `
+  --region $env:REGION `
+  --platform managed `
+  --allow-unauthenticated `
+  --port 8080 `
+  --cpu 1 `
+  --memory 512Mi `
+  --concurrency 20 `
+  --min-instances 0 `
+  --max-instances 2 `
+  --timeout 60 `
+  --service-account "lap-runtime@$env:PROJECT_ID.iam.gserviceaccount.com" `
+  --set-env-vars "PUBLIC_ORIGIN=https://play2learn.divanchyshyn.com,NOINDEX=1,RUST_LOG=info" `
+  --set-secrets "DATABASE_URL=lap-database-url:latest,PEPPER=lap-pepper:latest,DOOR_SECRET=lap-door-secret:latest" `
+  --quiet
+```
+
+Notes:
+
+- `--allow-unauthenticated` is required because Cloudflare has no Google
+  identity. The **door secret** is what protects the public `run.app` address.
+- `--min-instances 0` is the cost decision. A warm instance is billed around the
+  clock; a cold start is a second or two.
+- `PUBLIC_ORIGIN` must be exactly the site's origin (no trailing slash; the
+  service trims one if present).
+
+### R6.4 — Record the URL and check the door
+
+```powershell
+$env:API_URL = gcloud run services describe learn-and-play-api `
+  --project $env:PROJECT_ID --region $env:REGION --format='value(status.url)'
+Write-Output $env:API_URL
+
+# Expected: 403, because this request did not come through the front door.
+curl.exe -s -o NUL -w "%{http_code}`n" "$env:API_URL/api/health"
+```
+
+Then read the logs:
+
+```powershell
+gcloud run services logs read learn-and-play-api `
+  --project $env:PROJECT_ID --region $env:REGION --limit 50
+```
+
+You are looking for `listening` with `database_configured=true` and
+`door_configured=true`. If you see the warning
+`DOOR_SECRET is not set`, the secret reference in R6.3 is wrong.
+
+### ✅ Check
+
+- `/api/health` on the `run.app` URL answers **403**.
+- The logs show `door_configured=true` and no startup error.
+- The revision is `Ready` in `gcloud run services describe ... --format='value(status.conditions)'`.
+
+---
+
+## R7 — Cloudflare: point the Worker at the service
+
+Cloudflare stays the host. On the Free plan, static asset requests are free and
+unlimited, and only `/api/*` counts toward the 100,000 requests/day Worker
+allowance. The paid part of the old stack — Containers and the Durable Object —
+is gone from the repository.
+
+### R7.1 — Put the service URL in the Worker configuration
+
+Open `wrangler.jsonc` and replace the empty `API_BASE_URL`:
+
+```jsonc
+"vars": {
+  "API_BASE_URL": "https://learn-and-play-api-<hash>-uc.a.run.app"
+}
+```
+
+The value is exactly `$env:API_URL` from R6.4. Commit the change: CI deploys the
+Worker from this file.
+
+### R7.2 — Set the door secret on the Worker
+
+```powershell
+npx wrangler secret put API_DOOR_SECRET
+```
+
+Paste the **same** `DOOR_SECRET` value from R5.1. It is stored encrypted and
+never appears in the repository or in `wrangler.jsonc`.
+
+### R7.3 — Validate before deploying
+
+```powershell
+npm.cmd run build
+npx wrangler deploy --dry-run
+npx wrangler secret list
+```
+
+`--dry-run` builds and bundles the Worker without publishing it; `secret list`
+shows `API_DOOR_SECRET` and nothing else.
+
+> **Do not downgrade the Cloudflare plan yet.** The live site still runs the old
+> Worker until R9. Downgrading now would strand the old container before its
+> replacement is live.
+
+### ✅ Check
+
+- `API_BASE_URL` in `wrangler.jsonc` is the R6 URL.
+- `npx wrangler secret list` shows `API_DOOR_SECRET`.
+- `npx wrangler deploy --dry-run` succeeds (no container warnings).
+
+---
+
+## R8 — GitHub Actions: secrets, variables, approval gate
+
+### R8.1 — Create the `production` environment first
+
+Repository → **Settings → Environments → New environment → `production`**:
+
+- **Required reviewers**: add yourself.
+- **Deployment branches**: `main` only.
+
+This must exist **before the workflow that references it is merged**. GitHub
+silently creates a referenced-but-missing environment **without** protection
+rules, which is how a deploy gate disappears without anyone noticing.
+
+### R8.2 — Repository secrets
+
+Repository → **Settings → Secrets and variables → Actions → Secrets**:
+
+| Name | Value |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | the Cloudflare token (Workers Scripts: Edit, Account Settings: Read) |
+| `CLOUDFLARE_ACCOUNT_ID` | the account id from the Cloudflare dashboard URL |
+| `PRODUCTION_DATABASE_URL` | the Neon connection string from R1 (the migration job uses it) |
+
+The Cloudflare token no longer needs any container permission; the Worker is a
+plain script with static assets.
+
+### R8.3 — Repository variables
+
+**Variables** tab:
+
+| Name | Value |
+| --- | --- |
+| `GCP_PROJECT_ID` | from R4.3 |
+| `GCP_REGION` | `us-central1` |
+| `GCP_WIF_PROVIDER` | from R4.3 (the full `projects/.../providers/github` path) |
+| `GCP_DEPLOYER_SA` | from R4.3 |
+| `GCP_RUNTIME_SA` | from R4.3 |
+| `GCP_ARTIFACT_REPOSITORY` | optional, defaults to `lap` |
+| `GCP_CLOUD_RUN_SERVICE` | optional, defaults to `learn-and-play-api` |
+
+Nothing here is secret — a project id and a service-account email are not
+credentials. The Workload Identity provider is the credential exchange, and it
+only trusts this repository.
+
+### R8.4 — Confirm the gate that protects `main`
+
+Settings → Branches → the `main` rule. The required checks are:
+
+- `Run game tests` (from `ci.yml`)
+- `Check the Rust service` (from `ci.yml`)
+- `Analyze JavaScript` (from CodeQL)
+
+The deploy workflow (`deploy.yml`) is not a pull-request check; it runs on
+`main` and waits for the `production` approval. Leaving the required checks as
+they are is correct.
+
+### ✅ Check
+
+- `production` shows required reviewers and is limited to `main`.
+- The three secrets and the GCP variables are present.
+- The required checks are unchanged.
+
+---
+
+## R9 — The first automated deploy
+
+### R9.1 — Merge and approve
+
+1. Commit the `API_BASE_URL` change from R7 (on the branch that carries the
+   backend change).
+2. Open/refresh the pull request and confirm CI is green.
+3. **Merge to `main`.**
+4. Open **Actions → Deploy production**. The `verify` job runs; the `deploy` job
+   waits at *Review pending deployments*. Approve it.
+
+What the approved job does, in order:
+
+1. downloads the verified `dist/` from the `verify` job;
+2. applies `api migrate` against Neon (fails here rather than shipping code
+   against a wrong schema);
+3. signs in to Google with Workload Identity Federation;
+4. builds and pushes `api/` to Artifact Registry;
+5. deploys the new revision to Cloud Run;
+6. deploys the Worker and its assets to Cloudflare;
+7. smoke-checks the site, a game page, and the direct `run.app` refusal.
+
+### R9.2 — Check the deploy
+
+```powershell
+# The site's API, through the front door
+curl.exe -s https://play2learn.divanchyshyn.com/api/health
+# Expected: {"ok":true,"db":"up"}
+
+# The direct service address, without the front door
+curl.exe -s -o NUL -w "%{http_code}`n" "$env:API_URL/api/health"
+# Expected: 403
+
+# A game page
+curl.exe -s -o NUL -w "%{http_code}`n" https://play2learn.divanchyshyn.com/games/sound-labyrinth/
+# Expected: 200
+```
+
+### ✅ Check
+
+- The workflow is green.
+- `/api/health` through the site is `200` and `db` is `up`.
+- The direct `run.app` request is `403`.
+- The library and a game page load.
+
+---
+
+## R10 — Cloudflare Free plan and cleanup
+
+### R10.1 — Downgrade the plan
+
+Dashboard → **Workers & Pages → Plans → Workers Free** (or **Billing →
+Subscriptions** and cancel the Workers Paid subscription). Confirm the plan now
+reads **Free**. Nothing in the deployed Worker needs a paid feature: the Worker
+is a script plus static assets, and `/api/*` is a plain `fetch`.
+
+Why this is safe: static asset requests are **free and unlimited**, and the Free
+plan's 100,000 requests/day apply only to the `/api/*` requests that run the
+script. If that daily cap is ever reached, the API answers an error and the
+games continue to load from the asset router — fail-open, by design.
+
+### R10.2 — Remove what the old stack left behind
+
+Do this in any order, after R9 is verified:
+
+| Remove | Where |
+| --- | --- |
+| the `learn-and-play-test` Worker | Workers & Pages → the Worker → Delete |
+| `test.play2learn.divanchyshyn.com` | the Worker's custom domain, and the DNS record if it remains |
+| the Access application for the test hostname | Zero Trust → Access → Applications |
+| the Cloudflare R2 bucket (if the old backup workflow was ever enabled) | Cloudflare → R2 → Buckets |
+| the `learn_and_play_test` database/branch | Neon console |
+| the `cloudflare-test` and `cloudflare-production` environments | GitHub → Settings → Environments |
+| the old container-specific token permission | Cloudflare → My Profile → API Tokens |
+
+Git history keeps the old implementation; deleting the resources is what keeps
+the account clean and the free tiers honest.
+
+### R10.3 — The answer in one paragraph
+
+**Cloudflare still hosts the site.** It serves `dist/` from its asset router on
+the existing custom domain and runs one small Worker script that forwards
+`/api/*` to Cloud Run. The paid part was only the Containers product; with the
+Rust service on Cloud Run, Cloudflare is back on the Free plan. Keeping it is
+better than moving hosting to Cloud Run: assets stay free and global, the API
+stays same-origin (no CORS, no `SameSite=None` cookies, no second hostname), and
+a backend outage can never take a game down.
+
+### ✅ Check
+
+- Cloudflare shows **Workers Free**.
+- The test hostname no longer resolves or is gone.
+- The live site and `/api/health` still work.
+- GitHub no longer lists the old environments.
+
+---
+
+## R11 — Verification
+
+Run this block after the first deploy and after any change that touches
+accounts, sync or the deploy path.
+
+### R11.1 — Every published route
+
+```powershell
+$routes = @('/',
+            '/account/',
+            '/games/sound-labyrinth/',
+            '/games/snakes-and-ladders/',
+            '/games/shop/',
+            '/games/word-fishing/',
+            '/games/card-battle/',
+            '/games/number-line-hop/')
+foreach ($route in $routes) {
+  "$route`t" + (curl.exe -s -o NUL -w "%{http_code}" "https://play2learn.divanchyshyn.com$route")
+}
+```
+
+Every line is `200`. None of them changed because of this migration.
+
+### R11.2 — Accounts
+
+```powershell
+# Create an account and capture the session cookie
+Invoke-RestMethod -Method Post -Uri https://play2learn.divanchyshyn.com/api/account `
   -ContentType 'application/json' `
   -Body '{"username":"testkid","password":"et-langt-passord"}' `
   -SessionVariable session
 
-Invoke-RestMethod http://localhost:8787/api/me -WebSession $session
-$session.Cookies.GetCookies('http://localhost:8787') | Format-Table Name, HttpOnly, Expires
+Invoke-RestMethod https://play2learn.divanchyshyn.com/api/me -WebSession $session
+$session.Cookies.GetCookies('https://play2learn.divanchyshyn.com') |
+  Format-Table Name, HttpOnly, Secure, Expires
 ```
 
-Browsers accept `Secure` cookies on `localhost`, which is why the same
-`__Host-lap_sid` cookie works here and in production.
+- `/api/me` answers `signedIn: true` and the username.
+- The cookie table shows `__Host-lap_sid` with `HttpOnly = True` and
+  `Secure = True`.
+- A wrong password and an unknown username produce the **same** status and body.
+- `DELETE /api/account` leaves no rows for that id (the cascades do the rest).
 
-### ✅ Check
-
-- `/api/health` returns `{"ok":true,"db":"up"}` through both paths.
-- `http://localhost:8787/games/sound-labyrinth/` serves the game.
-- The cookie table shows `__Host-lap_sid` with `HttpOnly = True`.
-
----
-
-## R6 — Migrations
-
-### R6.1 — Where they live
-
-`api/migrations/0001_init.sql` is the schema that exists today
-(`ARCHITECTURE.md` → *Data model*). The filename pattern sqlx expects is
-`<version>_<name>.sql`, applied in ascending order and recorded in
-`_sqlx_migrations`.
-
-### R6.2 — Apply locally
-
-```powershell
-cd api
-cargo run -- migrate        # DATABASE_URL must point at the local database
-```
-
-### R6.3 — Apply remotely
-
-CI does this before every deploy (R8), but you can also do it by hand:
-
-```powershell
-$env:DATABASE_URL = "<learn_and_play_test connection string>"
-cargo run -- migrate
-```
-
-> The migration step in CI needs `TEST_DATABASE_URL` (GitHub environment secret)
-> and runs **before** the deploy, so a broken migration fails the job instead of
-> shipping code that expects a schema that is not there.
-
-### R6.4 — Inspect
-
-```powershell
-docker run --rm -it postgres:17 psql "<connection string>" -c "\dt"
-docker run --rm -it postgres:17 psql "<connection string>" -c "select count(*) from users;"
-```
-
-### R6.5 — Rules
-
-- Never edit an applied migration: its checksum is recorded. Fix forward with a
-  new file.
-- Keep migrations additive where you can (add a column with a default, backfill,
-  then tighten), so a rollback of the application image still finds a schema it
-  understands.
-- `DELETE FROM users` really does remove everything a user owns; that is by
-  design (`ON DELETE CASCADE`) and is what the delete-account test asserts.
-
-### ✅ Check
-
-- Running `cargo run -- migrate` twice changes nothing the second time.
-- `\dt` lists `users`, `sessions`, `progress`, `auth_attempts` and
-  `_sqlx_migrations`.
-
----
-
-## R7 — Secrets, per environment
-
-Secrets are set **once per Worker** with `wrangler secret put`; they never enter
-the repository and never appear in `wrangler*.jsonc`.
-
-| Name | Value | Used by |
-| --- | --- | --- |
-| `DATABASE_URL` | the Neon connection string | the Rust service (sqlx) |
-| `PEPPER` | 32 random bytes, base64; **different** per environment | argon2 pepper |
-| `PUBLIC_ORIGIN` | `https://test.play2learn.divanchyshyn.com` or `https://play2learn.divanchyshyn.com` | `Origin` checks and cookie decisions |
-| `NOINDEX` | `1` on the test Worker only | adds `X-Robots-Tag: noindex` to API responses |
-
-Non-secret values (`PUBLIC_ORIGIN`, `NOINDEX`) can live in the config file's
-`vars` block instead; keeping the two apart makes the dashboard readable.
-
-### R7.1 — Generate a pepper
-
-```powershell
-$bytes = New-Object byte[] 32
-[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-[Convert]::ToBase64String($bytes)
-```
-
-### R7.2 — Set them
-
-```powershell
-# the test Worker
-npx wrangler secret put DATABASE_URL --config wrangler.test.jsonc
-npx wrangler secret put PEPPER       --config wrangler.test.jsonc
-npx wrangler secret list --config wrangler.test.jsonc
-
-# the production Worker (C13, after the cutover config exists)
-npx wrangler secret put DATABASE_URL --name learn-and-play
-npx wrangler secret put PEPPER       --name learn-and-play
-npx wrangler secret list --name learn-and-play
-```
-
-`wrangler secret put` prompts for the value and stores it encrypted.
-
-> **Rotating `PEPPER` invalidates every stored password hash** — the pepper is
-> part of the derivation. If it ever has to change, it is a real migration:
-> users would have to set new passwords, which this design cannot do (no email).
-> Treat it as permanent, and keep a copy in your password manager.
-
-### ✅ Check
-
-- Both `secret list` calls show `DATABASE_URL` and `PEPPER`.
-- `git status` does not list `.dev.vars` or `api/.env`.
-- The test and production peppers are different values.
-
----
-
-## R8 — CI and the deploy workflows
-
-### R8.1 — `ci.yml` (every push and PR)
-
-The Rust job runs **before** the npm steps, so a Rust failure fails fast:
-
-```yaml
-- uses: dtolnay/rust-toolchain@stable
-  with:
-    components: rustfmt, clippy
-- uses: Swatinem/rust-cache@v2
-  with:
-    workspaces: api
-- run: cargo fmt --manifest-path api/Cargo.toml --all --check
-- run: cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
-- run: cargo test --manifest-path api/Cargo.toml     # services: postgres:17
-- run: docker build -t learn-and-play-api:ci api
-```
-
-The `docker build` step is not decoration: the image is what ships, and it is the
-one thing `cargo test` cannot check.
-
-### R8.2 — `deploy-test.yml` (pull requests → the test environment)
-
-- Triggers on `pull_request` (`opened`, `synchronize`, `reopened`) and
-  `workflow_dispatch`.
-- **Guards:** only same-repository heads (`github.event.pull_request.head.repo
-  .full_name == github.repository`) — fork PRs never receive secrets — and
-  `dependabot/**` branches are skipped so a dependency bump does not take the
-  shared slot.
-- **Concurrency:** `group: deploy-test`. **Never** reuse the production
-  `cloudflare` group: its `cancel-in-progress: true` would cancel a production
-  deploy that is waiting for approval.
-- **Environment:** `cloudflare-test` (no reviewers), which supplies
-  `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` for the smoke check.
-- **Steps:** build `dist/` → write `dist/_headers` with
-  `X-Robots-Tag: noindex` → `cargo run -- migrate` against `TEST_DATABASE_URL` →
-  `npx wrangler deploy --config wrangler.test.jsonc` → smoke-check
-  `/api/health` with the Access service-token headers → a sticky comment with
-  the URL, the commit SHA and the smoke result.
-
-One shared slot: whichever PR deployed most recently owns the hostname, and the
-comment says which commit is live.
-
-### R8.3 — `deploy-cloudflare.yml` (production, C13)
-
-1. The `verify` job gains the same Rust steps as CI (so nothing is verified two
-   different ways).
-2. The `deploy` job needs the Rust toolchain **and Docker**, because
-   `wrangler deploy` now builds and pushes the container image.
-3. Add the migration step **before** the deploy:
-   `npx wrangler d1 …` is gone — it is `cargo run -- migrate` with the production
-   `DATABASE_URL`, or an equivalent step using the same connection string.
-4. The `cloudflare-production` required-reviewer gate is **unchanged**. A failed
-   migration fails the deploy job, so the site can never serve code against the
-   wrong schema.
-5. Update the required status checks in branch protection to include the Rust
-   job (H8).
-
-### R8.4 — Dependabot
-
-`dependabot.yml` watches npm, GitHub Actions, **cargo** (`/api`) and **docker**
-(`/api`), so crate and base-image updates arrive as pull requests like everything
-else.
-
-### ✅ Check
-
-- A push to a branch runs lint, tests, build, the Rust steps and `docker build`,
-  all green.
-- Pushing to a pull request in this repository deploys and comments a URL.
-- A push to `main` waits for approval, and after approval the site serves the
-  new build.
-
----
-
-## R9 — Verification checklist
-
-Run the block for the milestone you just finished.
-
-### R9.0 — The universal checks (every time)
-
-```powershell
-npm.cmd run lint
-npm.cmd run test
-npm.cmd run build
-cargo fmt   --manifest-path api/Cargo.toml --all --check
-cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
-cargo test  --manifest-path api/Cargo.toml
-docker build -t learn-and-play-api:ci api
-```
-
-### R9.1 — M0: the container runs and the games are untouched
-
-Record the production routes **before** the cutover (they must not change until
-C13, and must be identical after it):
-
-```powershell
-$routes = @('/', '/games/sound-labyrinth/', '/games/snakes-and-ladders/',
-            '/games/shop/', '/games/word-fishing/', '/games/card-battle/',
-            '/games/number-line-hop/')
-foreach ($r in $routes) { "$r`t" + (curl.exe -s -o NUL -w "%{http_code}" "https://play2learn.divanchyshyn.com$r") }
-```
-
-On the test hostname (through Access; add the service-token headers for a script):
-
-```powershell
-curl.exe -s -H "CF-Access-Client-Id: <id>" -H "CF-Access-Client-Secret: <secret>" `
-  https://test.play2learn.divanchyshyn.com/api/health
-```
-
-**Pass:** the games load on both hostnames, `/api/health` returns JSON on the
-test hostname, and the production route table is unchanged.
-
-### R9.2 — M1: the database
-
-- `cargo run -- migrate` against the test database applies `0001_init.sql` and
-  is a no-op on the second run.
-- `select count(*) from users` works and returns 0.
-
-### R9.3 — M2: accounts
-
-- `POST /api/account` returns a cookie; `/api/me` shows the username.
-- A wrong password and an unknown username produce the **same** body, status and
-  rough timing.
-- After N failures from one IP, the next attempt is a `429`.
-- `POST /api/password` keeps the current session and invalidates the others.
-- `DELETE /api/account` leaves zero rows in `users`, `sessions` and `progress`
-  for that id.
-- **Hash timing (this one decides the instance size):** the C8 log line for a
-  sign-in shows the argon2 duration. Under ~1.5 s on the `lite` instance is fine;
-  over that, change `instance_type` to `"basic"` in `wrangler.test.jsonc` (and in
-  the production config) and redeploy.
-
-### R9.4 — M3: progress, and the fail-open guarantee
+### R11.3 — Progress, and the fail-open guarantee
 
 - Catch a word in Word Fishing on one browser profile, sign in, then sign in on a
   **fresh** profile: the fishing book and the gallery are there.
-- Clear `localStorage` on a signed-in device, reload a game: it waits briefly and
-  then shows the saved progress (the gate doing its job).
-- Finish a picture in Sound Labyrinth offline, then come online: the picture
-  arrives in the other profile without losing what either side had.
-- **The fail-open test (the one that must never regress):** with the API stopped
-  (or DevTools set to offline), open every game and play.
+- Clear `localStorage` on a signed-in device, reload a game: it waits at most
+  1.5 seconds and then shows the saved progress.
+- Finish a picture in Sound Labyrinth offline, come online: the picture arrives
+  in the other profile without losing what either side had.
+- **The fail-open test (must never regress):** with the API unreachable
+  (DevTools → Network → Offline, or `gcloud run services update-traffic` to no
+  revision), open every game and play.
   **Every game must play exactly as before, with no error, spinner or delay
   anywhere.** If it does not, stop and fix it before continuing.
 
-### R9.5 — M4: production, backups and Pages
+### R11.4 — Cold start
 
-- All seven production routes return the same status codes as the recorded
-  table.
-- The production deploy needed an approval (check the workflow run).
-- A manual backup run produces a dump that restores into a scratch database
-  (R10).
-- With Pages set to None, the old `https://<user>.github.io/learn-and-play/` URL
-  no longer serves the site.
-- `npm.cmd run test:coverage` does not fall below `docs/audit/BASELINE.md`.
-
----
-
-## R10 — Backup and restore
-
-Neon's free tier has a short restore window, so C12 adds a nightly dump.
-
-### R10.1 — What runs
-
-`.github/workflows/backup.yml` (scheduled nightly and dispatchable by hand):
-
-```
-docker run --rm postgres:17 pg_dump "<DATABASE_URL>" | gzip > dump.sql.gz
-aws s3 cp dump.sql.gz s3://learn-and-play-backups/<env>/<date>.sql.gz
-```
-
-It needs GitHub secrets for the production connection string
-(`PRODUCTION_DATABASE_URL`) and the R2 S3 credentials (`R2_ACCESS_KEY_ID`,
-`R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`), the bucket from H7, and a lifecycle rule
-that expires objects after ~30 days.
-
-### R10.2 — Restore into a scratch database
-
-```powershell
-docker compose up -d db
-docker exec -i <db container> psql -U postgres -c "create database restore_check;"
-docker run --rm -i postgres:17 psql "postgresql://postgres:postgres@host.docker.internal:5432/restore_check?sslmode=disable" `
-  < (aws s3 cp s3://learn-and-play-backups/prod/2026-10-05.sql.gz - | gzip -d)
-```
-
-(On Windows PowerShell, unpack first: `aws s3 cp … dump.sql.gz`, then
-`gzip -d dump.sql.gz`, then pipe the `.sql` into `psql`.)
-
-### R10.3 — Restoring for real
-
-1. Take a fresh Neon restore point if you can.
-2. Restore into a **new** database rather than overwriting production.
-3. Point `DATABASE_URL` at it, redeploy, and verify a sign-in before deleting
-   the old database.
+Sign out, wait at least ten minutes (so Cloud Run scales to zero; Neon also
+suspends after five), then sign in once. The first request pays the cold start;
+it should complete within the 8-second client timeout. If it consistently takes
+longer than that, check the Cloud Run revision and Neon compute in their
+consoles before changing anything.
 
 ### ✅ Check
 
-A dump from the last 24 hours exists in R2, and the restore into the scratch
-database contains the expected row counts (`users`, `progress`).
+Everything above passes, and no game shows anything caused by the backend.
 
 ---
 
-## R11 — Rollback and recovery
+## R12 — Costs and free-tier guardrails
 
-### R11.1 — Decide what actually broke
+### R12.1 — The free allowances this design relies on
+
+Current numbers change; the links are the authority, and R12.4 is the monthly
+check that notices a change.
+
+| Service | Free allowance | Used here |
+| --- | --- | --- |
+| **Cloud Run** (request-based billing) | 2,000,000 requests, 360,000 GB-seconds memory, 180,000 vCPU-seconds, 1 GB internet egress from North America per month | a family's sync traffic is millions of times under the request count; the egress is a few megabytes |
+| **Cloudflare Workers Free** | 100,000 Worker requests/day; static assets free and unlimited | only `/api/*` invokes the Worker |
+| **Neon Free** | 100 CU-hours per project/month, 1 GB storage, 5 GB transfer, scale to zero after 5 min | a hobby project uses a small fraction |
+| **Artifact Registry** | 0.5 GB-month storage | the cleanup policy keeps three small images |
+| **Secret Manager** | 6 active secret versions, 10,000 access operations/month | 3 secrets, read at instance start |
+| **Cloud Logging** | 50 GiB/month | request logs only, never request bodies |
+| **GitHub Actions** | free for public repositories | CI and the deploy |
+
+Links:
+
+- Cloud Run pricing and the always-free tier: <https://cloud.google.com/run/pricing>
+- Google Cloud free features: <https://cloud.google.com/free/docs/free-cloud-features>
+- Cloudflare static-assets billing: <https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/>
+- Cloudflare Workers limits: <https://developers.cloudflare.com/workers/platform/limits/>
+- Neon Free plan: <https://neon.com/faqs/free-plan-limits-and-quotas>
+- Artifact Registry pricing: <https://cloud.google.com/artifact-registry/pricing>
+
+### R12.2 — What would cost money
+
+| Change | Effect |
+| --- | --- |
+| `--min-instances` above 0 | an always-warm instance burns memory and vCPU every hour, far outside the free monthly seconds |
+| A cron or monitor pinging the API | keeps Cloud Run and Neon awake around the clock; the same trap |
+| A Cloud Run region outside North America | internet egress is only free from North America; at this volume it is still pennies, but it is no longer exactly $0 |
+| `--max-instances` above 2 | a traffic spike can start many billed instances; the cap is the cost ceiling |
+| Artifact Registry without the cleanup policy | images accumulate past 0.5 GB |
+| Neon past 100 CU-hours/month | compute is suspended until the next billing period |
+
+### R12.3 — The trial clock
+
+Free trial: 90 days or $300, whichever ends first. Before it ends, **upgrade to a
+paid billing account** (R2.2); otherwise the project stops and its resources are
+deleted after 30 days. After the upgrade, the always-free allowances still
+apply — the card is a requirement of the platform, not a subscription.
+
+### R12.4 — The monthly check (five minutes)
+
+1. **Google Cloud → Billing → Reports**, scoped to the project: expected
+   **$0.00**.
+2. **Cloud Run → learn-and-play-api → Metrics**: request count and instance
+   time near zero; no minimum instance.
+3. **Neon console → Usage**: compute hours and storage well inside the free
+   plan.
+4. **Cloudflare → Workers & Pages → learn-and-play → Metrics**: `/api/*`
+   requests far under 100,000/day.
+5. **Artifact Registry → lap**: three images, a few hundred MB at most.
+
+If a number looks wrong, fix the cause, not the alert.
+
+### ✅ Check
+
+The billing report is **$0.00**, and every dashboard is inside its allowance.
+
+---
+
+## R13 — Backups and restore
+
+> **There is no automated backup.** The old nightly `pg_dump` to Cloudflare R2 was retired
+> with the paid stack. That is a deliberate decision, and it has a price: if the
+> database is dropped, corrupted by a bad migration, or the Neon project is
+> deleted, data older than the restore window is **gone**. The games keep
+> working; the accounts and progress do not come back. Read this section before
+> risky work.
+
+### R13.1 — What you have
+
+- **Instant restore: 6 hours** of change history (capped at 1 GB) in the Neon
+  console. This covers "I dropped a table a moment ago".
+- **One manual snapshot**, which you replace each time you take a new one. Take
+  one **before** a risky migration or a manual database change.
+- **Ten branches**, each a copy-on-write point-in-time copy. A
+  `backup-YYYY-MM-DD` branch is a cheap second copy for a big change.
+- A local `pg_dump` you make yourself (R13.2) survives anything.
+
+### R13.2 — A manual dump (before risky changes)
+
+```powershell
+$env:DATABASE_URL = "<learn_and_play connection string>"
+$dumpDir = "D:\Backups\learn-and-play"
+New-Item -ItemType Directory -Force -Path $dumpDir | Out-Null
+
+docker run --rm -e DATABASE_URL -v "${dumpDir}:/backup" postgres:17 `
+  sh -c 'pg_dump "$DATABASE_URL" --no-owner --no-privileges -f /backup/learn-and-play-$(date -u +%Y-%m-%d).sql'
+
+Get-ChildItem $dumpDir
+```
+
+Never push a dump through PowerShell `>` redirection: it re-encodes the bytes.
+Writing from inside the container to a mounted folder avoids that; compress the
+file afterwards with `Compress-Archive` if you want.
+
+### R13.3 — Restore into a scratch database
+
+Create an empty database/branch in Neon and point `DATABASE_URL` at it, then:
+
+```powershell
+docker run --rm -e DATABASE_URL -v "${dumpDir}:/backup" postgres:17 `
+  sh -c 'psql "$DATABASE_URL" -f /backup/learn-and-play-YYYY-MM-DD.sql'
+```
+
+Check the important tables before trusting it:
+
+```powershell
+docker run --rm -e DATABASE_URL postgres:17 `
+  sh -c 'psql "$DATABASE_URL" -c "select count(*) from users; select count(*) from progress;"'
+```
+
+### R13.4 — Restoring production for real
+
+1. Take a Neon snapshot first if you can, so the restore itself is reversible.
+2. Restore into a **new** Neon branch/database, never over the live one.
+3. Point `DATABASE_URL` (the Secret Manager secret) at it, redeploy, and verify
+   a sign-in before dropping the old database.
+4. Rotate nothing else: `PEPPER` must stay the same or the restored password
+   hashes become unusable.
+
+### ✅ Check
+
+A dump from today exists outside the repository and restores into a scratch
+database with the expected row counts.
+
+---
+
+## R14 — Rollback and recovery
+
+### R14.1 — Decide what actually broke
 
 | Symptom | Almost certainly |
 | --- | --- |
-| Games do not load at all | the **assets** side (`assets.directory`, or a failed Worker deploy) — the serious one |
-| Games load, `/api/*` returns 500s | the Rust service or a bad migration |
-| `/api/*` times out on the first request of the day | the container is cold-starting (1-3 s) or the database is waking — not a fault |
-| Sign-ins fail, everything else is fine | argon2 timing, a rotated `PEPPER`, or the database |
-| Nothing happens after a push to `main` | the approval gate is still waiting — check the workflow run |
-| The test hostname 404s | the test Worker has not been deployed since the last migration |
+| Games do not load at all | Cloudflare assets / a failed Worker deploy — the serious one |
+| Games load, `/api/*` returns 500/502 | the Rust service or a bad migration |
+| `/api/*` returns 403 | the door secret is missing or different on one side |
+| The first request of the day takes seconds | Cloud Run cold start + Neon wake — not a fault |
+| Sign-ins fail, everything else is fine | argon2/pepper, rate limiting, or the database |
+| Deploy job waiting | the `production` approval gate |
+| Deploy job fails at the image step | Workload Identity, Artifact Registry, or a missing variable |
 
-### R11.2 — Roll the Worker back
+### R14.2 — Roll the service back
+
+```powershell
+gcloud run revisions list --service learn-and-play-api `
+  --project $env:PROJECT_ID --region $env:REGION
+
+gcloud run services update-traffic learn-and-play-api `
+  --project $env:PROJECT_ID --region $env:REGION `
+  --to-revisions <PREVIOUS_REVISION>=100
+```
+
+The image for that revision is still in Artifact Registry (the cleanup policy
+keeps three). This is the fastest way back if the service itself is the problem.
+
+### R14.3 — Roll the Worker back
 
 ```powershell
 npx wrangler versions list --name learn-and-play
-npx wrangler rollback      --name learn-and-play
+npx wrangler rollback --name learn-and-play
 ```
 
-A rollback restores the previous version **including its assets**, which makes it
-the fastest way back to a known-good state. Note that it does **not** roll the
-container image back on its own: redeploy from the last good commit if the image
-itself is the problem.
+**Warning:** once the account is on the Free plan, a very old Worker version
+that still contains a Container cannot be activated. If the rollback target is
+one of those, roll back to the nearest container-free version, or redeploy the
+last good commit with the deploy workflow (`workflow_dispatch`).
 
-### R11.3 — Or revert in git
+### R14.4 — Or revert in git
 
 ```powershell
-git revert <commit>      # or git reset --hard <known-good> on your branch
+git revert <commit>
 git push
 ```
 
-then approve the deploy as usual. Prefer this when the cause is a code change you
-want to review before it comes back.
+then approve the deploy as usual. Prefer this when the cause is a code change
+you want to review before it comes back.
 
-### R11.4 — Remove the backend entirely
+### R14.5 — A bad migration
 
-1. Revert C13 (the `wrangler.jsonc` change) and delete `api/` and `edge/`.
-2. Deploy. The site returns to exactly today's static-only Worker, because game
-   pages never depended on the API.
-3. Export the database first if it holds anything worth keeping (R10).
-4. Delete the Neon database and the `learn-and-play-test` Worker once you are
-   sure.
+1. If it just happened: use Neon's **instant restore** (6 hours) to the moment
+   before it, or restore your manual snapshot/dump (R13).
+2. Fix forward with a **new** migration file. Never edit an applied migration:
+   its checksum is recorded in `_sqlx_migrations`.
+3. Keep migrations additive (add a column with a default, backfill, then
+   tighten) so a rolled-back service still finds a schema it understands.
 
-### R11.5 — A bad migration
+### R14.6 — Remove the backend entirely
 
-1. Restore from the most recent dump, or use Neon's own restore.
-2. Fix forward with a **new** migration file. Never edit one that has been
-   applied: its checksum is recorded in `_sqlx_migrations`.
+The games never depended on any of this, so this is safe:
 
-### R11.6 — A lost password
+1. Revert the commits that added `/api/*`, `wrangler.jsonc`'s `API_BASE_URL`,
+   and `api/`.
+2. Deploy the Worker. The site is static again, exactly as before accounts.
+3. Delete the Cloud Run service, the Artifact Registry repository, the three
+   secrets and the Neon database once you are sure.
 
-There is no recovery, by design: the account holds no email address, so there is
-no verified way back in. If the account matters, the only path is a human with
-database access setting a new hash by hand — a deliberate, documented last
-resort, and the strongest argument for adding a recovery code later.
+### R14.7 — A lost password
+
+There is no recovery, by design: an account has no email address, so there is no
+verified way back in. The sign-up page says so. The only last resort is a human
+with database access setting a new hash by hand.
 
 ---
 
-## R12 — Troubleshooting
+## R15 — Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `docker: failed to connect … dockerDesktopLinuxEngine` | Docker Desktop is not running | start it (R0.2) |
-| `error: linker 'link.exe' not found` | MSVC build tools missing | install "Desktop development with C++" (R0.1) |
-| `cargo test` cannot connect | Postgres not running | `docker compose up -d db` (R5.1) |
-| `relation "users" does not exist` | migrations not applied to *this* database | `cargo run -- migrate` with the right `DATABASE_URL` (R6) |
-| `/api/health` 404 on the deployed hostname | `run_worker_first`, `main`, or the route is wrong | re-check `wrangler.test.jsonc` / `wrangler.jsonc`, then `--dry-run` |
-| `/api/health` 404 locally | `dist/` not built, or the path does not match | `npm.cmd run build`, and check the exact path |
-| Games 404 after a deploy | `assets.directory` broken | restore `"./dist"` and run R9.1 immediately |
-| The container never becomes healthy | the process does not listen on the configured port, or crashes on missing env | check `wrangler tail`; the app must start with no `DATABASE_URL` and report `db: "unconfigured"` |
-| The first request of the day takes seconds | cold start (1-3 s) plus a database wake | expected; raise `sleepAfter` if it annoys you, and watch the cost |
-| `429` on sign-in that never clears | the rate limiter is doing its job | wait out the window, or clear `auth_attempts` for that key |
-| Cookie never arrives in the browser | `Secure`/`__Host-`/path mismatch | the cookie is `__Host-lap_sid`: `Secure`, `Path=/`, no `Domain`, HTTPS (or localhost) |
-| Cookie is set but not forwarded | the Durable Object dropped `Set-Cookie` | the C8 acceptance check covers this; if it happens, copy `Set-Cookie` explicitly in the front door |
-| CI: `cargo test` fails only in CI | toolchain or service-container drift | check `api/rust-toolchain.toml` and the `services:` block in `ci.yml` |
-| CI: the image build times out | a cold cargo build in the image | confirm the layer cache step and `cargo-chef` stages are intact |
-| Deploy: `wrangler` cannot find Docker | the runner lacks the daemon | `ubuntu-latest` has it; a self-hosted runner needs it installed |
-| Deploy: authorization error on the image push | the token lacks the container permission | R2.2 |
-| Coverage dropped | new `src/shared/*` or `src/account/*` modules are untested | run `npm run test:coverage` and compare with `docs/audit/BASELINE.md` |
-| Access keeps asking for a code | the session expired, or a second policy wrote a shorter duration | Zero Trust → the application → session duration (R3.2) |
+| Direct `run.app` request returns 200 | `DOOR_SECRET` is not set on Cloud Run | R5/R6.3: the `--set-secrets` flag and the runtime SA's `secretAccessor` binding |
+| Site `/api/*` returns 403 | Worker secret and Cloud Run secret differ | R7.2: set `API_DOOR_SECRET` to the same value and redeploy the Worker |
+| Site `/api/*` returns 503 `api_unconfigured` | `API_BASE_URL` is empty | R7.1: paste the service URL, redeploy |
+| Site `/api/*` returns 502 `api_unavailable` | Cloud Run is down or the URL is wrong | `gcloud run services describe`, logs (R6.4) |
+| `origin_mismatch` on sign-in | `PUBLIC_ORIGIN` is not the site origin | R6.3 env vars, then redeploy the revision |
+| The cookie never arrives | `Set-Cookie` was merged or dropped | check the Worker proxy test and the response headers; the code preserves `getSetCookie()` |
+| `relation "users" does not exist` | migrations not applied to *this* database | R6.1 with the right `DATABASE_URL` |
+| `/api/health` says `db: down` | Neon suspended or the URL is wrong | Neon console; wait for the wake; check the secret value |
+| Cloud Run deploy: permission denied on the secret | runtime SA lacks `secretAccessor` | R5.3 |
+| Deploy: `Permission denied` on image push | deployer lacks `artifactregistry.writer` | R4 |
+| Deploy: Workload Identity exchange fails | provider condition / repository mismatch | R4.1; the condition must name `divanchyshyn/learn-and-play` |
+| Deploy: `iam.serviceAccounts.actAs` denied | deployer lacks `serviceAccountUser` on the runtime SA | R4 |
+| Cloudflare returns 429 for `/api/*` | the Free plan's 100,000/day Worker limit was reached | wait for midnight UTC; the games still load. Do not upgrade the plan for this |
+| Billing email from the budget alert | something exceeded the free allowance | R12.2, then remove the cause |
+| Trial ended and the service stopped | the billing account was never upgraded | R2.2; restore within the 30-day grace period |
+| `cargo test` fails with "Application Control policy" | Windows Smart App Control | run the Rust gates in Docker (R0.4) |
+| `npm.cmd install` fails with EPERM | a file under `node_modules` is locked | close editors/terminals using it, then retry |
+| Panic on startup about `PORT` | a non-numeric `PORT` | Cloud Run supplies `8080`; remove any manual override |
 
 ---
 
-## R13 — Command cheat sheet
+## R16 — Command cheat sheet
 
 ```powershell
 # the project's own gates
@@ -872,80 +1135,87 @@ npm.cmd run test
 npm.cmd run test:coverage
 npm.cmd run build
 
-# Rust
-cargo fmt    --manifest-path api/Cargo.toml --all --check
-cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
-cargo test   --manifest-path api/Cargo.toml
-cargo run    --manifest-path api/Cargo.toml -- migrate
+# Rust (Windows Smart App Control: run it in Docker)
+docker compose up -d db
+docker run --rm -v "D:\Repositories\learn-and-play:/work" -w /work/api `
+  -e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/learn_and_play `
+  -e CARGO_TARGET_DIR=/cargo-target `
+  -v lap-cargo-target:/cargo-target -v lap-cargo-registry:/usr/local/cargo/registry `
+  rust:1-bookworm sh -c "cargo fmt --all --check && cargo test && cargo clippy --all-targets -- -D warnings"
 docker build -t learn-and-play-api:ci api
 
 # local stack
 docker compose up -d db
-npx wrangler dev --config wrangler.test.jsonc
-npx wrangler dev                      # production config, once C13 exists
-npx wrangler tail --name learn-and-play --format pretty
+cargo run --manifest-path api/Cargo.toml            # the API on :8080
+npx wrangler dev                                    # the site + Worker on :8787
 
-# deploys and secrets
-npx wrangler deploy --config wrangler.test.jsonc
+# Google Cloud
+gcloud run services describe learn-and-play-api --project $env:PROJECT_ID --region $env:REGION
+gcloud run revisions list --service learn-and-play-api --project $env:PROJECT_ID --region $env:REGION
+gcloud run services logs read learn-and-play-api --project $env:PROJECT_ID --region $env:REGION
+gcloud run services update-traffic learn-and-play-api --project $env:PROJECT_ID --region $env:REGION --to-revisions <REVISION>=100
+gcloud artifacts repositories describe lap --location=$env:REGION --project=$env:PROJECT_ID
+gcloud secrets versions list lap-door-secret --project=$env:PROJECT_ID
+
+# Cloudflare
 npx wrangler deploy --dry-run
-npx wrangler secret put PEPPER --config wrangler.test.jsonc
-npx wrangler secret list --name learn-and-play
+npx wrangler deploy
+npx wrangler tail --name learn-and-play --format pretty
 npx wrangler versions list --name learn-and-play
-npx wrangler rollback      --name learn-and-play
+npx wrangler rollback --name learn-and-play
 
 # database
 docker run --rm -it postgres:17 psql "<connection string>" -c "\dt"
-docker run --rm -it postgres:17 psql "<connection string>" -c "select count(*) from users;"
 ```
 
 ---
 
-## R14 — Permissions: letting the coding agent work on Rust
+## R17 — Permissions: the coding agent's allowlist
 
-`opencode.json` currently allows the agent only `npm ci`, `npm run lint`,
-`npm run test*`, `npm run build` and read-only git. Without a change the agent
-**cannot run `cargo test`** and therefore cannot work on `api/` at all.
+`opencode.json` allows the agent `npm ci`, `npm run lint`, `npm run test*`,
+`npm run build`, `cargo fmt|check|test|clippy|build`, `docker build` and
+read-only git. It deliberately does **not** allow `gcloud`, `wrangler deploy`,
+`docker push`, `cargo install` or anything that reads a secret or touches
+`.env` / `.dev.vars`.
 
-### R14.1 — The addition (C4)
-
-In `opencode.json` → `agent.build.permission.bash`:
-
-```jsonc
-"cargo test*":  "allow",
-"cargo check*": "allow",
-"cargo clippy*": "allow",
-"cargo fmt*":   "allow",
-"cargo build*": "allow"
-```
-
-Deliberately **not** allowed: anything that deploys (`wrangler deploy`,
-`wrangler secret put`), `cargo install*` (it fetches and runs third-party build
-scripts), and anything touching `.env` / `.dev.vars`. The allowlist stays
-deny-by-default: if a task needs something outside it, the agent stops and
-explains.
-
-### R14.2 — Update the documents that describe it
-
-- `docs/agent-pipeline.md` — the guardrails table and the allowed-command list.
-- `AGENTS.md` → *Agent pipeline* — the same list.
-- `.opencode/agents/review.md` — the reviewer may run `cargo test`, `cargo
-  clippy` and `cargo fmt --check`, and its security bullet must stop describing
-  the project as "fully static, no backend".
+That matters more now, not less: deploying is a Google Cloud call with a
+Workload Identity token, and the agent has neither the CLI nor the credentials.
+If a task needs one of those, the agent stops and explains.
 
 ### ✅ Check
 
-`cargo test` appears in the allowlist, `wrangler` appears nowhere in it, and all
-three documents agree with the file.
+`opencode.json` still has no `gcloud`/`wrangler` entry, and the review agent's
+security section still points at `AGENTS.md` → *Stack and deployment*.
 
 ---
 
+## Before you merge: the pre-merge checklist
+
+The backend change only takes effect on `main`. Tick these first:
+
+- [ ] Neon has the production database and the connection string opens it (R1).
+- [ ] The Google Cloud project is linked to billing, the APIs are enabled, and
+      the $1 budget alert exists (R2).
+- [ ] The `lap` repository exists with the keep-last-three policy (R3).
+- [ ] `lap-runtime`, `lap-deployer` and the Workload Identity provider exist
+      and are bound (R4).
+- [ ] The three secrets exist and the runtime account can read them (R5).
+- [ ] The first manual Cloud Run deploy answers **403** on its direct address
+      and logs `door_configured=true` (R6).
+- [ ] `API_BASE_URL` is in `wrangler.jsonc` and `API_DOOR_SECRET` is on the
+      Worker (R7).
+- [ ] `production` exists **with required reviewers and main-only branches**,
+      and the secrets/variables are in place (R8).
+- [ ] CI is green on the pull request.
+
+Then merge, approve the deploy, and finish R9 → R11.
+
 ## Where to start, in one paragraph
 
-Read `ARCHITECTURE.md` first — *The shape of the site*, *Accounts* and *Progress
-and sync* are the whole design in three sections — then do **R0 → R1 → R2**
-(Neon and Cloudflare are the only steps nobody can do from the repository), and
-start at **C3**. Stop after **C6** and check R9.1: a Rust container answering
-`/api/health` on `test.play2learn.divanchyshyn.com`, behind Access, with every
-game page provably unchanged. That is M0 — a complete, valuable, zero-risk
-result that also tells you whether this stack is pleasant to work in before any
-account logic exists.
+Do **R0 → R1 → R2** first; they are the only steps that need accounts outside
+this machine. Then create the repository (R3), the accounts and federation
+(R4), and the secrets (R5) — after that the manual smoke deploy in R6 either
+works or tells you exactly which Google Cloud piece is wrong. Point Cloudflare
+at it (R7), wire the GitHub gate (R8), merge (R9), and only then let the
+Cloudflare plan drop to Free (R10). Read `ARCHITECTURE.md` once before you
+change any of it: the reasons are recorded there, not here.

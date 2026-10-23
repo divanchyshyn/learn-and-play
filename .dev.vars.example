@@ -1,0 +1,10 @@
+# Cloudflare Worker environment for `npx wrangler dev`.
+# Copy to `.dev.vars` (gitignored). The deployed values are set separately:
+# API_BASE_URL in wrangler.jsonc, API_DOOR_SECRET with `wrangler secret put`.
+
+# Point the front door at the local Rust service (`cargo run` in api/).
+API_BASE_URL=http://127.0.0.1:8080
+
+# Optional. Must match DOOR_SECRET in api/.env. Leave both empty to disable the
+# front-door check locally.
+API_DOOR_SECRET=
