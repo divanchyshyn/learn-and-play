@@ -1,28 +1,30 @@
-// Cloudflare Workers configuration for the live site.
+// Cloudflare Workers configuration for the live site, on the Workers FREE plan.
 //
 // Two halves, one Worker:
 //
-//  * `/` and `/games/<slug>/` are static assets served by Cloudflare's asset
-//    router. `run_worker_first` is scoped to `/api/*`, so a game page never
-//    invokes a line of code — not this Worker, and not the container.
-//  * `/api/*` runs the Rust service in a Cloudflare Container, reached through
-//    the `ApiContainer` Durable Object (a container can only be reached through
-//    its Durable Object). `edge/src/index.js` is that front door.
+//  * `/`, `/account/` and `/games/<slug>/` are static assets served by
+//    Cloudflare's asset router. `run_worker_first` is scoped to `/api/*`, so a
+//    game page never invokes a line of code - and static asset requests are
+//    free and unlimited on the Free plan.
+//  * `/api/*` invokes the tiny Worker script (`edge/src/router.js`), which
+//    proxies the request to the Rust service on Google Cloud Run. The service's
+//    URL lives in `API_BASE_URL` below; the front-door secret is a Worker secret
+//    set with `wrangler secret put API_DOOR_SECRET` and is never written here.
 //
-// The container instance is `lite` — a sixteenth of a vCPU, 256 MiB, 2 GB of
-// disk — which the included Workers Paid allowance covers for a hobby's worth of
-// play. The only CPU-bound work the service does is the argon2 hash on sign-in
-// (21 ms on a full core, so a few hundred milliseconds here), and if the real
-// measurement on this instance ever exceeds ~1.5 s, the fix is one word:
-// `"instance_type": "basic"` (docs/backend/ARCHITECTURE.md, What it costs).
+// The Free plan allows 100,000 Worker requests a day, and only the `/api/*`
+// requests count: the games are served by the asset router and keep loading even
+// when that daily cap is reached. That is the fail-open rule in practice.
 //
 // The custom domain (play2learn.divanchyshyn.com) is deliberately absent: it is
 // attached once in the Cloudflare dashboard, which keeps account and domain
 // details out of the repository. Keeping the Worker's name `learn-and-play` is
-// what keeps that domain and the `cloudflare-production` approval gate intact.
+// what keeps that domain attached.
 //
-// Secrets are set once per Worker with `wrangler secret put` and never appear
-// here: DATABASE_URL, PEPPER.
+// API_BASE_URL is filled in once, from
+//   gcloud run services describe learn-and-play-api --region us-central1
+//     --format='value(status.url)'
+// (docs/backend/RUNBOOK.md, R6/R7). Empty means "not configured yet": `/api/*`
+// answers 503 with `api_unconfigured`, and the games are unaffected.
 {
   "name": "learn-and-play",
   "main": "edge/src/index.js",
@@ -34,23 +36,8 @@
     "run_worker_first": ["/api/*"]
   },
 
-  "containers": [
-    {
-      "class_name": "ApiContainer",
-      "image": "./api/Dockerfile",
-      "instance_type": "lite",
-      "max_instances": 1
-    }
-  ],
-  "durable_objects": {
-    "bindings": [{ "name": "API_CONTAINER", "class_name": "ApiContainer" }]
-  },
-  "exports": {
-    "ApiContainer": { "type": "durable-object", "storage": "sqlite" }
-  },
-
   "vars": {
-    "PUBLIC_ORIGIN": "https://play2learn.divanchyshyn.com"
+    "API_BASE_URL": ""
   },
 
   "observability": { "enabled": true }
