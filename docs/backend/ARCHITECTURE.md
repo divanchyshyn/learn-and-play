@@ -146,8 +146,9 @@ answered here rather than rediscovered:
   cookie would need `SameSite=None`, which weakens exactly the property the
   current design gets for free by staying on one origin.
 - **Long-lived Google service-account keys in GitHub.** Workload Identity
-  Federation gives CI a short-lived token for this repository only; there is no
-  key to leak or rotate.
+  Federation gives CI a short-lived token for this repository on `refs/heads/main`
+  only, and the deployer binding is scoped to that `ref` attribute, so a feature
+  branch cannot impersonate the deployer. There is no key to leak or rotate.
 - **Email + password with verification and reset.** Designed, then dropped at the
   owner's request. It would have added an email provider, a sending subdomain,
   DNS records and the only personal data in the system — and it would have made
@@ -194,6 +195,26 @@ out deletes the row and clears the cookie; changing the password deletes every
   and **checked before argon2 runs**, so guessing cannot be turned into a denial
   of service. A block starts at 5 minutes and doubles to an hour. Counters, never
   lockouts: the window passes and the account works again with no help.
+- **The counters hold no raw address.** The key is a SHA-256 digest of the client
+  address, never the address itself; counters older than the 24-hour retention
+  window are deleted whenever a counter is written. They recognise a returning
+  client, not a person.
+- **Sign-in accepts only the credential shape sign-up allows**: the username is
+  validated (3–20 ASCII characters) and the password is capped at 128 bytes
+  before either is used as a counter key, a lookup or argon2 input. Anything else
+  gets the same uniform `401` and is still counted against the address, so a huge
+  request cannot become CPU or an over-long index key.
+- **Account creation has its own per-address budget** (10 accounts in a window),
+  counted on success: an account costs a hash and a row, so open registration is
+  bounded without punishing a family that mistypes a taken name.
+- **Changing the password and deleting the account confirm the current password
+  through the same counters**: an open session is not an unlimited oracle.
+- **A successful sign-in clears only the username counter.** The address counter
+  expires with its window; clearing it too would let one valid account reset an
+  attacker's address budget between guesses at somebody else's password.
+- **Parallel failures each count**: the increment is one row-locked transaction,
+  not a `load`/`save` in the handler, so a concurrent batch cannot collapse into
+  a single failure.
 - Every `POST`/`PUT`/`PATCH`/`DELETE` must carry this site's `Origin`;
   `SameSite=Lax` is the second lock on the same door. `PUBLIC_ORIGIN` must be set
   for those requests to be accepted at all.
@@ -202,7 +223,7 @@ out deletes the row and clears the cookie; changing the password deletes every
   deployment's value, so a matching header is evidence the request came through
   Cloudflare; a direct caller cannot use the rate limiter's IP trust to choose
   its own address. The secret is compared in constant time.
-- Account responses carry `Cache-Control: no-store`.
+- Every API response carries `Cache-Control: no-store`, successful ones included.
 - The only header trusted for a client address is `X-Client-IP`, which the front
   door writes from `CF-Connecting-IP` after deleting whatever the caller sent.
   `X-Forwarded-For` is never read.

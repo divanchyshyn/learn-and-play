@@ -381,10 +381,16 @@ gcloud iam service-accounts add-iam-policy-binding $env:RUNTIME_SA `
   --role="roles/iam.serviceAccountUser" --project=$env:PROJECT_ID --quiet
 ```
 
-The deployer may **deploy as** the runtime identity, but it cannot read the
-secrets: only the running service can.
+The deployer may **deploy as** the runtime identity, which also means it can run
+a revision that reads the secrets. Treat the deployer as able to use the secrets,
+not as unable to. Its real protection is that only `main`-ref workflows in this
+repository can obtain its token (R4.1/R4.2), and the `production` approval gates
+the job that uses it.
 
 ### R4.1 — The Workload Identity pool
+
+The `ref` claim matters. GitHub's `repository` claim is the same for every branch
+of this repository, so a branch workflow could otherwise impersonate the deployer.
 
 ```powershell
 gcloud iam workload-identity-pools create github `
@@ -397,22 +403,25 @@ gcloud iam workload-identity-pools providers create-oidc github `
   --workload-identity-pool=github `
   --display-name="GitHub OIDC" `
   --issuer-uri="https://token.actions.githubusercontent.com" `
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" `
-  --attribute-condition="assertion.repository == 'divanchyshyn/learn-and-play'" `
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref" `
+  --attribute-condition="assertion.repository == 'divanchyshyn/learn-and-play' && assertion.ref == 'refs/heads/main'" `
   --project=$env:PROJECT_ID
 ```
 
 The condition is the lock: only a workflow run in `divanchyshyn/learn-and-play`
-can exchange its GitHub token for Google credentials.
+**on `refs/heads/main`** can exchange its GitHub token for Google credentials.
 
 ### R4.2 — Let this repository use the deployer
 
 ```powershell
 gcloud iam service-accounts add-iam-policy-binding $env:DEPLOYER_SA `
   --role="roles/iam.workloadIdentityUser" `
-  --member="principalSet://iam.googleapis.com/projects/$env:PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/divanchyshyn/learn-and-play" `
+  --member="principalSet://iam.googleapis.com/projects/$env:PROJECT_NUMBER/locations/global/workloadIdentityPools/github/attribute.ref/refs/heads/main" `
   --project=$env:PROJECT_ID --quiet
 ```
+
+The binding is on the `ref` attribute, not the repository, so even a valid
+repository token from a feature branch does not match.
 
 ### R4.3 — The three values GitHub will need
 

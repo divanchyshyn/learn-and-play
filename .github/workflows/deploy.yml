@@ -11,9 +11,12 @@ on:
 permissions:
   contents: read
 
+# Queue production deploys instead of cancelling one mid-flight. A deploy spans
+# a migration, a Cloud Run revision and a Worker deploy; cancelling it between
+# those steps can leave the two halves on different revisions.
 concurrency:
   group: production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # Lint, tests and builds always run, so a human never has to approve a broken
@@ -126,8 +129,9 @@ jobs:
           cargo run --manifest-path api/Cargo.toml --locked -- migrate
 
       # No long-lived Google Cloud key: the runner proves who it is to Google
-      # with a token from GitHub's own OIDC issuer, and the Workload Identity
-      # Federation provider only trusts this repository (runbook R4).
+      # with a token from GitHub's own OIDC issuer. The Workload Identity
+      # Federation provider only trusts this repository on refs/heads/main, and
+      # the service-account binding is scoped to that ref (runbook R4.1/R4.2).
       - name: Sign in to Google Cloud
         id: auth
         uses: google-github-actions/auth@v3
