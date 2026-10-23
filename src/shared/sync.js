@@ -170,7 +170,6 @@ function subscribe() {
 }
 
 function schedulePush(delay = PUSH_DEBOUNCE_MS) {
-  if (readSignInHint() === null) return;
   if (pushTimer !== null) clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
     pushTimer = null;

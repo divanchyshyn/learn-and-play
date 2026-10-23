@@ -6,6 +6,7 @@ import {
   OWNER_DETACHED,
   PUSH_DEBOUNCE_MS,
   flushPush,
+  forgetDeletedAccount,
   needsHydration,
   readOwner,
   readRevision,
@@ -307,6 +308,141 @@ describe('the sync engine', () => {
     const puts = fetchMock.requests.filter((request) => request.method === 'PUT');
     expect(puts).toHaveLength(1);
     expect(albumCodec.parse(puts[0].body.records[0].payload)).toEqual({ discovered: ['fox'] });
+  });
+
+  it('drops a pending push when the child signs out', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    const fetchMock = apiMock({ me: { signedIn: true, username: 'Kid' } });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+    vi.useFakeTimers();
+    writeStorage(ALBUM, album(['fox']));
+    clearSignInHint();
+    await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 1);
+
+    expect(fetchMock.requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
+  });
+
+  it("drops a pending push when a deleted account's cache is cleared", async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    writeStorage(ALBUM, album(['fox']));
+    const fetchMock = apiMock({ me: { signedIn: true, username: 'Kid' } });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+    vi.useFakeTimers();
+    writeStorage(ALBUM, album(['fox', 'owl']));
+    forgetDeletedAccount();
+    await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 1);
+
+    expect(fetchMock.requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
+    expect(readStorage(ALBUM)).toBeNull();
+    expect(readOwner()).toBeNull();
+  });
+
+  it('flushes with keepalive when the tab becomes hidden', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    const fetchMock = apiMock({ me: { signedIn: true, username: 'Kid' } });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+    writeStorage(ALBUM, album(['fox']));
+
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    });
+    try {
+      document.dispatchEvent(new Event('visibilitychange'));
+    } finally {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'visible',
+      });
+    }
+
+    const put = fetchMock.requests.find((request) => request.method === 'PUT');
+    expect(put).toBeTruthy();
+    expect(put.keepalive).toBe(true);
+  });
+
+  it('updates the local hint when the server names the account differently', async () => {
+    writeSignInHint('OldName');
+    const fetchMock = apiMock({ me: { signedIn: true, username: 'Kid' } });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+
+    expect(readSignInHint()).toEqual({ username: 'Kid' });
+  });
+
+  it('keeps the local cache when the pull is refused', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    writeStorage(ALBUM, album(['fox']));
+    const fetchMock = vi.fn(async (url, init = {}) => {
+      if (url === '/api/me') return json({ signedIn: true, username: 'Kid' });
+      if (url === '/api/progress' && (init.method ?? 'GET') === 'GET') {
+        return json({ error: 'internal' }, 500);
+      }
+      return json({ accepted: [], conflicts: [] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await startSync();
+
+    expect(result.ok).toBe(false);
+    expect(albumCodec.parse(readStorage(ALBUM))).toEqual({ discovered: ['fox'] });
+  });
+
+  it('ignores a record the server has not moved on', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    writeStorage(ALBUM, album(['fox']));
+    writeStorage('sync:revision:cardBattle:album', '3');
+    const fetchMock = apiMock({
+      me: { signedIn: true, username: 'Kid' },
+      records: [{ key: ALBUM, payload: album(['fox', 'owl']), revision: 3 }],
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+
+    expect(albumCodec.parse(readStorage(ALBUM))).toEqual({ discovered: ['fox'] });
+    expect(fetchMock.requests.some((request) => request.method === 'PUT')).toBe(false);
+  });
+
+  it('schedules another push when two attempts keep conflicting', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    const fetchMock = apiMock({
+      me: { signedIn: true, username: 'Kid' },
+      put: (body) =>
+        json({
+          accepted: [],
+          conflicts: body.records.map((record) => ({
+            key: record.key,
+            payload: album(['fox', 'server']),
+            revision: 9,
+          })),
+        }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+    vi.useFakeTimers();
+    writeStorage(ALBUM, album(['fox']));
+    await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 1);
+
+    const pushes = () => fetchMock.requests.filter((request) => request.method === 'PUT');
+    expect(pushes()).toHaveLength(2);
+
+    await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS + 1);
+    expect(pushes().length).toBeGreaterThanOrEqual(3);
   });
 
   it('sends a write that lands while a push is already in flight', async () => {
