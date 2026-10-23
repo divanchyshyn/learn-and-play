@@ -100,10 +100,17 @@ export function useAccount() {
 
   const signOut = useCallback(async () => {
     const result = await request('/session', { method: 'DELETE' });
-    // Even a failed request clears the local state: the child asked to be signed
-    // out, and the session will not be offered again by this browser.
-    clearSignInHint();
-    if (mounted.current) setState({ status: 'ready', signedIn: false, username: null });
+    // The cookie is HttpOnly, so clearing local state does not end the session.
+    // Only claim the child is signed out when the server agreed (or the session
+    // was already gone); on an offline/timeout failure the account is still live
+    // and the page should say the sign-out failed instead of lying about it.
+    if (result.ok || result.status === 401) {
+      clearSignInHint();
+      if (mounted.current) setState({ status: 'ready', signedIn: false, username: null });
+      // A 401 means the session was already gone; from the child's point of
+      // view this sign-out succeeded, so the page should not show an error.
+      return result.ok ? result : { ...result, ok: true, data: null };
+    }
     return result;
   }, []);
 
@@ -117,6 +124,11 @@ export function useAccount() {
     const result = await request('/account', { method: 'DELETE', body: { password } });
     if (result.ok) {
       clearSignInHint();
+      // The account is gone; its cached progress must not survive on a shared
+      // tablet and be adopted by the next account (or by the same username if it
+      // is created again).
+      const { forgetDeletedAccount } = await import('./sync.js');
+      forgetDeletedAccount();
       if (mounted.current) setState({ status: 'ready', signedIn: false, username: null });
     }
     return result;

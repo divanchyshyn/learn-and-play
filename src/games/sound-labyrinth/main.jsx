@@ -6,7 +6,7 @@ import { SyncGate } from '../../shared/SyncGate.jsx';
 import { SoundLabyrinth } from './SoundLabyrinth.jsx';
 
 createRoot(document.getElementById('root')).render(
-  <SyncGate>
+  <SyncGate syncKeys={['soundLabyrinth:gallery']}>
     <SoundLabyrinth />
   </SyncGate>,
 );

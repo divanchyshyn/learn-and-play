@@ -6,7 +6,7 @@ import { SyncGate } from '../../shared/SyncGate.jsx';
 import { CardBattle } from './CardBattle.jsx';
 
 createRoot(document.getElementById('root')).render(
-  <SyncGate>
+  <SyncGate syncKeys={['cardBattle:album']}>
     <CardBattle />
   </SyncGate>,
 );

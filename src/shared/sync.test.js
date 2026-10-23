@@ -31,7 +31,7 @@ function apiMock({ me = { signedIn: false }, records = [], put } = {}) {
   const fetchMock = vi.fn(async (url, init = {}) => {
     const method = init.method ?? 'GET';
     const body = init.body ? JSON.parse(init.body) : null;
-    requests.push({ url, method, body });
+    requests.push({ url, method, body, keepalive: init.keepalive });
 
     if (url === '/api/me') return json(me);
     if (url === '/api/progress' && method === 'GET') return json({ records });
@@ -78,6 +78,18 @@ describe('the sync engine', () => {
 
     expect(result).toEqual({ ok: true, signedIn: false });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('never sends a write made while nobody is signed in', async () => {
+    const fetchMock = apiMock();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+    writeStorage(ALBUM, album(['fox']));
+    await flushPush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(albumCodec.parse(readStorage(ALBUM))).toEqual({ discovered: ['fox'] });
   });
 
   it('pulls the record onto a device that has nothing', async () => {
@@ -235,14 +247,17 @@ describe('the sync engine', () => {
     expect(needsHydration()).toBe(false);
 
     writeSignInHint('Kid');
-    expect(needsHydration()).toBe(true); // signed in, but this device has no cache
+    expect(needsHydration([ALBUM])).toBe(true); // signed in, but this game has no cache
 
     window.localStorage.setItem('sync:owner', 'user:Kid');
     writeStorage(ALBUM, album(['fox']));
-    expect(needsHydration()).toBe(false); // a warm cache plays straight away
+    expect(needsHydration([ALBUM])).toBe(false); // a warm cache plays straight away
+    expect(needsHydration([])).toBe(false); // a game that syncs nothing never waits
+    expect(needsHydration(['wordFishing:journal'])).toBe(true); // another game is not this one
+    expect(needsHydration()).toBe(true); // other synced records are still missing
 
     window.localStorage.setItem('sync:owner', 'user:Other');
-    expect(needsHydration()).toBe(true); // another account is not this cache
+    expect(needsHydration([ALBUM])).toBe(true); // another account is not this cache
   });
 
   it('forgets everything about the account when the child signs out', async () => {
@@ -292,6 +307,64 @@ describe('the sync engine', () => {
     const puts = fetchMock.requests.filter((request) => request.method === 'PUT');
     expect(puts).toHaveLength(1);
     expect(albumCodec.parse(puts[0].body.records[0].payload)).toEqual({ discovered: ['fox'] });
+  });
+
+  it('sends a write that lands while a push is already in flight', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const fetchMock = apiMock({
+      me: { signedIn: true, username: 'Kid' },
+      put: async (body) => {
+        await gate;
+        return json({
+          accepted: body.records.map((record) => ({
+            key: record.key,
+            revision: record.baseRevision + 1,
+          })),
+          conflicts: [],
+        });
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+    writeStorage(ALBUM, album(['fox']));
+
+    const firstPush = flushPush();
+    // The child finds another animal while the first PUT is still unanswered.
+    writeStorage(ALBUM, album(['fox', 'owl']));
+    release();
+    await firstPush;
+
+    await flushPush();
+
+    const puts = fetchMock.requests.filter((request) => request.method === 'PUT');
+    expect(puts).toHaveLength(2);
+    expect(albumCodec.parse(puts.at(-1).body.records[0].payload)).toEqual({
+      discovered: ['fox', 'owl'],
+    });
+    expect(puts.at(-1).body.records[0].baseRevision).toBe(1);
+  });
+
+  it('sends the last write with keepalive when the page is going away', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    const fetchMock = apiMock({ me: { signedIn: true, username: 'Kid' } });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await startSync();
+    writeStorage(ALBUM, album(['fox']));
+
+    document.dispatchEvent(new Event('pagehide'));
+
+    const put = fetchMock.requests.find((request) => request.method === 'PUT');
+    expect(put).toBeTruthy();
+    expect(put.keepalive).toBe(true);
   });
 
   it('says so, quietly, when the account check is refused', async () => {

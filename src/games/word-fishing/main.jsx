@@ -6,7 +6,7 @@ import { SyncGate } from '../../shared/SyncGate.jsx';
 import { WordFishing } from './WordFishing.jsx';
 
 createRoot(document.getElementById('root')).render(
-  <SyncGate>
+  <SyncGate syncKeys={['wordFishing:journal']}>
     <WordFishing />
   </SyncGate>,
 );

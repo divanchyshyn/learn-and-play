@@ -89,6 +89,38 @@ describe('the account state', () => {
     expect(init.method).toBe('DELETE');
   });
 
+  it('keeps the browser signed in when the sign-out request fails', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: true, username: 'TestKid' }));
+    const { result } = renderHook(() => useAccount());
+    await waitFor(() => expect(result.current.signedIn).toBe(true));
+
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    let failure;
+    await act(async () => {
+      failure = await result.current.signOut();
+    });
+
+    expect(failure).toEqual({ ok: false, status: 0, error: 'offline' });
+    expect(result.current.signedIn).toBe(true);
+    expect(readSignInHint()).toEqual({ username: 'TestKid' });
+  });
+
+  it('treats a refused sign-out as signed out when the session is already gone', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: true, username: 'TestKid' }));
+    const { result } = renderHook(() => useAccount());
+    await waitFor(() => expect(result.current.signedIn).toBe(true));
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'invalid_credentials' }, 401));
+    let outcome;
+    await act(async () => {
+      outcome = await result.current.signOut();
+    });
+
+    expect(result.current.signedIn).toBe(false);
+    expect(readSignInHint()).toBeNull();
+    expect(outcome.ok).toBe(true); // the session was already gone
+  });
+
   it('creates an account and treats it as signed in', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: false }));
     const { result } = renderHook(() => useAccount());
@@ -130,6 +162,27 @@ describe('the account state', () => {
     });
 
     expect(result.current.signedIn).toBe(false);
+    expect(readSignInHint()).toBeNull();
+  });
+
+  it('drops the cached progress when the account is deleted', async () => {
+    writeSignInHint('TestKid');
+    window.localStorage.setItem('sync:owner', 'user:TestKid');
+    window.localStorage.setItem('cardBattle:album', '{"version":1,"album":{"discovered":["fox"]}}');
+    window.localStorage.setItem('sync:revision:cardBattle:album', '2');
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ signedIn: true, username: 'TestKid' }));
+    const { result } = renderHook(() => useAccount());
+    await waitFor(() => expect(result.current.signedIn).toBe(true));
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(null, 204));
+    await act(async () => {
+      await result.current.deleteAccount('et-langt-passord');
+    });
+
+    expect(window.localStorage.getItem('cardBattle:album')).toBeNull();
+    expect(window.localStorage.getItem('sync:owner')).toBeNull();
+    expect(window.localStorage.getItem('sync:revision:cardBattle:album')).toBeNull();
     expect(readSignInHint()).toBeNull();
   });
 

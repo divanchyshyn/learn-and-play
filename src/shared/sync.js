@@ -62,21 +62,24 @@ function clearRecords() {
   for (const key of SYNC_KEYS) removeStorage(key);
 }
 
-function hasCachedRecord() {
-  return SYNC_KEYS.some((key) => readStorage(key) !== null);
-}
-
 /**
  * Should a game wait for the database before it mounts?
  *
- * Only when this device has nothing to play from: never signed in (no request
- * worth waiting for), or signed in as somebody whose cache is not here. A warm
- * cache plays instantly and is reconciled in the background.
+ * Only when this device is missing *this game's* synced records: never signed in
+ * (no request worth waiting for), a different account's cache, or a game whose
+ * own record has not arrived yet. Checking one game's keys rather than "any
+ * synced value" is what stops a deep link from mounting before its own pull
+ * lands just because another game warmed the cache. With `keys = []` (a game
+ * that syncs nothing) there is nothing to wait for.
  */
-export function needsHydration() {
+export function needsHydration(keys = SYNC_KEYS) {
   const hint = readSignInHint();
   if (!hint) return false;
-  return readOwner() !== ownerKeyFor(hint.username) || !hasCachedRecord();
+  // A game that syncs nothing has nothing to wait for, even on a brand-new
+  // device: waiting would only cost the child 1.5 seconds for no data.
+  if (keys.length === 0) return false;
+  if (readOwner() !== ownerKeyFor(hint.username)) return true;
+  return keys.some((key) => readStorage(key) === null);
 }
 
 function forgetAccount() {
@@ -92,11 +95,40 @@ function forgetAccount() {
   booted = null;
 }
 
+/**
+ * A deleted account's cache goes too.
+ *
+ * Unlike signing out, there is no account to come back to, and a re-created
+ * username on this tablet must not adopt the deleted account's progress. It
+ * clears the records, the owner, the revisions and anything waiting to upload.
+ */
+export function forgetDeletedAccount() {
+  // This may notify the storage observer, which writes `detached`; clearing the
+  // owner afterwards leaves no owner at all.
+  clearSignInHint();
+  clearRecords();
+  clearRevisions();
+  removeStorage(OWNER_KEY);
+  dirty.clear();
+  if (pushTimer !== null) {
+    clearTimeout(pushTimer);
+    pushTimer = null;
+  }
+  booted = null;
+}
+
 function onVisibilityChange() {
   // A child closing the tab should not cost them the last few minutes of play.
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-    flushPush();
+    flushPush({ keepalive: true });
   }
+}
+
+function onPageHide() {
+  // `visibilitychange` is not fired reliably on a desktop tab close, and a
+  // mobile browser can suspend the page before a normal fetch finishes. A
+  // keepalive request survives both.
+  flushPush({ keepalive: true });
 }
 
 function subscribe() {
@@ -114,23 +146,31 @@ function subscribe() {
     // server does not have. That is what keeps a plain pull to one request.
     if (applyingRemote) return;
 
+    // A signed-out browser must never make a request. The hint is what every
+    // other part of the engine already treats as "this browser may have a
+    // session"; without it, a child finishing a picture is not a sync event.
+    if (readSignInHint() === null) return;
+
     dirty.add(key);
     schedulePush();
   });
 
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', onVisibilityChange);
+    document.addEventListener('pagehide', onPageHide);
   }
 
   stopListening = () => {
     stop();
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      document.removeEventListener('pagehide', onPageHide);
     }
   };
 }
 
 function schedulePush(delay = PUSH_DEBOUNCE_MS) {
+  if (readSignInHint() === null) return;
   if (pushTimer !== null) clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
     pushTimer = null;
@@ -139,12 +179,12 @@ function schedulePush(delay = PUSH_DEBOUNCE_MS) {
 }
 
 /** Send whatever is waiting right now (used when the page is going away). */
-export function flushPush() {
+export function flushPush({ keepalive = false } = {}) {
   if (pushTimer !== null) {
     clearTimeout(pushTimer);
     pushTimer = null;
   }
-  return push();
+  return push({ keepalive });
 }
 
 /**
@@ -253,29 +293,47 @@ export async function pull() {
  * with conflicts, and a conflict is answered by merging the server's copy and
  * trying once more.
  */
-export async function push() {
+export async function push({ keepalive = false } = {}) {
   const empty = { ok: true, status: 0, data: { accepted: [], conflicts: [] } };
+  let lastResult = empty;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const keys = [...dirty].filter((key) => isSyncKey(key) && readStorage(key) !== null);
-    if (keys.length === 0) return empty;
+    // A signed-out browser never uploads, even if a debounce timer was already
+    // running when the hint went away.
+    if (readSignInHint() === null) return lastResult;
 
+    const keys = [...dirty].filter((key) => isSyncKey(key) && readStorage(key) !== null);
+    if (keys.length === 0) return lastResult;
+
+    // Remember exactly what was sent: a write that lands while this request is
+    // in flight is newer than the answer, and must stay dirty.
+    const sent = new Map(keys.map((key) => [key, readStorage(key)]));
     const records = keys.map((key) => ({
       key,
-      payload: readStorage(key),
+      payload: sent.get(key),
       baseRevision: readRevision(key),
     }));
 
-    const result = await request('/progress', { method: 'PUT', body: { records } });
+    const result = await request('/progress', {
+      method: 'PUT',
+      body: { records },
+      keepalive,
+    });
     if (!result.ok) return result;
+    lastResult = result;
 
     for (const accepted of result.data?.accepted ?? []) {
       writeRevision(accepted.key, accepted.revision);
-      dirty.delete(accepted.key);
+      if (sent.has(accepted.key) && readStorage(accepted.key) === sent.get(accepted.key)) {
+        dirty.delete(accepted.key);
+      }
     }
 
     const conflicts = (result.data?.conflicts ?? []).filter((conflict) => isSyncKey(conflict.key));
-    if (conflicts.length === 0) return result;
+    if (conflicts.length === 0) {
+      if (dirty.size > 0 && readSignInHint() !== null) schedulePush();
+      return result;
+    }
 
     applyingRemote = true;
     try {
@@ -293,7 +351,10 @@ export async function push() {
     }
   }
 
-  return empty;
+  // Two attempts left something newer in the cache; send it after the debounce
+  // rather than waiting for the next write.
+  if (dirty.size > 0 && readSignInHint() !== null) schedulePush();
+  return lastResult;
 }
 
 /**

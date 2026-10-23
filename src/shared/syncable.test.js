@@ -79,13 +79,17 @@ describe('merging the picture gallery', () => {
     expect(merged.round).toEqual([all.at(-1)]);
   });
 
-  it('ignores an index this version of the game does not have', () => {
-    const tooBig = PUZZLE_IMAGES.length + 3;
-    const merged = galleryCodec.parse(
-      mergeRecord('soundLabyrinth:gallery', gallery([0]), gallery([tooBig, 1])),
-    );
+  it('keeps an index this version does not know in seen, and out of round', () => {
+    // The first index the current build cannot deal, and one far beyond it: an
+    // older client must not erase a newer client's picture from the server.
+    for (const tooBig of [PUZZLE_IMAGES.length, PUZZLE_IMAGES.length + 3]) {
+      const merged = galleryCodec.parse(
+        mergeRecord('soundLabyrinth:gallery', gallery([0]), gallery([tooBig, 1])),
+      );
 
-    expect(merged.seen).toEqual([0, 1]);
+      expect(merged.seen).toEqual([0, tooBig, 1]);
+      expect(merged.round).toEqual([0, 1]);
+    }
   });
 
   it('reads what it can when one side is corrupt', () => {

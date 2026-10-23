@@ -42,7 +42,7 @@ describe('the sync gate', () => {
     writeStorage('cardBattle:album', albumCodec.serialize({ discovered: ['fox'] }));
     vi.stubGlobal('fetch', vi.fn(async () => json({ signedIn: true, username: 'Kid' })));
 
-    render(<SyncGate>{game}</SyncGate>);
+    render(<SyncGate syncKeys={['cardBattle:album']}>{game}</SyncGate>);
 
     expect(screen.getByText('Spillet')).toBeInTheDocument();
     expect(screen.queryByRole('status')).toBeNull();
@@ -52,7 +52,7 @@ describe('the sync gate', () => {
     writeSignInHint('Kid');
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
 
-    const { unmount } = render(<SyncGate>{game}</SyncGate>);
+    const { unmount } = render(<SyncGate syncKeys={['cardBattle:album']}>{game}</SyncGate>);
 
     expect(screen.getByRole('status')).toBeInTheDocument();
 
@@ -89,11 +89,39 @@ describe('the sync gate', () => {
       }),
     );
 
-    render(<SyncGate>{game}</SyncGate>);
+    render(<SyncGate syncKeys={['cardBattle:album']}>{game}</SyncGate>);
 
     expect(screen.getByRole('status')).toHaveTextContent('Henter framgangen din');
     expect(await screen.findByText('Spillet')).toBeInTheDocument();
     expect(screen.getByText('Spillet')).toBeInTheDocument();
+  });
+
+  it('does not wait for a game that syncs nothing', () => {
+    writeSignInHint('Kid');
+    vi.stubGlobal('fetch', vi.fn(async () => json({ signedIn: true, username: 'Kid' })));
+
+    render(<SyncGate syncKeys={[]}>{game}</SyncGate>);
+
+    expect(screen.getByText('Spillet')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('waits for this game\'s record even when another game warmed the cache', async () => {
+    writeSignInHint('Kid');
+    window.localStorage.setItem('sync:owner', 'user:Kid');
+    writeStorage('cardBattle:album', albumCodec.serialize({ discovered: ['fox'] }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        if (url === '/api/me') return json({ signedIn: true, username: 'Kid' });
+        return json({ records: [] });
+      }),
+    );
+
+    render(<SyncGate syncKeys={['wordFishing:journal']}>{game}</SyncGate>);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(await screen.findByText('Spillet')).toBeInTheDocument();
   });
 
   it('gives up waiting at the ceiling and renders the game anyway', async () => {
@@ -102,7 +130,7 @@ describe('the sync gate', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
 
     vi.useFakeTimers();
-    render(<SyncGate>{game}</SyncGate>);
+    render(<SyncGate syncKeys={['cardBattle:album']}>{game}</SyncGate>);
 
     expect(screen.getByRole('status')).toBeInTheDocument();
 

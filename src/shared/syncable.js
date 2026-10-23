@@ -37,14 +37,21 @@ export function unionInOrder(first = [], second = []) {
 
 function mergeGallery(local, remote) {
   const seen = unionInOrder(local.seen, remote.seen);
-  // `round` is not merged: it is rebuilt by replaying the game's own rule over
-  // the unioned `seen`. Replaying the real rule is what makes the merged gallery
+
+  // `seen` is the raw union: an index this build does not know yet is still the
+  // child's earned progress, and a client on an older bundle must not erase it
+  // for the newer one. Only `round` is rebuilt, and only from the pictures this
+  // build can deal; replaying the real rule is what makes the merged gallery
   // behave exactly like one a child built locally, including the way a fresh
   // round starts from the picture just finished.
-  return seen.reduce(
-    (gallery, imageIndex) => recordSeenImage(gallery, imageIndex, PUZZLE_IMAGES.length),
-    createGallery(),
-  );
+  const round = seen
+    .filter((imageIndex) => imageIndex < PUZZLE_IMAGES.length)
+    .reduce(
+      (gallery, imageIndex) => recordSeenImage(gallery, imageIndex, PUZZLE_IMAGES.length),
+      createGallery(),
+    ).round;
+
+  return { seen, round };
 }
 
 function mergeJournal(local, remote) {

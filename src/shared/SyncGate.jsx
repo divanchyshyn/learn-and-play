@@ -13,9 +13,14 @@ import { hydrate, needsHydration, startSync } from './sync.js';
  * with a warm cache there is no wait at all, and with no cache the game still
  * starts after a moment and plays from whatever is there. A child never sees an
  * error here, and never sees a spinner caused by a server.
+ *
+ * `syncKeys` is the list of saved values this particular game reads. Passing the
+ * game's own keys rather than "any synced record" is what makes the gate useful
+ * on a device that warmed a different game: the game waits for its own pull, and
+ * a game that syncs nothing never waits at all.
  */
-export function SyncGate({ children }) {
-  const [ready, setReady] = useState(() => !needsHydration());
+export function SyncGate({ children, syncKeys = [] }) {
+  const [ready, setReady] = useState(() => !needsHydration(syncKeys));
 
   useEffect(() => {
     if (ready) {
