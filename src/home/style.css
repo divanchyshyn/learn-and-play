@@ -3,6 +3,8 @@
 .library-kicker { margin: 0 0 8px; color: #e26b44; font-size: .88rem; font-weight: 900; letter-spacing: 1.4px; text-transform: uppercase; }
 .library-header h1 { margin: 0; color: #0c8fb6; font-size: clamp(2.4rem, 7vw, 4.6rem); line-height: 1; }
 .library-header p:last-child { margin: 12px 0 0; font-size: 1.12rem; }
+.library-account { margin: 10px 0 0; color: #597483; font-size: 1rem; }
+.library-account a { color: #0c8fb6; font-weight: 900; }
 .game-library { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 360px)); gap: 22px; padding-top: 32px; }
 .game-tile { display: grid; overflow: hidden; border: 3px solid #0c8fb6; border-radius: 6px; background: #fffdf3; text-decoration: none; box-shadow: 0 8px 0 rgba(20, 63, 78, .14); transition: transform .15s ease, box-shadow .15s ease; }
 .game-tile:hover, .game-tile:focus-visible { transform: translateY(-3px); box-shadow: 0 11px 0 rgba(20, 63, 78, .14); }

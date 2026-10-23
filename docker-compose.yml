@@ -1,0 +1,28 @@
+# Local Postgres for development and for the integration tests.
+#
+# The credentials are throwaway on purpose: this file exists so a fresh checkout
+# can run the API and its tests with one command, and no deployed environment
+# ever reads it. The deployed database is Neon (docs/backend/ARCHITECTURE.md).
+#
+#   docker compose up -d db        # start it
+#   docker compose down            # stop it, keep the data
+#   docker compose down -v         # stop it and throw the data away
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: learn_and_play
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+volumes:
+  db-data:

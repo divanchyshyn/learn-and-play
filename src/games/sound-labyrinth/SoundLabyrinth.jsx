@@ -28,14 +28,11 @@ import {
 import { PAGE_GUTTER, PAGE_MAX_WIDTH, PAD_GAP, PAD_SIZE, boardLayout } from './layout.js';
 import { shuffle } from '../../shared/random.js';
 import { usePersistentState } from '../../shared/usePersistentState.js';
-import puzzleSubmarine from './puzzle-assets/submarine-yard.webp';
-import puzzleChipmunk from './puzzle-assets/chipmunk.webp';
-import puzzleRedSquirrel from './puzzle-assets/red-squirrel.webp';
-import puzzleCherryShrimp from './puzzle-assets/cherry-shrimp.webp';
-import puzzleBettaFish from './puzzle-assets/betta-fish.webp';
-import puzzleCrab from './puzzle-assets/crab.webp';
-import puzzleB2Spirit from './puzzle-assets/b-2-spirit.webp';
-import puzzleBattleship from './puzzle-assets/battleship.webp';
+import { PUZZLE_IMAGES } from './puzzle-images.js';
+
+// Re-exported so the tests that guard the rotation keep importing it from the
+// game (the list itself lives in `puzzle-images.js`).
+export { PUZZLE_IMAGES };
 
 const MOVES = {
   up: [0, -1],
@@ -72,23 +69,6 @@ const CELEBRATE_DELAY_MS = 340;
 // How long "Start på nytt" stays armed between the first tap and the
 // confirming tap; after this the arm quietly times out.
 const RESET_CONFIRM_MS = 3000;
-
-// The picture rotates between the eight prepared puzzle pictures (one per full
-// run): the submarine yard plus a chipmunk, a red squirrel, a cherry shrimp, a
-// betta fish, a crab, a B-2 Spirit and a battleship. Every picture is a square
-// 1024 x 1024 crop of its original, so the four pieces are simply its four
-// quadrants, sliced in CSS at render time.
-// Exported so tests can check the rotation stays whole and repeat-free.
-export const PUZZLE_IMAGES = [
-  puzzleSubmarine,
-  puzzleChipmunk,
-  puzzleCherryShrimp,
-  puzzleBattleship,
-  puzzleRedSquirrel,
-  puzzleBettaFish,
-  puzzleB2Spirit,
-  puzzleCrab,
-];
 
 // A fresh maze is carved for every game: bigger than the old hand-drawn maps,
 // with real branches and dead ends to explore - but exactly one way out.

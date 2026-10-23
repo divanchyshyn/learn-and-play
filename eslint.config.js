@@ -51,6 +51,18 @@ export default [
     },
   },
 
+  // The Worker front door runs on Cloudflare's runtime: it has the web platform
+  // (fetch, Request, Response, Headers) but no DOM and no Node. Its test file
+  // runs in the ordinary Vitest environment and is covered by this block too.
+  {
+    files: ['edge/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.worker },
+    },
+  },
+
   // Tests may rely on Vitest's injected globals even though the convention
   // is explicit imports; allowing both keeps small test helpers friction-free.
   {

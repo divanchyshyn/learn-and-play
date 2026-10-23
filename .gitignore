@@ -2,3 +2,10 @@ node_modules/
 dist/
 .wrangler/
 coverage/
+
+# Rust
+api/target/
+
+# Secrets: the Worker's local environment and the API's, never committed.
+.dev.vars
+.env

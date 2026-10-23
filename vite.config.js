@@ -24,6 +24,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         home: resolve(root, 'index.html'),
+        // The account page is an entry point of its own: a child who never signs
+        // in never loads it.
+        account: resolve(root, 'account/index.html'),
         ...Object.fromEntries(discoverGameEntries()),
       },
     },

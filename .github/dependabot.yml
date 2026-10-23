@@ -41,3 +41,20 @@ updates:
     groups:
       github-actions:
         patterns: ['*']
+
+  # The Rust service: crates and the base images its Dockerfile builds on. Both
+  # arrive as ordinary pull requests, so a bump is reviewed like any other change.
+  - package-ecosystem: cargo
+    directory: /api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo:
+        patterns: ['*']
+
+  - package-ecosystem: docker
+    directory: /api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
