@@ -170,7 +170,8 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
 /// Only `X-Client-IP` is trusted, and the front door deletes any value a caller
 /// sent before setting it from `CF-Connecting-IP`. `X-Forwarded-For` is never
 /// read: it is trivially spoofable and a rate limiter that believes it is worse
-/// than no rate limiter.
+/// than no rate limiter. The counters keep only a digest of this value, never
+/// the address itself.
 pub fn client_ip(headers: &HeaderMap) -> String {
     headers
         .get("x-client-ip")
@@ -218,18 +219,46 @@ pub async fn note_failure(
     now: DateTime<Utc>,
 ) -> Result<(), ApiError> {
     for (key, limit) in keys {
-        let previous = store::attempts::load(pool, key).await?;
-        let next = rate_limit::record_failure(previous, *limit, now);
-        store::attempts::save(pool, key, next).await?;
+        // The store increments under a row lock: a parallel batch of guesses must
+        // count as a batch, not as one failure.
+        store::attempts::record(pool, key, *limit, now).await?;
     }
+    prune(pool, now).await?;
     Ok(())
 }
 
-/// Forget the failures: a successful sign-in starts from a clean slate.
-pub async fn clear_failures(pool: &PgPool, keys: &[(String, i32)]) -> Result<(), ApiError> {
-    for (key, _) in keys {
-        store::attempts::clear(pool, key).await?;
-    }
+/// Count one successful account creation against the address's sign-up budget.
+pub async fn note_signup(pool: &PgPool, ip: &str, now: DateTime<Utc>) -> Result<(), ApiError> {
+    store::attempts::record(
+        pool,
+        &rate_limit::signup_key(ip),
+        rate_limit::MAX_SIGNUPS,
+        now,
+    )
+    .await?;
+    prune(pool, now).await
+}
+
+/// The sign-up counters for an address, in the shape `guard_blocked` wants.
+pub fn signup_keys(ip: &str) -> Vec<(String, i32)> {
+    vec![(rate_limit::signup_key(ip), rate_limit::MAX_SIGNUPS)]
+}
+
+/// Delete counters whose window is long past. The address is stored only as a
+/// digest, and even that does not stay forever.
+async fn prune(pool: &PgPool, now: DateTime<Utc>) -> Result<(), ApiError> {
+    let cutoff = now - chrono::Duration::hours(rate_limit::RETENTION_HOURS);
+    store::attempts::prune(pool, cutoff).await?;
+    Ok(())
+}
+
+/// Forget the failures against one username, after it proved the password.
+///
+/// The address counter is deliberately left alone: clearing it on any successful
+/// sign-in would let an attacker with one account reset their own address limit
+/// between guesses at somebody else's.
+pub async fn clear_user_failures(pool: &PgPool, username: &str) -> Result<(), ApiError> {
+    store::attempts::clear(pool, &rate_limit::user_key(username)).await?;
     Ok(())
 }
 
@@ -249,11 +278,19 @@ pub fn session_cookie(token: String) -> Cookie<'static> {
     cookie
 }
 
-/// The same cookie with no value: how a sign-out is spelled. The path has to
-/// match what was set, or the browser keeps the original.
+/// The same cookie with no value: how a sign-out is spelled.
+///
+/// It repeats the attributes of the session cookie on purpose. A browser only
+/// accepts a `__Host-` cookie (including a deletion) when it carries `Secure`,
+/// `Path=/` and no `Domain`; a removal cookie with only `Path=/` would be ignored
+/// and the old session token would keep being sent. `CookieJar::remove` adds the
+/// expiry on top of these attributes.
 pub fn expired_session_cookie() -> Cookie<'static> {
     let mut cookie = Cookie::from(session::COOKIE_NAME);
     cookie.set_path("/");
+    cookie.set_http_only(true);
+    cookie.set_secure(true);
+    cookie.set_same_site(SameSite::Lax);
     cookie
 }
 

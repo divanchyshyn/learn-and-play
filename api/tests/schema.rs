@@ -6,7 +6,8 @@
 //! Locally that is the Postgres in `docker-compose.yml`; in CI it is a
 //! `postgres:17` service container.
 
-use api::{AppState, Command, Config, build_app_with_state};
+use api::domain::rate_limit;
+use api::{AppState, Command, Config, build_app_with_state, store};
 use axum::{body::Body, http::Request, http::StatusCode};
 use http_body_util::BodyExt;
 use serde_json::Value;
@@ -72,11 +73,19 @@ async fn deleting_a_user_removes_everything_that_user_owns(pool: PgPool) {
         .await
         .expect("a progress record can be inserted");
 
-    // `DELETE /api/account` is one statement against `users`, and this is what
-    // makes that true: the rest goes with it.
-    sqlx::query("DELETE FROM users WHERE id = $1")
-        .bind(id)
+    // The username counter belongs to the account and is removed with it; the
+    // address counter does not, because it is not tied to `users(id)` and may be
+    // shared with other accounts on the same connection.
+    sqlx::query("INSERT INTO auth_attempts (key, window_start, failures) VALUES ($1, now(), 3), ($2, now(), 1)")
+        .bind(rate_limit::user_key("testkid"))
+        .bind(rate_limit::ip_key("203.0.113.7"))
         .execute(&pool)
+        .await
+        .expect("rate-limit counters can be inserted");
+
+    // `DELETE /api/account` goes through this one function, and this is what
+    // makes it delete everything the account owns.
+    store::users::delete(&pool, id, "testkid")
         .await
         .expect("a user can be deleted");
 
@@ -93,6 +102,24 @@ async fn deleting_a_user_removes_everything_that_user_owns(pool: PgPool) {
             .expect("a countable table");
         assert_eq!(remaining, 0, "`{table}` should be empty after the delete");
     }
+
+    let user_counter: i64 = sqlx::query_scalar("SELECT count(*) FROM auth_attempts WHERE key = $1")
+        .bind(rate_limit::user_key("testkid"))
+        .fetch_one(&pool)
+        .await
+        .expect("a countable table");
+    assert_eq!(user_counter, 0, "the username's counter should be gone");
+
+    let address_counter: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM auth_attempts WHERE key = $1")
+            .bind(rate_limit::ip_key("203.0.113.7"))
+            .fetch_one(&pool)
+            .await
+            .expect("a countable table");
+    assert_eq!(
+        address_counter, 1,
+        "an address counter is not the account's to delete"
+    );
 }
 
 #[sqlx::test]

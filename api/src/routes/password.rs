@@ -1,11 +1,12 @@
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::post;
 use axum::{Json, Router};
+use chrono::Utc;
 use serde::Deserialize;
 
-use crate::auth::CurrentUser;
+use crate::auth::{self, CurrentUser};
 use crate::domain::password;
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -36,6 +37,7 @@ pub fn router() -> Router<AppState> {
 async fn change(
     State(state): State<AppState>,
     user: CurrentUser,
+    headers: HeaderMap,
     Json(body): Json<ChangePassword>,
 ) -> Result<impl IntoResponse, ApiError> {
     let pool = state.pool()?;
@@ -43,13 +45,31 @@ async fn change(
 
     password::validate(&body.new_password).map_err(password_error)?;
 
+    // Confirming the current password is a credential check, so it shares the
+    // same counters as sign-in: a session left open must not become an unlimited
+    // argon2 guessing surface.
+    let now = Utc::now();
+    let ip = auth::client_ip(&headers);
+    let keys = auth::attempt_keys(&ip, Some(&user.username));
+    auth::guard_blocked(pool, &keys, now).await?;
+
+    if body.current_password.is_empty() || body.current_password.len() > password::MAX_BYTES {
+        auth::note_failure(pool, &keys, now).await?;
+        return Err(ApiError::Unauthorized);
+    }
+
     let row = store::users::find_by_id(pool, user.id)
         .await?
         .ok_or(ApiError::Unauthorized)?;
 
     if !passwords.verify(&body.current_password, &row.password_hash) {
+        auth::note_failure(pool, &keys, now).await?;
         return Err(ApiError::Unauthorized);
     }
+
+    // The password was proved, so the username counter starts clean again; the
+    // address counter still expires on its own.
+    auth::clear_user_failures(pool, &row.username).await?;
 
     let hash = passwords.hash(&body.new_password)?;
     store::users::update_password(pool, user.id, &hash).await?;

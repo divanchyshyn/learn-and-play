@@ -1,6 +1,8 @@
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
+use crate::domain::rate_limit;
+
 /// The columns the sign-in path needs. The hash never leaves this module except
 /// to be verified.
 #[derive(Debug, Clone, FromRow)]
@@ -68,13 +70,26 @@ pub async fn update_password(pool: &PgPool, id: Uuid, password_hash: &str) -> sq
     Ok(())
 }
 
-/// Delete an account. Because every table references `users(id)` with
-/// `ON DELETE CASCADE`, this one statement also removes the sessions, the
-/// progress and the rate-limit counters that belonged to it.
-pub async fn delete(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
+/// Delete an account.
+///
+/// Sessions and progress go with it through `ON DELETE CASCADE`. The username's
+/// rate-limit counter does not: `auth_attempts` holds both `ip:` and `user:` rows
+/// keyed by text and has no `users(id)` reference, so it is deleted here, in the
+/// same transaction. Otherwise a re-created username would inherit the old
+/// failures or block, and the deleted name would stay behind.
+pub async fn delete(pool: &PgPool, id: Uuid, username: &str) -> sqlx::Result<()> {
+    let mut transaction = pool.begin().await?;
+
     sqlx::query("DELETE FROM users WHERE id = $1")
         .bind(id)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
+
+    sqlx::query("DELETE FROM auth_attempts WHERE key = $1")
+        .bind(rate_limit::user_key(username))
+        .execute(&mut *transaction)
+        .await?;
+
+    transaction.commit().await?;
     Ok(())
 }

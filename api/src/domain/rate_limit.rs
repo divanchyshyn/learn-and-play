@@ -1,4 +1,6 @@
+use base64::Engine;
 use chrono::{DateTime, Duration, Utc};
+use sha2::{Digest, Sha256};
 
 /// How long a quiet period has to be before a counter starts over.
 pub const WINDOW_MINUTES: i64 = 15;
@@ -11,6 +13,16 @@ pub const MAX_IP_FAILURES: i32 = 20;
 /// Failures against one username before it is told to wait. Tighter, because a
 /// targeted guess is the thing worth slowing down.
 pub const MAX_USER_FAILURES: i32 = 8;
+
+/// Accounts one address may create inside a window before it is told to wait.
+/// Open registration is deliberate (there is no email to verify), but each
+/// account costs an argon2 hash and a row, so a flood from one address is still
+/// bounded. A family creating accounts on one connection stays well under it.
+pub const MAX_SIGNUPS: i32 = 10;
+
+/// Expired counters are deleted after this long. Well past the longest block
+/// (an hour), so no live decision can depend on a row this old.
+pub const RETENTION_HOURS: i64 = 24;
 
 /// The first block, and the ceiling it doubles up to.
 pub const BLOCK_MINUTES: i64 = 5;
@@ -77,9 +89,25 @@ pub fn block_for(failures: i32, limit: i32) -> Duration {
     Duration::minutes(minutes)
 }
 
+/// A one-way, fixed-width digest of a client address.
+///
+/// The rate limiter only needs to recognise that two requests came from the same
+/// client; it never needs the address itself. Storing the digest keeps a raw IP
+/// (personal data) out of the database, and bounds the key length. The digest is
+/// never used to re-identify anyone.
+fn address_digest(address: &str) -> String {
+    let digest = Sha256::digest(address.as_bytes());
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&digest[..])
+}
+
 /// The counter a client address is counted under.
 pub fn ip_key(address: &str) -> String {
-    format!("ip:{address}")
+    format!("ip:{}", address_digest(address))
+}
+
+/// The counter a successful sign-up from an address is counted under.
+pub fn signup_key(address: &str) -> String {
+    format!("signup:{}", address_digest(address))
 }
 
 /// The counter a username is counted under, case-insensitively (usernames are
@@ -164,7 +192,11 @@ mod tests {
 
     #[test]
     fn counters_are_keyed_by_address_and_by_name() {
-        assert_eq!(ip_key("203.0.113.7"), "ip:203.0.113.7");
+        assert_eq!(ip_key("203.0.113.7"), ip_key("203.0.113.7"));
+        assert_ne!(ip_key("203.0.113.7"), ip_key("203.0.113.8"));
+        assert!(!ip_key("203.0.113.7").contains("203.0.113.7"));
+        assert_eq!(signup_key("203.0.113.7"), signup_key("203.0.113.7"));
+        assert_ne!(signup_key("203.0.113.7"), ip_key("203.0.113.7"));
         assert_eq!(user_key("Kim"), "user:kim");
         assert_eq!(user_key("kim"), user_key("KIM"));
     }

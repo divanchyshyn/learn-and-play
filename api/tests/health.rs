@@ -57,6 +57,14 @@ async fn health_reports_ok_without_a_database() {
         Some("application/json")
     );
     assert_eq!(
+        response
+            .headers()
+            .get("cache-control")
+            .and_then(|value| value.to_str().ok()),
+        Some("no-store"),
+        "a successful answer must not be cached either"
+    );
+    assert_eq!(
         body_json(response).await,
         serde_json::json!({ "ok": true, "db": "unconfigured" })
     );

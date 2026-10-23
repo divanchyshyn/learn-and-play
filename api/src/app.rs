@@ -36,10 +36,14 @@ pub fn build_app_with_state(state: AppState) -> Router {
             state.clone(),
             auth::require_door_secret,
         ))
-        // A deployment that sets NOINDEX gets it on the API's own responses -
-        // the one thing Cloudflare's `_headers` file cannot cover.
+        // Every API answer is private, the successful ones included: a session
+        // cookie or a child's progress must never be held by a shared cache. A
+        // deployment that also sets NOINDEX gets `x-robots-tag` on top.
         .layer(middleware::map_response(
             move |mut response: Response| async move {
+                response
+                    .headers_mut()
+                    .insert("cache-control", HeaderValue::from_static("no-store"));
                 if noindex {
                     response
                         .headers_mut()

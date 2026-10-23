@@ -5,8 +5,10 @@
 //! sign-in does the work of a real password verification — and that is the
 //! behaviour they exist to pin.
 
-use api::{AppState, Command, Config, build_app_with_state};
+use api::domain::rate_limit;
+use api::{AppState, Command, Config, auth, build_app_with_state};
 use axum::{Router, body::Body, http::Request, http::StatusCode, response::Response};
+use chrono::Utc;
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -244,6 +246,22 @@ async fn signing_in_and_out_moves_the_session(pool: PgPool) {
     let signed_out = request(&app, "DELETE", "/api/session", Some(&cookie)).await;
     assert_eq!(signed_out.status(), StatusCode::NO_CONTENT);
 
+    // A `__Host-` cookie is only accepted (including a removal) with Secure,
+    // Path=/ and no Domain. Without those attributes the browser would keep the
+    // old token and send it on every request.
+    let removal = signed_out
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .find(|value| value.starts_with("__Host-lap_sid="))
+        .expect("a removal cookie")
+        .to_ascii_lowercase();
+    assert!(removal.contains("secure"), "{removal}");
+    assert!(removal.contains("path=/"), "{removal}");
+    assert!(removal.contains("max-age=0"), "{removal}");
+    assert!(!removal.contains("domain="), "{removal}");
+
     let me = request(&app, "GET", "/api/me", Some(&cookie)).await;
     assert_eq!(json(me).await, json!({ "signedIn": false }));
 }
@@ -355,6 +373,14 @@ async fn deleting_the_account_removes_everything_it_owned(pool: PgPool) {
         .await
         .unwrap();
 
+    // The username's counter belongs to the account; the address counter does
+    // not. Both are set up so the delete can be checked against them.
+    sqlx::query("INSERT INTO auth_attempts (key, window_start, failures) VALUES ($1, now(), 3)")
+        .bind(rate_limit::user_key("TestKid"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
     let deleted = send(
         &app,
         Request::builder()
@@ -382,6 +408,13 @@ async fn deleting_the_account_removes_everything_it_owned(pool: PgPool) {
             .unwrap();
         assert_eq!(remaining, 0, "`{table}` should be empty");
     }
+
+    let counter_left: i64 = sqlx::query_scalar("SELECT count(*) FROM auth_attempts WHERE key = $1")
+        .bind(rate_limit::user_key("TestKid"))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(counter_left, 0, "the username counter should be deleted");
 
     // And the cookie is worthless now.
     let me = request(&app, "GET", "/api/me", Some(&cookie)).await;
@@ -426,6 +459,13 @@ async fn reading_is_never_blocked_by_the_origin_check(pool: PgPool) {
     .await;
 
     assert_eq!(me.status(), StatusCode::OK);
+    assert_eq!(
+        me.headers()
+            .get("cache-control")
+            .and_then(|value| value.to_str().ok()),
+        Some("no-store"),
+        "a successful account answer must not be cached"
+    );
 }
 
 #[sqlx::test]
@@ -570,4 +610,231 @@ async fn account_endpoints_say_so_when_the_deployment_is_not_configured(pool: Pg
 
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(json(response).await, json!({ "error": "not_configured" }));
+}
+
+#[sqlx::test]
+async fn a_successful_sign_in_does_not_clear_the_address_counter(pool: PgPool) {
+    let app = app(pool.clone());
+
+    post(
+        &app,
+        "/api/account",
+        json!({ "username": "TestKid", "password": "et-langt-passord" }),
+        None,
+        Some(ORIGIN),
+    )
+    .await;
+
+    let wrong = post(
+        &app,
+        "/api/session",
+        json!({ "username": "TestKid", "password": "galt-passord" }),
+        None,
+        Some(ORIGIN),
+    )
+    .await;
+    assert_eq!(wrong.status(), StatusCode::UNAUTHORIZED);
+
+    let right = post(
+        &app,
+        "/api/session",
+        json!({ "username": "TestKid", "password": "et-langt-passord" }),
+        None,
+        Some(ORIGIN),
+    )
+    .await;
+    assert_eq!(right.status(), StatusCode::OK);
+
+    let address = rate_limit::ip_key("unknown");
+    let address_failures: i32 =
+        sqlx::query_scalar("SELECT failures FROM auth_attempts WHERE key = $1")
+            .bind(&address)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        address_failures, 1,
+        "a successful sign-in must not reset the address limit; otherwise one valid account can clear an attacker's budget"
+    );
+
+    let user_left: i64 = sqlx::query_scalar("SELECT count(*) FROM auth_attempts WHERE key = $1")
+        .bind(rate_limit::user_key("TestKid"))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(user_left, 0, "the username's own counter is reset");
+
+    post(
+        &app,
+        "/api/session",
+        json!({ "username": "TestKid", "password": "galt-igjen" }),
+        None,
+        Some(ORIGIN),
+    )
+    .await;
+
+    let address_failures: i32 =
+        sqlx::query_scalar("SELECT failures FROM auth_attempts WHERE key = $1")
+            .bind(&address)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(address_failures, 2, "the next failure still counts");
+}
+
+#[sqlx::test]
+async fn password_confirmation_is_slowed_down_too(pool: PgPool) {
+    let app = app(pool);
+
+    let created = post(
+        &app,
+        "/api/account",
+        json!({ "username": "TestKid", "password": "et-langt-passord" }),
+        None,
+        Some(ORIGIN),
+    )
+    .await;
+    let cookie = session_cookie(&created);
+
+    for _ in 0..rate_limit::MAX_USER_FAILURES {
+        let response = post(
+            &app,
+            "/api/password",
+            json!({ "currentPassword": "feil-passord-her", "newPassword": "et-enda-lengre-passord" }),
+            Some(&cookie),
+            Some(ORIGIN),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    let blocked = post(
+        &app,
+        "/api/password",
+        json!({ "currentPassword": "feil-passord-her", "newPassword": "et-enda-lengre-passord" }),
+        Some(&cookie),
+        Some(ORIGIN),
+    )
+    .await;
+    assert_eq!(
+        blocked.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "an open session must not be an unlimited password-confirmation oracle"
+    );
+}
+
+#[sqlx::test]
+async fn account_creation_is_limited_per_address(pool: PgPool) {
+    let app = app(pool);
+
+    for index in 0..rate_limit::MAX_SIGNUPS {
+        let response = post(
+            &app,
+            "/api/account",
+            json!({ "username": format!("kid{index}"), "password": "et-langt-passord" }),
+            None,
+            Some(ORIGIN),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::CREATED, "account {index}");
+    }
+
+    let blocked = post(
+        &app,
+        "/api/account",
+        json!({ "username": "kidlast", "password": "et-langt-passord" }),
+        None,
+        Some(ORIGIN),
+    )
+    .await;
+    assert_eq!(
+        blocked.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "one address cannot mint accounts without bound"
+    );
+}
+
+#[sqlx::test]
+async fn oversized_credentials_are_refused_without_unbounded_counters(pool: PgPool) {
+    let app = app(pool.clone());
+
+    let long_name = "a".repeat(500);
+    let response = post(
+        &app,
+        "/api/session",
+        json!({ "username": long_name, "password": "et-langt-passord" }),
+        None,
+        Some(ORIGIN),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let long_password = "x".repeat(5_000);
+    let response = post(
+        &app,
+        "/api/session",
+        json!({ "username": "Nobody", "password": long_password }),
+        None,
+        Some(ORIGIN),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let unbounded: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM auth_attempts WHERE length(key) > 200")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        unbounded, 0,
+        "an oversized username must never become a counter key"
+    );
+}
+
+#[sqlx::test]
+async fn two_parallel_failures_are_counted_twice(pool: PgPool) {
+    let keys = vec![("ip:parallel".to_owned(), 20)];
+    let now = Utc::now();
+
+    let (first, second) = tokio::join!(
+        auth::note_failure(&pool, &keys, now),
+        auth::note_failure(&pool, &keys, now)
+    );
+    first.unwrap();
+    second.unwrap();
+
+    let failures: i32 =
+        sqlx::query_scalar("SELECT failures FROM auth_attempts WHERE key = 'ip:parallel'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(failures, 2, "parallel guesses must each count");
+}
+
+#[sqlx::test]
+async fn stale_counters_are_pruned_when_a_counter_is_written(pool: PgPool) {
+    sqlx::query(
+        "INSERT INTO auth_attempts (key, window_start, failures) \
+         VALUES ('ip:stale', now() - interval '2 days', 1)",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let keys = vec![("ip:fresh".to_owned(), 20)];
+    auth::note_failure(&pool, &keys, Utc::now()).await.unwrap();
+
+    let stale: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM auth_attempts WHERE key = 'ip:stale'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(stale, 0, "counters past the retention window are deleted");
+
+    let fresh: i32 =
+        sqlx::query_scalar("SELECT failures FROM auth_attempts WHERE key = 'ip:fresh'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(fresh, 1);
 }

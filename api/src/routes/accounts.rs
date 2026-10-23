@@ -57,6 +57,13 @@ async fn sign_up(
     let keys = auth::attempt_keys(&ip, None);
     auth::guard_blocked(pool, &keys, now).await?;
 
+    // Open registration is deliberate (there is no email to verify), but each
+    // account costs an argon2 hash and a row. Bound what one address can create
+    // in a window so the free Neon and Cloud Run allowances cannot be used as a
+    // cheap lever.
+    let signup_keys = auth::signup_keys(&ip);
+    auth::guard_blocked(pool, &signup_keys, now).await?;
+
     let hash = passwords.hash(&body.password)?;
 
     match store::users::create(pool, &username, &hash).await? {
@@ -65,6 +72,7 @@ async fn sign_up(
             Err(ApiError::Conflict("username_taken"))
         }
         Created::Yes(user_id) => {
+            auth::note_signup(pool, &ip, now).await?;
             let token = session::mint_token();
             store::sessions::create(pool, &session::hash_token(&token), user_id, now).await?;
             tracing::info!(%username, "account created");
@@ -85,21 +93,36 @@ async fn sign_up(
 async fn delete_account(
     State(state): State<AppState>,
     user: CurrentUser,
+    headers: HeaderMap,
     jar: CookieJar,
     Json(body): Json<PasswordOnly>,
 ) -> Result<impl IntoResponse, ApiError> {
     let pool = state.pool()?;
     let passwords = state.passwords()?;
 
+    // Deleting is a password confirmation like any other, so it shares the
+    // counters: a session left open on a shared tablet must not become an
+    // unlimited argon2 guessing surface.
+    let now = Utc::now();
+    let ip = auth::client_ip(&headers);
+    let keys = auth::attempt_keys(&ip, Some(&user.username));
+    auth::guard_blocked(pool, &keys, now).await?;
+
+    if body.password.is_empty() || body.password.len() > password::MAX_BYTES {
+        auth::note_failure(pool, &keys, now).await?;
+        return Err(ApiError::Unauthorized);
+    }
+
     let row = store::users::find_by_id(pool, user.id)
         .await?
         .ok_or(ApiError::Unauthorized)?;
 
     if !passwords.verify(&body.password, &row.password_hash) {
+        auth::note_failure(pool, &keys, now).await?;
         return Err(ApiError::Unauthorized);
     }
 
-    store::users::delete(pool, user.id).await?;
+    store::users::delete(pool, user.id, &row.username).await?;
     tracing::info!(username = %row.username, "account deleted");
 
     Ok((

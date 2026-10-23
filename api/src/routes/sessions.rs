@@ -4,11 +4,12 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum_extra::extract::cookie::CookieJar;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 
 use crate::auth::{self, CurrentUser};
-use crate::domain::{session, username};
+use crate::domain::{password, session, username};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::store;
@@ -53,9 +54,22 @@ async fn sign_in(
     let pool = state.pool()?;
     let passwords = state.passwords()?;
 
-    let username = username::normalize(&body.username);
     let now = Utc::now();
     let ip = auth::client_ip(&headers);
+
+    // Never let an unbounded username become a counter key or a database lookup,
+    // and never let an unbounded password reach argon2. The shape is the one
+    // sign-up enforces, so every existing account passes it; a malformed attempt
+    // gets the same uniform 401 as a wrong password and is still counted against
+    // the address, so it is not a free CPU or table lever.
+    let username = match username::validate(&body.username) {
+        Ok(username) => username,
+        Err(_) => return Err(refuse_malformed(pool, &ip, now).await),
+    };
+    if body.password.is_empty() || body.password.len() > password::MAX_BYTES {
+        return Err(refuse_malformed(pool, &ip, now).await);
+    }
+
     let keys = auth::attempt_keys(&ip, Some(&username));
     auth::guard_blocked(pool, &keys, now).await?;
 
@@ -70,7 +84,10 @@ async fn sign_in(
         return Err(ApiError::Unauthorized);
     }
 
-    auth::clear_failures(pool, &keys).await?;
+    // Only the username counter is forgotten. Clearing the address counter too
+    // would let one valid account reset an attacker's address budget between
+    // guesses at somebody else's password.
+    auth::clear_user_failures(pool, &user.username).await?;
 
     // The cost of hashing is a property to keep, not to freeze: when the
     // parameters move, the next successful sign-in carries the account with it.
@@ -90,6 +107,22 @@ async fn sign_in(
             username: user.username,
         }),
     ))
+}
+
+/// The uniform answer for a credential outside the accepted shape.
+///
+/// It still counts against the address (and honours an existing block), so the
+/// cheap rejection cannot be used to spray oversized requests; the body and
+/// status are the same as a wrong password, so it reveals nothing.
+async fn refuse_malformed(pool: &PgPool, ip: &str, now: DateTime<Utc>) -> ApiError {
+    let keys = auth::attempt_keys(ip, None);
+    if let Err(error) = auth::guard_blocked(pool, &keys, now).await {
+        return error;
+    }
+    if let Err(error) = auth::note_failure(pool, &keys, now).await {
+        return error;
+    }
+    ApiError::Unauthorized
 }
 
 /// Sign out of this browser only. Other devices keep playing.
