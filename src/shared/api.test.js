@@ -132,6 +132,29 @@ describe('the API wrapper', () => {
     vi.useRealTimers();
   });
 
+  it('waits out a Cloud Run cold start before giving up', async () => {
+    vi.useFakeTimers();
+    let signal;
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          signal = init.signal;
+          signal.addEventListener('abort', () => {
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          });
+        }),
+    );
+
+    const pending = request('/me');
+    await vi.advanceTimersByTimeAsync(7900);
+    expect(signal.aborted).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(101);
+    expect(signal.aborted).toBe(true);
+    await expect(pending).resolves.toEqual({ ok: false, status: 0, error: 'timeout' });
+    vi.useRealTimers();
+  });
+
   it('passes keepalive through, so a last write can outlive the page', async () => {
     fetchMock.mockResolvedValue(jsonResponse({}));
 

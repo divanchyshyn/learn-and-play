@@ -6,7 +6,12 @@
 // outcome is `{ ok: true, ... }` or `{ ok: false, error }` with a code the
 // caller can turn into Norwegian copy.
 
-const DEFAULT_TIMEOUT_MS = 4000;
+// The service runs on Cloud Run with scale-to-zero, in front of a Neon compute
+// that suspends when nobody plays. The first request after a quiet night can
+// therefore wait for a container start and a database wake before the request
+// itself begins. Eight seconds covers that cold path; no game ever waits for it
+// (syncing is background work, and SyncGate caps its own wait at 1.5 s).
+const DEFAULT_TIMEOUT_MS = 8000;
 
 /** The API lives on the same origin as the games; there is no base URL to set. */
 export const API_PREFIX = '/api';
