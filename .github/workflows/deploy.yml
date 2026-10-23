@@ -1,0 +1,218 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# The deploy needs no repository write access. It talks to Google Cloud with a
+# short-lived Workload Identity Federation token (`id-token: write`) and to
+# Cloudflare with an API token held in repository secrets.
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: true
+
+jobs:
+  # Lint, tests and builds always run, so a human never has to approve a broken
+  # change. The built `dist/` is uploaded as an artifact so the deploy publishes
+  # exactly the bytes that were verified, not a second, separate build.
+  verify:
+    runs-on: ubuntu-latest
+    # The Rust tests create a throwaway database per test (`#[sqlx::test]`).
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: learn_and_play
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/learn_and_play
+    steps:
+      - uses: actions/checkout@v7
+
+      # Rust first, so the cheapest-to-run failure is also the first one.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+      - name: Rust format
+        run: cargo fmt --manifest-path api/Cargo.toml --all --check
+      - name: Rust lint
+        run: cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+      - name: Rust tests
+        run: cargo test --manifest-path api/Cargo.toml
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Run tests
+        run: npm run test
+      - name: Build
+        run: npm run build
+      - name: Store the verified build
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  # The deploy is the only step that can touch the live site, so it waits for a
+  # human: the `production` environment carries a required reviewer rule, and
+  # the job stays pending until someone approves it in the workflow run. The
+  # same approval covers the Worker, the Cloud Run service and the migration -
+  # one person looks at one change before it reaches production.
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://play2learn.divanchyshyn.com/
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOYER_SA: ${{ vars.GCP_DEPLOYER_SA }}
+      GCP_RUNTIME_SA: ${{ vars.GCP_RUNTIME_SA }}
+      ARTIFACT_REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY || 'lap' }}
+      SERVICE: ${{ vars.GCP_CLOUD_RUN_SERVICE || 'learn-and-play-api' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Fetch the verified build
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+
+      # Applied before anything is deployed, and after approval: a migration
+      # that fails stops this job instead of shipping code that expects a
+      # schema which is not there. Migrations are additive by rule (see the
+      # runbook), so rolling the service back still finds a database it
+      # understands.
+      - name: Apply the database migrations
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::PRODUCTION_DATABASE_URL is not set: refusing to deploy without a schema"
+            exit 1
+          fi
+          cargo run --manifest-path api/Cargo.toml --locked -- migrate
+
+      # No long-lived Google Cloud key: the runner proves who it is to Google
+      # with a token from GitHub's own OIDC issuer, and the Workload Identity
+      # Federation provider only trusts this repository (runbook R4).
+      - name: Sign in to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOYER_SA }}
+          # A token is what Docker uses to push to Artifact Registry; without
+          # this input the action creates only the ambient credentials.
+          token_format: access_token
+
+      - name: Set up the Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - uses: docker/setup-buildx-action@v4
+      - name: Sign in to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GCP_REGION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      # The image is the one thing `cargo test` cannot check, so it is built
+      # here and pushed with the commit's SHA as its tag. The Artifact Registry
+      # cleanup policy keeps the last three, so a rollback still has an image.
+      - name: Build and push the service image
+        uses: docker/build-push-action@v7
+        with:
+          context: api
+          push: true
+          tags: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPOSITORY }}/api:${{ github.sha }}
+          cache-from: type=gha,scope=api-image
+          cache-to: type=gha,mode=max,scope=api-image
+
+      # Request-based billing, no minimum instance and a hard ceiling of two:
+      # the service stays inside Cloud Run's always-free allowance (runbook R12).
+      # The public `.run.app` address stays reachable, but the service refuses a
+      # request that does not carry the front door's secret.
+      - name: Deploy the service to Cloud Run
+        run: |
+          set -euo pipefail
+          image="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REPOSITORY}/api:${GITHUB_SHA}"
+          gcloud run deploy "${SERVICE}" \
+            --project "${GCP_PROJECT_ID}" \
+            --image "${image}" \
+            --region "${GCP_REGION}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --cpu 1 \
+            --memory 512Mi \
+            --concurrency 20 \
+            --min-instances 0 \
+            --max-instances 2 \
+            --timeout 60 \
+            --service-account "${GCP_RUNTIME_SA}" \
+            --set-env-vars "PUBLIC_ORIGIN=https://play2learn.divanchyshyn.com,NOINDEX=1,RUST_LOG=info" \
+            --set-secrets "DATABASE_URL=lap-database-url:latest,PEPPER=lap-pepper:latest,DOOR_SECRET=lap-door-secret:latest" \
+            --quiet
+
+      # The Worker serves the verified dist/ and proxies /api/* to the service.
+      # API_BASE_URL comes from wrangler.jsonc; API_DOOR_SECRET was set once
+      # with `wrangler secret put` and is never written to the repository.
+      - name: Deploy the site to Cloudflare
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+      # Three things must be true: the games load, the API answers through the
+      # front door, and the service refuses a request that went straight to it.
+      # The last one is what proves the door secret is actually configured.
+      - name: Smoke-check the site and the front door
+        run: |
+          set -euo pipefail
+          health=$(curl -fsS --max-time 30 https://play2learn.divanchyshyn.com/api/health)
+          echo "site /api/health: ${health}"
+          echo "${health}" | grep -q '"ok":true'
+          curl -fsS -o /dev/null --max-time 30 https://play2learn.divanchyshyn.com/games/sound-labyrinth/
+          echo "a game page answered 200"
+
+          run_url=$(gcloud run services describe "${SERVICE}" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
+            --format='value(status.url)')
+          status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "${run_url}/api/health")
+          echo "direct service status: ${status} (expected 403)"
+          test "${status}" = "403"

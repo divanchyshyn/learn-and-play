@@ -29,6 +29,11 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
+      # Confirms the Worker configuration still bundles without a container, a
+      # Durable Object or an auth token. The API_BASE_URL does not have to point
+      # anywhere real for this check; the deploy's smoke test covers the real one.
+      - name: Validate the Worker configuration
+        run: npx wrangler deploy --dry-run
 
   # The Rust service is checked the way the project checks the frontend: format,
   # lint, tests. The image build is here too, because the Dockerfile is the one
