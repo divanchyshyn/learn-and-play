@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
-const ORIGIN: &str = "https://test.play2learn.divanchyshyn.com";
+const ORIGIN: &str = "https://play2learn.divanchyshyn.com";
 
 fn config() -> Config {
     Config {
@@ -20,6 +20,7 @@ fn config() -> Config {
         database_url: None,
         public_origin: Some(ORIGIN.to_owned()),
         pepper: None,
+        door_secret: None,
         noindex: false,
         command: Command::Serve,
     }

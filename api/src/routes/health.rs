@@ -12,8 +12,8 @@ pub enum DbState {
     /// Configured but not answering.
     Down,
     /// No `DATABASE_URL`: the service is running without a database, which is a
-    /// valid state — the container has to boot before the database exists, and
-    /// the games never call this service anyway.
+    /// valid state — the service has to boot before the database exists, and the
+    /// games never call this service anyway.
     Unconfigured,
 }
 
@@ -28,9 +28,9 @@ pub fn router() -> Router<AppState> {
 }
 
 /// Liveness, not readiness: this answers `ok` whenever the process is up, and
-/// says separately what the database is doing. A container that could not start
-/// because Neon is asleep would be a container that cannot serve the pages that
-/// never needed Neon in the first place.
+/// says separately what the database is doing. A service that refused to start
+/// because Neon is asleep could not even report why it was unavailable — and
+/// the games, which never call it, would gain nothing from that.
 async fn health(State(state): State<AppState>) -> Json<Health> {
     let db = match &state.pool {
         None => DbState::Unconfigured,

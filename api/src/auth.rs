@@ -14,6 +14,9 @@ use crate::error::ApiError;
 use crate::state::AppState;
 use crate::store;
 
+/// The header the Worker writes and the service reads.
+pub const DOOR_SECRET_HEADER: &str = "x-door-secret";
+
 /// The signed-in user behind a request.
 ///
 /// Used as a handler argument, so an endpoint that needs an account simply asks
@@ -113,6 +116,56 @@ pub async fn require_origin(
     Ok(next.run(request).await)
 }
 
+/// Refuse a request that did not come through the Worker front door.
+///
+/// Cloud Run services are reachable at their own `run.app` address, so without
+/// this check a caller could skip Cloudflare, set `X-Client-IP` itself, and the
+/// rate limiter would count whatever it was told. The Worker deletes any
+/// `X-Door-Secret` a caller sent and writes the deployment's value, so a
+/// matching header is evidence the request came through the front door.
+///
+/// `None` is a supported state (local development and tests): the service boots
+/// and works without a front door. Production sets `DOOR_SECRET` for both the
+/// Worker and the service.
+pub async fn require_door_secret(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    if let Some(expected) = state.config.door_secret.as_deref() {
+        let provided = request
+            .headers()
+            .get(DOOR_SECRET_HEADER)
+            .and_then(|value| value.to_str().ok());
+
+        let allowed =
+            provided.is_some_and(|value| constant_time_eq(value.as_bytes(), expected.as_bytes()));
+
+        if !allowed {
+            return Err(ApiError::Forbidden("front_door_required"));
+        }
+    }
+
+    Ok(next.run(request).await)
+}
+
+/// Compare two byte strings without letting the comparison stop early.
+///
+/// The length is compared first, which leaks only the length (a fixed-width
+/// secret here), and the byte loop always visits every byte, so a wrong prefix
+/// costs the same as a wrong suffix.
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+
+    let mut difference = 0u8;
+    for (a, b) in left.iter().zip(right) {
+        difference |= a ^ b;
+    }
+    difference == 0
+}
+
 /// The client address, as the front door reported it.
 /// Only `X-Client-IP` is trusted, and the front door deletes any value a caller
 /// sent before setting it from `CF-Connecting-IP`. `X-Forwarded-For` is never
@@ -202,4 +255,36 @@ pub fn expired_session_cookie() -> Cookie<'static> {
     let mut cookie = Cookie::from(session::COOKIE_NAME);
     cookie.set_path("/");
     cookie
+}
+
+#[cfg(test)]
+mod tests {
+    use super::constant_time_eq;
+
+    #[test]
+    fn equal_secrets_match() {
+        assert!(constant_time_eq(
+            b"a-long-front-door-secret",
+            b"a-long-front-door-secret"
+        ));
+        assert!(constant_time_eq(b"", b""));
+    }
+
+    #[test]
+    fn a_different_secret_does_not_match() {
+        assert!(!constant_time_eq(
+            b"a-long-front-door-secret",
+            b"b-long-front-door-secret"
+        ));
+        assert!(!constant_time_eq(
+            b"a-long-front-door-secret",
+            b"a-long-front-door-secreu"
+        ));
+    }
+
+    #[test]
+    fn a_different_length_does_not_match() {
+        assert!(!constant_time_eq(b"abc", b"ab"));
+        assert!(!constant_time_eq(b"", b"a"));
+    }
 }

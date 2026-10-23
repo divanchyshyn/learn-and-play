@@ -1,8 +1,9 @@
-# The Rust service, built into the image Cloudflare runs as a container.
+# The Rust service, built into the image Google Cloud Run serves.
 #
 # The build context is `api/` — the crate and the `sync-keys.json` it reads at
 # compile time live together, so the image needs nothing from outside this
-# directory.
+# directory. Cloud Run injects `PORT` (8080 by default) and sends SIGTERM when
+# it stops an instance; both are already handled below and in `src/main.rs`.
 #
 # Two things this file is careful about:
 #   * the dependency layer is cached by cargo-chef, so a source-only change does

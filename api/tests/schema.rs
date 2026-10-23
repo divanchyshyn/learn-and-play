@@ -20,6 +20,7 @@ fn config() -> Config {
         database_url: None,
         public_origin: None,
         pepper: None,
+        door_secret: None,
         noindex: false,
         command: Command::Serve,
     }

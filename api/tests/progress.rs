@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
-const ORIGIN: &str = "https://test.play2learn.divanchyshyn.com";
+const ORIGIN: &str = "https://play2learn.divanchyshyn.com";
 const GALLERY: &str = r#"{"version":1,"gallery":{"seen":[0,1],"round":[0,1]}}"#;
 
 fn config() -> Config {
@@ -17,6 +17,7 @@ fn config() -> Config {
         database_url: None,
         public_origin: Some(ORIGIN.to_owned()),
         pepper: None,
+        door_secret: None,
         noindex: false,
         command: Command::Serve,
     }

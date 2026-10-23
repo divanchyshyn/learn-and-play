@@ -29,8 +29,15 @@ pub fn build_app_with_state(state: AppState) -> Router {
             state.clone(),
             auth::require_origin,
         ))
-        // The test environment sets NOINDEX; the API's own responses are the
-        // one thing Cloudflare's `_headers` file cannot cover.
+        // The front-door check is outside the origin check, so a request that
+        // went straight to Cloud Run is refused before anything else runs. It
+        // is a no-op when DOOR_SECRET is unset, which is the local default.
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_door_secret,
+        ))
+        // A deployment that sets NOINDEX gets it on the API's own responses -
+        // the one thing Cloudflare's `_headers` file cannot cover.
         .layer(middleware::map_response(
             move |mut response: Response| async move {
                 if noindex {

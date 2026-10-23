@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, bail};
 
-/// What the process should do. `serve` is the default and the container's entry
+/// What the process should do. `serve` is the default and the service's entry
 /// point; `migrate` is a one-shot command used by the deploy workflows, so a
 /// migration is applied deliberately rather than as a surprise at boot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,7 +21,16 @@ pub struct Config {
     /// Account endpoints report `not_configured` without it rather than storing
     /// hashes anyone holding the database could attack.
     pub pepper: Option<String>,
-    /// The test environment sets this so search engines leave it alone.
+    /// The value the Worker front door sends in `X-Door-Secret`.
+    ///
+    /// Cloud Run gives the service a public `.run.app` address, so this header
+    /// is what distinguishes a request that came through Cloudflare from one
+    /// that went straight to the service (and could therefore spoof
+    /// `X-Client-IP`, which the rate limiter trusts). `None` disables the check,
+    /// which is the local-development default.
+    pub door_secret: Option<String>,
+    /// A deployment that wants search engines to stay away sets this, so the
+    /// API's own responses carry `X-Robots-Tag: noindex`.
     pub noindex: bool,
     pub command: Command,
 }
@@ -45,6 +54,7 @@ impl Config {
         let mut database_url = None;
         let mut public_origin = None;
         let mut pepper = None;
+        let mut door_secret = None;
         let mut noindex = false;
 
         for (key, value) in pairs {
@@ -62,6 +72,7 @@ impl Config {
                 "DATABASE_URL" => database_url = Some(value),
                 "PUBLIC_ORIGIN" => public_origin = Some(value.trim_end_matches('/').to_owned()),
                 "PEPPER" => pepper = Some(value),
+                "DOOR_SECRET" => door_secret = Some(value),
                 "NOINDEX" => noindex = truthy(&value),
                 _ => {}
             }
@@ -72,6 +83,7 @@ impl Config {
             database_url,
             public_origin,
             pepper,
+            door_secret,
             noindex,
             command: Command::Serve,
         })
@@ -102,11 +114,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn defaults_are_a_serving_process_on_the_container_port() {
+    fn defaults_are_a_serving_process_on_the_service_port() {
         let config = Config::from_pairs(Vec::<(String, String)>::new()).unwrap();
         assert_eq!(config.port, DEFAULT_PORT);
         assert!(config.database_url.is_none());
         assert!(config.public_origin.is_none());
+        assert!(config.door_secret.is_none());
         assert!(!config.noindex);
         assert_eq!(config.command, Command::Serve);
     }
@@ -116,8 +129,9 @@ mod tests {
         let config = Config::from_pairs([
             ("PORT", "9000"),
             ("DATABASE_URL", "postgres://user:pw@host/db?sslmode=require"),
-            ("PUBLIC_ORIGIN", "https://test.play2learn.divanchyshyn.com/"),
+            ("PUBLIC_ORIGIN", "https://play2learn.divanchyshyn.com/"),
             ("PEPPER", "a-secret-only-the-deployment-has"),
+            ("DOOR_SECRET", "the-front-door-secret"),
             ("NOINDEX", "1"),
             ("SOMETHING_ELSE", "ignored"),
         ])
@@ -131,19 +145,23 @@ mod tests {
         // A trailing slash would produce `//api/...` in anything built from it.
         assert_eq!(
             config.public_origin.as_deref(),
-            Some("https://test.play2learn.divanchyshyn.com")
+            Some("https://play2learn.divanchyshyn.com")
         );
         assert_eq!(
             config.pepper.as_deref(),
             Some("a-secret-only-the-deployment-has")
         );
+        assert_eq!(config.door_secret.as_deref(), Some("the-front-door-secret"));
         assert!(config.noindex);
     }
 
     #[test]
     fn empty_values_read_as_not_set() {
-        let config = Config::from_pairs([("DATABASE_URL", "  "), ("NOINDEX", "")]).unwrap();
+        let config =
+            Config::from_pairs([("DATABASE_URL", "  "), ("DOOR_SECRET", ""), ("NOINDEX", "")])
+                .unwrap();
         assert!(config.database_url.is_none());
+        assert!(config.door_secret.is_none());
         assert!(!config.noindex);
     }
 

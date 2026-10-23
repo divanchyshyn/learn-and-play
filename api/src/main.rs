@@ -24,15 +24,27 @@ async fn serve(config: Config) -> Result<()> {
     let port = state.config.port;
     let database_configured = state.pool.is_some();
     let accounts_configured = state.passwords.is_some();
+    let door_configured = state.config.door_secret.is_some();
 
-    // 0.0.0.0, not 127.0.0.1: the front door and the container runtime reach
-    // this process over the container's network, not over the loopback of a
-    // developer's laptop.
+    if database_configured && !door_configured {
+        tracing::warn!(
+            "DOOR_SECRET is not set: requests that skip the Worker front door are accepted"
+        );
+    }
+
+    // 0.0.0.0, not 127.0.0.1: Cloud Run's frontend reaches this process over
+    // the instance's network, not over the loopback of a developer's laptop.
     let listener = TcpListener::bind(("0.0.0.0", port))
         .await
         .with_context(|| format!("could not bind port {port}"))?;
 
-    tracing::info!(port, database_configured, accounts_configured, "listening");
+    tracing::info!(
+        port,
+        database_configured,
+        accounts_configured,
+        door_configured,
+        "listening"
+    );
 
     axum::serve(listener, build_app_with_state(state))
         .with_graceful_shutdown(shutdown_signal())
@@ -60,9 +72,9 @@ async fn migrate(config: Config) -> Result<()> {
     Ok(())
 }
 
-/// Cloudflare sends SIGTERM when a container instance is put to sleep and waits
-/// up to fifteen minutes before SIGKILL, so a request that is already running
-/// gets to finish. Locally, Ctrl-C does the same thing.
+/// Cloud Run sends SIGTERM when it stops an instance and allows a short grace
+/// period before SIGKILL, so a request that is already running gets to finish.
+/// Locally, Ctrl-C does the same thing.
 async fn shutdown_signal() {
     let ctrl_c = async {
         let _ = tokio::signal::ctrl_c().await;
